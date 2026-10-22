@@ -1,0 +1,53 @@
+@page "/konto"
+@inject Inv.Web.Services.MercantecAuthClient Auth
+
+<PageTitle>Min konto · Udstyrsinventar</PageTitle>
+<section class="page-intro">
+    <h1>Min konto</h1>
+    @if (signedIn)
+    {
+        <p>@name</p>
+        <p>Bruger-ID: @subject</p>
+        <p>Roller: @roles</p>
+        <button class="button" @onclick="CheckRoleAsync">Kontrollér administratoradgang</button>
+        <button class="button" @onclick="LogoutAsync">Log ud</button>
+    }
+    else { <a class="button" href="login">Log ind</a> }
+    <p role="status">@message</p>
+</section>
+@code {
+    private bool signedIn;
+    private string? name, subject, roles, message;
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        try
+        {
+            signedIn = await Auth.IsSignedInAsync();
+            if (signedIn)
+            {
+                var response = await Auth.GetAsync("me");
+                if (response.Status == 200)
+                {
+                    using var json = System.Text.Json.JsonDocument.Parse(response.Body);
+                    name = json.RootElement.GetProperty("name").GetString();
+                    subject = json.RootElement.GetProperty("subject").GetString();
+                    roles = string.Join(", ", json.RootElement.GetProperty("roles").EnumerateArray().Select(r => r.GetString()));
+                }
+                else { message = "Sessionen kunne ikke valideres. Log ind igen."; signedIn = false; }
+            }
+        }
+        catch (JSException) { message = "Kontoen kunne ikke hentes. Prøv at logge ind igen."; signedIn = false; }
+        StateHasChanged();
+    }
+    private async Task CheckRoleAsync()
+    {
+        try
+        {
+            var response = await Auth.GetAsync("manager-access");
+            message = response.Status switch { 200 => "Du har administratoradgang.", 403 => "Du mangler den nødvendige rolle.", _ => "Adgangen kunne ikke bekræftes." };
+        }
+        catch (JSException) { message = "Adgangen kunne ikke bekræftes. Prøv at logge ind igen."; }
+    }
+    private async Task LogoutAsync() => await Auth.LogoutAsync();
+}

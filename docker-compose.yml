@@ -64,6 +64,9 @@ services:
     restart: unless-stopped
     environment:
       API_BASE_URL: ${API_BASE_URL:-/api/}
+      AUTH_AUTHORITY: ${AUTH_ISSUER:?Set AUTH_ISSUER in your environment file}
+      AUTH_CLIENT_ID: ${AUTH_CLIENT_ID:-inv}
+      AUTH_REDIRECT_URI: ${AUTH_REDIRECT_URI:-}
       API_UPSTREAM: http://${NETWORK_ALIAS_PREFIX:-inv}-api:8080
     depends_on:
       api:

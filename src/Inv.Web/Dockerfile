@@ -12,6 +12,9 @@ COPY src/Inv.Web/Hosting/default.conf.template /etc/nginx/templates/default.conf
 COPY src/Inv.Web/Hosting/client-config.json.template /opt/inv/client-config.json.template
 COPY --chmod=755 src/Inv.Web/Hosting/40-client-config.sh /docker-entrypoint.d/40-client-config.sh
 ENV API_BASE_URL=/api/ \
+    AUTH_AUTHORITY=https://auth.mercantec.tech \
+    AUTH_CLIENT_ID=inv \
+    AUTH_REDIRECT_URI="" \
     API_UPSTREAM=http://inv-api:8080 \
     NGINX_ENVSUBST_FILTER=API_UPSTREAM
 EXPOSE 3000

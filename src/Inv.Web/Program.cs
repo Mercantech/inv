@@ -14,7 +14,10 @@ using (var configurationClient = new HttpClient { BaseAddress = new Uri(builder.
     using var document = await JsonDocument.ParseAsync(configuration);
     builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
     {
-        ["ApiBaseUrl"] = document.RootElement.GetProperty("ApiBaseUrl").GetString()
+        ["ApiBaseUrl"] = document.RootElement.GetProperty("ApiBaseUrl").GetString(),
+        ["AuthAuthority"] = document.RootElement.GetProperty("AuthAuthority").GetString(),
+        ["AuthClientId"] = document.RootElement.GetProperty("AuthClientId").GetString(),
+        ["AuthRedirectUri"] = document.RootElement.GetProperty("AuthRedirectUri").GetString()
     });
 }
 
@@ -32,5 +35,14 @@ builder.Services.AddScoped(_ => new HttpClient
     Timeout = TimeSpan.FromSeconds(10)
 });
 builder.Services.AddScoped<ApiStatusClient>();
+var authority = builder.Configuration["AuthAuthority"]!;
+if (!Uri.TryCreate(authority, UriKind.Absolute, out var authAddress) || authAddress.Scheme != "https"
+    || string.IsNullOrWhiteSpace(builder.Configuration["AuthClientId"]))
+{
+    throw new InvalidOperationException("AuthAuthority skal være HTTPS, og AuthClientId skal være udfyldt.");
+}
+builder.Services.AddSingleton(new AuthConfiguration(authority, builder.Configuration["AuthClientId"]!,
+    builder.Configuration["AuthRedirectUri"] ?? "", apiBaseAddress.AbsoluteUri));
+builder.Services.AddScoped<MercantecAuthClient>();
 
 await builder.Build().RunAsync();

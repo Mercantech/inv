@@ -1,0 +1,20 @@
+@page "/auth/callback"
+@inject Inv.Web.Services.MercantecAuthClient Auth
+@inject NavigationManager Navigation
+
+<PageTitle>Gennemfører login · Udstyrsinventar</PageTitle>
+<section class="page-intro">
+    <h1>Gennemfører login</h1>
+    <p role="status">@message</p>
+    @if (failed) { <a class="button" href="login">Prøv igen</a> }
+</section>
+@code {
+    private string message = "Kontrollerer login…";
+    private bool failed;
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        try { await Auth.CompleteLoginAsync(); Navigation.NavigateTo("konto", replace: true); }
+        catch (JSException) { failed = true; message = "Login kunne ikke gennemføres. Start login igen."; StateHasChanged(); }
+    }
+}

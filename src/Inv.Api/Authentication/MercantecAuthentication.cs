@@ -41,6 +41,7 @@ internal static class MercantecAuthentication
                 RequireSignedTokens = true,
                 ValidateIssuerSigningKey = true,
                 ValidAlgorithms = [SecurityAlgorithms.RsaSha256],
+                TryAllIssuerSigningKeys = false,
                 NameClaimType = "name",
                 RoleClaimType = "role",
                 ClockSkew = TimeSpan.FromSeconds(30)

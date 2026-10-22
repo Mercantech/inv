@@ -1,6 +1,6 @@
 # Udstyrsinventar
 
-Grundstruktur til Version 1 af udstyrssystemet, bygget med Blazor WebAssembly på .NET 10, ASP.NET Core 10, EF Core 10 og PostgreSQL 17. Datamodellen dækker udstyr, kategorier, udlån og fejlrapporter fra [backloggen](https://github.com/Mercantech/inv/issues). Blazor har en dansk startside og en forbindelseskontrol. Login og forretningsfunktionerne bygges oven på denne struktur.
+Grundstruktur til Version 1 af udstyrssystemet, bygget med Blazor WebAssembly på .NET 10, ASP.NET Core 10, EF Core 10 og PostgreSQL 17. Datamodellen dækker udstyr, kategorier, udlån og fejlrapporter fra [backloggen](https://github.com/Mercantech/inv/issues). Blazor har en dansk startside og en forbindelseskontrol. Login med Mercantec Auth er implementeret; forretningsfunktionerne bygges oven på denne struktur.
 
 ## Projektstruktur
 
@@ -80,6 +80,6 @@ GitHub Actions bygger løsningen, kontrollerer at modellen matcher migrationerne
 
 API'et validerer Mercantec Auth-tokens med RS256, JWKS, `kid`, issuer, audience, udløb og et gyldigt UUID i `sub`. Brugerreferencer gemmes som `sub`; der er ingen lokal brugertabel med passwords. `EquipmentManager`-policyen bruger rollen fra `EQUIPMENT_MANAGER_ROLE`, som skal aftales med og tildeles i Mercantec Auth.
 
-Blazor-frontendens login med authorization code + PKCE, klientregistrering og CRUD-funktioner er fortsat opgaver i backloggen. Logout skal rydde lokale tokens og vise appens egen login-side.
+Blazor-frontenden har login med authorization code + PKCE, callback og automatisk token-refresh. Klientregistrering og CORS hos Auth-platformen skal passe til miljøets adresser. Logout afslutter Auth-sessionen som specificeret i integrationsopgaven. Se [auth-vejledningen](docs/auth.md) for opsætning, test og logout-adfærd. CRUD-funktioner er fortsat opgaver i backloggen.
 
 Se [datamodellen](docs/database.md) og [udviklings- og driftsvejledningen](docs/development.md).

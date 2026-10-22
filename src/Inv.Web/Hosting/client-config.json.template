@@ -1,3 +1,6 @@
 {
-  "ApiBaseUrl": "${API_BASE_URL}"
+  "ApiBaseUrl": "${API_BASE_URL}",
+  "AuthAuthority": "${AUTH_AUTHORITY}",
+  "AuthClientId": "${AUTH_CLIENT_ID}",
+  "AuthRedirectUri": "${AUTH_REDIRECT_URI}"
 }

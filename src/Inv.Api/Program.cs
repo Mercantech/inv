@@ -80,6 +80,9 @@ app.MapGet("/api/me", (System.Security.Claims.ClaimsPrincipal user) => Results.O
     Roles = user.FindAll("role").Select(claim => claim.Value).ToArray()
 })).RequireAuthorization().WithTags("Authentication").WithName("GetCurrentUser");
 
+app.MapGet("/api/manager-access", () => Results.Ok(new { Allowed = true }))
+    .RequireAuthorization("EquipmentManager").WithTags("Authentication");
+
 await app.RunAsync();
 
 public partial class Program;

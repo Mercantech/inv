@@ -20,6 +20,10 @@ jobs:
         with:
           dotnet-version: 10.0.x
       - run: dotnet tool restore
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: node --test tests/auth.test.mjs
       - run: dotnet restore Inv.slnx
       - run: dotnet build Inv.slnx --configuration Release --no-restore
       - name: Check migration matches the model
