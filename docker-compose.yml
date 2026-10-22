@@ -1,0 +1,69 @@
+name: ${COMPOSE_PROJECT_NAME:-inv}
+
+x-api: &api
+  image: ${COMPOSE_PROJECT_NAME:-inv}-api:${IMAGE_TAG:-local}
+  build:
+    context: .
+    dockerfile: src/Inv.Api/Dockerfile
+  environment:
+    CONNECTION_STRING: "${CONNECTION_STRING:-Host=${NETWORK_ALIAS_PREFIX:-inv}-db;Port=5432;Database=${POSTGRES_DB:-inv};Username=${POSTGRES_USER:-inv};Password=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in your environment file}}"
+    ASPNETCORE_URLS: http://+:8080
+    DOTNET_HOSTBUILDER__RELOADCONFIGONCHANGE: "false"
+    ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
+    AUTH_ISSUER: ${AUTH_ISSUER:?Set AUTH_ISSUER in your environment file}
+    AUTH_AUDIENCE: ${AUTH_AUDIENCE:?Set AUTH_AUDIENCE in your environment file}
+    JWKS_URI: ${JWKS_URI:?Set JWKS_URI in your environment file}
+    EQUIPMENT_MANAGER_ROLE: ${EQUIPMENT_MANAGER_ROLE:-EquipmentManager}
+    CORS_ORIGINS: ${CORS_ORIGINS:-}
+
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-inv}
+      POSTGRES_USER: ${POSTGRES_USER:-inv}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in your environment file}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      default:
+        aliases: ["${NETWORK_ALIAS_PREFIX:-inv}-db"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  migrate:
+    <<: *api
+    command: ["--migrate"]
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  api:
+    <<: *api
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    networks:
+      default:
+        aliases: ["${NETWORK_ALIAS_PREFIX:-inv}-api"]
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=dokploy-network"
+      - "traefik.http.services.${NETWORK_ALIAS_PREFIX:-inv}-api.loadbalancer.server.port=8080"
+
+volumes:
+  postgres-data:
+
+networks:
+  default:
+    name: dokploy-network
+    external: true

@@ -1,0 +1,14 @@
+services:
+  db:
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+  api:
+    ports:
+      - "127.0.0.1:${API_PORT:-8080}:8080"
+    labels:
+      - "traefik.enable=false"
+
+networks:
+  default:
+    name: ${COMPOSE_PROJECT_NAME:-inv}-local
+    external: false

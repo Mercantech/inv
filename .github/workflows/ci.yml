@@ -1,0 +1,30 @@
+name: Build and database tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CONNECTION_STRING: Host=localhost;Database=inv_design_time;Username=inv
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - run: dotnet tool restore
+      - run: dotnet restore Inv.slnx
+      - run: dotnet build Inv.slnx --configuration Release --no-restore
+      - name: Check migration matches the model
+        run: dotnet ef migrations has-pending-model-changes --project src/Inv.Infrastructure --startup-project src/Inv.Api --configuration Release --no-build
+      - name: Test database rules against PostgreSQL
+        run: dotnet test Inv.slnx --configuration Release --no-build --logger "trx;LogFileName=database-tests.trx"
+      - name: Build API container
+        run: docker build --file src/Inv.Api/Dockerfile --tag inv-api:ci .
