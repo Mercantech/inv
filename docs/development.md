@@ -82,7 +82,11 @@ Opret separate Compose-apps for dev og prod med samme filer, separat branch og s
 | Dev | `dev`, når miljøet oprettes | `inv-dev` | `inv-dev` |
 | Prod | `main` | `inv-prod` | `inv-prod` |
 
-Brug forskellige databasepasswords og passende origins pr. miljø. Der er endnu ikke oprettet en `dev`-branch, hosting eller domæner som del af grundstrukturen.
+Brug forskellige databasepasswords og passende origins pr. miljø. Produktion er konfigureret i Dokploy-projektet `INV`, Compose-appen `INV Production`, fra `Mercantech/inv` på `main`. Domænet er `https://inv.mercantec.tech`, service `web`, port `3000`, med TLS termineret i Cloudflare. Der er endnu ikke oprettet en `dev`-branch eller et separat dev-miljø.
+
+Produktionsmiljøet bruger `NETWORK_ALIAS_PREFIX=inv-prod`, så interne adresser er `inv-prod-api` og `inv-prod-db`. Databasepassword og øvrige runtime-variabler er gemt i Dokploy; der er ingen produktionshemmeligheder i repositoryet. Dokploy bruger Compose-projektnavnet `inv-prod-bqt1yi`, som også afgrænser database-volumet.
+
+Deployment startes manuelt via Dokploy MCP for Compose-id `_DlanLrFZMU4DlQ7-V_RZ`. Push først til `origin/main`, deploy derefter, gennemgå deployment-loggen og kontrollér `/api/health/ready` på det offentlige domæne. Push alene udløser CI, men ikke automatisk redeployment.
 
 Deploy med:
 
