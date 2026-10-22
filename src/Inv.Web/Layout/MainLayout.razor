@@ -1,0 +1,22 @@
+﻿@inherits LayoutComponentBase
+
+<a class="skip-link" href="#main-content">Gå til indhold</a>
+
+<div class="app-shell">
+    <aside class="sidebar">
+        <a class="brand" href="/">Udstyrsinventar<span>Version 1</span></a>
+        <nav aria-label="Hovednavigation">
+            <NavLink href="/" Match="NavLinkMatch.All">Overblik</NavLink>
+            <NavLink href="forbindelse">Forbindelse</NavLink>
+        </nav>
+        <p class="sidebar-note">Udstyr, udlån og fejlrapporter samlet ét sted.</p>
+    </aside>
+
+    <div class="workspace">
+        <header class="topbar"><span>Udstyrsadministration</span><span class="badge">Under opbygning</span></header>
+        <main id="main-content" tabindex="-1">
+            @Body
+        </main>
+        <footer>Udstyrsinventar · Version 1</footer>
+    </div>
+</div>

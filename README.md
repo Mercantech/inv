@@ -1,6 +1,6 @@
 # Udstyrsinventar
 
-Grundstruktur til Version 1 af udstyrssystemet, bygget med ASP.NET Core 10, EF Core 10 og PostgreSQL 17. Datamodellen dækker udstyr, kategorier, udlån og fejlrapporter fra [backloggen](https://github.com/Mercantech/inv/issues). API'ets forretningsfunktioner og frontend bygges oven på denne struktur.
+Grundstruktur til Version 1 af udstyrssystemet, bygget med Blazor WebAssembly på .NET 10, ASP.NET Core 10, EF Core 10 og PostgreSQL 17. Datamodellen dækker udstyr, kategorier, udlån og fejlrapporter fra [backloggen](https://github.com/Mercantech/inv/issues). Blazor har en dansk startside og en forbindelseskontrol. Login og forretningsfunktionerne bygges oven på denne struktur.
 
 ## Projektstruktur
 
@@ -10,6 +10,7 @@ src/
   Inv.Domain/           Entiteter og statusværdier; ingen databaseafhængigheder
   Inv.Infrastructure/   DbContext, tabelkonfiguration og EF Core-migrationer
   Inv.Api/              HTTP, Mercantec JWT-validering og health checks
+  Inv.Web/              Blazor WebAssembly, layout, sider og HTTP-klient
 tests/
   Inv.Database.Tests/   Integrationstests mod en rigtig PostgreSQL-container
 docs/
@@ -17,7 +18,7 @@ docs/
   development.md        Migrationer, konfiguration og drift
 ```
 
-Afhængighederne går fra API til Infrastructure og videre til Domain. Nye funktioner kan samles i feature-mapper i API'et. Der er endnu intet behov for et ekstra servicelag eller generiske repositories oven på EF Core.
+Afhængighederne går fra API til Infrastructure og videre til Domain. Blazor kommunikerer med API'et over HTTP og har ingen databaseafhængigheder. Nye funktioner kan samles i feature-mapper i API'et og som Razor-komponenter i frontend.
 
 ## Start lokalt med Docker
 
@@ -32,17 +33,34 @@ Lokal opsætning bruger sit eget Docker-netværk og kræver ikke `dokploy-networ
 
 | Adresse | Funktion |
 | --- | --- |
+| `http://localhost:3000` | Blazor-frontend |
+| `http://localhost:3000/forbindelse` | Kontrollér API og database fra browseren |
+| `http://localhost:3000/api/health/ready` | Readiness via frontendens API-proxy |
 | `http://localhost:8080/health/live` | Processen kører; kræver ikke login |
 | `http://localhost:8080/health/ready` | Databasen kan kontaktes, og alle migrationer er anvendt |
 | `http://localhost:8080/openapi/v1.json` | OpenAPI-dokument, kun i Development |
 | `http://localhost:8080/api/me` | Den indloggede brugers `sub`, navn og roller; kræver gyldigt Bearer-token |
 
 ```powershell
-docker compose -f docker-compose.yml -f docker-compose.local.yml logs migrate api
+docker compose -f docker-compose.yml -f docker-compose.local.yml logs migrate api web
 docker compose -f docker-compose.yml -f docker-compose.local.yml down
 ```
 
 `down` bevarer databasen. Tilføj kun `--volumes`, hvis alle lokale data bevidst skal slettes.
+
+## Start API'et fra IDE eller terminal
+
+Når databasen skal køre i Docker og API'et lokalt:
+
+```powershell
+docker compose -f docker-compose.yml -f docker-compose.local.yml up -d db
+dotnet run --project src/Inv.Api -- --migrate
+dotnet run --project src/Inv.Api
+```
+
+API'ets launch-profil bruger `Development` og læser automatisk projektets `.env`. Den lokale forbindelse sammensættes fra `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD` og `POSTGRES_PORT` med host `127.0.0.1`. Eksisterende forbindelsesstrenge og miljøvariabler har forrang. Docker og produktion bruger fortsat deres egne miljøvariabler. Hvis hele Compose-stakken allerede kører, skal den lokale API-proces bruge en anden port, fx `-- --urls http://localhost:8081`.
+
+Ved Windows Application Control, som blokerer de lokalt byggede programmer, bruges den fulde Docker-opstart ovenfor.
 
 ## Build og test
 
@@ -56,12 +74,12 @@ dotnet test Inv.slnx --configuration Release
 
 Integrationstestene kræver en kørende Docker-motor. Testcontainers opretter en separat, midlertidig PostgreSQL-database og fjerner den efter testen. Testene bruger ikke udviklings- eller produktionsdata.
 
-GitHub Actions bygger løsningen, kontrollerer at modellen matcher migrationerne, kører databasetestene og bygger API'ets Docker-image ved push til `main` og ved pull requests.
+GitHub Actions bygger løsningen, kontrollerer at modellen matcher migrationerne, kører testene og bygger både API- og Blazor-imaget ved push til `main` og ved pull requests. Testene kan også køres i Linux-containeren beskrevet i [udviklingsvejledningen](docs/development.md).
 
 ## Auth og næste funktioner
 
 API'et validerer Mercantec Auth-tokens med RS256, JWKS, `kid`, issuer, audience, udløb og et gyldigt UUID i `sub`. Brugerreferencer gemmes som `sub`; der er ingen lokal brugertabel med passwords. `EquipmentManager`-policyen bruger rollen fra `EQUIPMENT_MANAGER_ROLE`, som skal aftales med og tildeles i Mercantec Auth.
 
-Frontendens login med authorization code + PKCE, klientregistrering og CRUD-funktioner er fortsat opgaver i backloggen. Logout i den kommende frontend skal rydde lokale tokens og vise appens egen login-side.
+Blazor-frontendens login med authorization code + PKCE, klientregistrering og CRUD-funktioner er fortsat opgaver i backloggen. Logout skal rydde lokale tokens og vise appens egen login-side.
 
 Se [datamodellen](docs/database.md) og [udviklings- og driftsvejledningen](docs/development.md).

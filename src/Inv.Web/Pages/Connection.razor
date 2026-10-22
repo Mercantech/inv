@@ -1,0 +1,57 @@
+@page "/forbindelse"
+@implements IDisposable
+@inject Inv.Web.Services.ApiStatusClient ApiStatus
+
+<PageTitle>Forbindelse · Udstyrsinventar</PageTitle>
+
+<section class="page-intro">
+    <p class="eyebrow">Systemstatus</p>
+    <h1>Forbindelse</h1>
+    <p>Kontrollér, om systemet kan kontakte databasen, og om den er klar til brug.</p>
+</section>
+
+<section class="status-panel" aria-labelledby="status-title" aria-busy="@checking.ToString().ToLowerInvariant()">
+    <span class="status-indicator @(ready ? "is-ready" : "")" aria-hidden="true"></span>
+    <div>
+        <h2 id="status-title">@(ready ? "Systemet er klar" : "Forbindelsen er ikke bekræftet")</h2>
+        <p role="status" aria-live="polite">@message</p>
+        <button class="button" @onclick="CheckConnectionAsync" disabled="@checking">
+            @(checking ? "Kontrollerer…" : "Kontrollér forbindelse")
+        </button>
+    </div>
+</section>
+
+@code {
+    private readonly CancellationTokenSource lifetime = new();
+    private bool checking;
+    private bool ready;
+    private string message = "Tryk på knappen for at kontrollere forbindelsen.";
+
+    private async Task CheckConnectionAsync()
+    {
+        checking = true;
+        message = "Kontrollerer forbindelsen…";
+
+        try
+        {
+            ready = await ApiStatus.IsReadyAsync(lifetime.Token);
+            message = ready
+                ? "Der er forbindelse til databasen, og opsætningen er opdateret."
+                : "Systemet kunne ikke bekræfte forbindelsen. Prøv igen, eller kontakt den ansvarlige.";
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+            // The page was disposed while the request was in progress.
+        }
+        finally
+        {
+            checking = false;
+        }
+    }
+
+    public void Dispose()
+    {
+        lifetime.Cancel();
+        lifetime.Dispose();
+    }
+}

@@ -1,9 +1,11 @@
 using Inv.Api.Authentication;
 using Inv.Api.Health;
 using Inv.Infrastructure.Data;
+using Inv.Infrastructure.Configuration;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.EntityFrameworkCore;
 
+LocalDevelopmentEnvironment.Load();
 var migrateOnly = args.Contains("--migrate", StringComparer.Ordinal);
 var builder = WebApplication.CreateBuilder(args.Where(argument => argument != "--migrate").ToArray());
 
@@ -12,7 +14,7 @@ var connectionString = builder.Configuration["CONNECTION_STRING"]
 
 if (string.IsNullOrWhiteSpace(connectionString))
 {
-    throw new InvalidOperationException("Sæt CONNECTION_STRING eller ConnectionStrings__Default til PostgreSQL-databasen.");
+    throw new InvalidOperationException("Databasekonfiguration mangler. Lokalt: opret .env fra .env.example og brug Development-profilen. I Docker/produktion: sæt CONNECTION_STRING eller ConnectionStrings__Default.");
 }
 
 builder.Services.AddDbContext<InventoryDbContext>(options => options.UseNpgsql(connectionString));
@@ -57,6 +59,11 @@ app.MapHealthChecks("/health/live", new HealthCheckOptions
 }).AllowAnonymous();
 
 app.MapHealthChecks("/health/ready", new HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("ready")
+}).AllowAnonymous();
+
+app.MapHealthChecks("/api/health/ready", new HealthCheckOptions
 {
     Predicate = check => check.Tags.Contains("ready")
 }).AllowAnonymous();

@@ -2,6 +2,7 @@
   <ItemGroup>
     <ProjectReference Include="../Inv.Domain/Inv.Domain.csproj" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+    <PackageReference Include="DotNetEnv" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
       <PrivateAssets>all</PrivateAssets>

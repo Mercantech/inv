@@ -3,6 +3,7 @@
     <Project Path="src/Inv.Api/Inv.Api.csproj" />
     <Project Path="src/Inv.Domain/Inv.Domain.csproj" />
     <Project Path="src/Inv.Infrastructure/Inv.Infrastructure.csproj" />
+    <Project Path="src/Inv.Web/Inv.Web.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Inv.Database.Tests/Inv.Database.Tests.csproj" />

@@ -55,10 +55,26 @@ services:
     networks:
       default:
         aliases: ["${NETWORK_ALIAS_PREFIX:-inv}-api"]
+
+  web:
+    image: ${COMPOSE_PROJECT_NAME:-inv}-web:${IMAGE_TAG:-local}
+    build:
+      context: .
+      dockerfile: src/Inv.Web/Dockerfile
+    restart: unless-stopped
+    environment:
+      API_BASE_URL: ${API_BASE_URL:-/api/}
+      API_UPSTREAM: http://${NETWORK_ALIAS_PREFIX:-inv}-api:8080
+    depends_on:
+      api:
+        condition: service_started
+    networks:
+      default:
+        aliases: ["${NETWORK_ALIAS_PREFIX:-inv}-web"]
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=dokploy-network"
-      - "traefik.http.services.${NETWORK_ALIAS_PREFIX:-inv}-api.loadbalancer.server.port=8080"
+      - "traefik.http.services.${NETWORK_ALIAS_PREFIX:-inv}-web.loadbalancer.server.port=3000"
 
 volumes:
   postgres-data:

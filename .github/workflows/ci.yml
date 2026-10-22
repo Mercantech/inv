@@ -28,3 +28,5 @@ jobs:
         run: dotnet test Inv.slnx --configuration Release --no-build --logger "trx;LogFileName=database-tests.trx"
       - name: Build API container
         run: docker build --file src/Inv.Api/Dockerfile --tag inv-api:ci .
+      - name: Build Blazor container
+        run: docker build --file src/Inv.Web/Dockerfile --tag inv-web:ci .

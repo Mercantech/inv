@@ -18,8 +18,10 @@ Konfiguration læses fra miljøet. Runtime-forbindelsen vælges i rækkefølgen 
 | `NETWORK_ALIAS_PREFIX` | Adskiller database- og API-aliaser på det delte Dokploy-netværk |
 | `IMAGE_TAG` | Docker-image-tag |
 | `API_PORT`, `POSTGRES_PORT` | Lokale hostporte; bruges kun af lokal override |
+| `WEB_PORT` | Lokal frontend-port; standard `3000` |
+| `API_BASE_URL` | Offentlig API-base til Blazor; standard `/api/`, med afsluttende skråstreg |
 
-`.env` og `.env.*` ignoreres af Git. Kun `.env.example` er versionsstyret. .NET indlæser ikke Compose-`.env` automatisk; ved `dotnet run` skal variablerne sættes i shellen, som vist nedenfor. Undlad at logge forbindelsesstrenge.
+`.env` og `.env.*` ignoreres af Git. Kun `.env.example` er versionsstyret. Ved lokal Development-opstart indlæser API'et `.env` fra repository-roden med DotNetEnv. Variabler, som allerede er sat i processen, overskrives ikke. Uden en eksplicit forbindelsesstreng sammensættes den lokale forbindelse med Npgsqls connection-string-builder og de lokale PostgreSQL-variabler. I containere og uden for Development læses ingen lokal `.env`. Undlad at logge forbindelsesstrenge.
 
 ## Kør API'et på hosten
 
@@ -28,19 +30,30 @@ Start først en lokal database med miljøfilens password:
 ```powershell
 docker compose -f docker-compose.yml -f docker-compose.local.yml up -d db
 
-$env:CONNECTION_STRING='Host=localhost;Port=5432;Database=inv;Username=inv;Password=<password-fra-din-lokale-env>'
-$env:AUTH_ISSUER='https://auth.mercantec.tech'
-$env:AUTH_AUDIENCE='mercantec-apps'
-$env:JWKS_URI='https://auth.mercantec.tech/.well-known/jwks.json'
-$env:ASPNETCORE_ENVIRONMENT='Development'
-$env:DOTNET_HOSTBUILDER__RELOADCONFIGONCHANGE='false'
-$env:ASPNETCORE_URLS='http://localhost:8080'
-
 dotnet run --project src/Inv.Api -- --migrate
 dotnet run --project src/Inv.Api
 ```
 
-Indsæt det faktiske lokale password i variablen. Ved ændrede port-/databasenavne skal forbindelsesstrengen følge med.
+Launch-profilen sætter Development og port `8080`. PostgreSQL-oplysninger og Auth-adresser hentes fra `.env`. Ønskes en ekstern database, sættes `CONNECTION_STRING` eller `ConnectionStrings__Default` eksplicit. Brug `dotnet run --project src/Inv.Api -- --urls http://localhost:8081`, hvis port `8080` allerede bruges af Docker-API'et.
+
+## Blazor-frontend
+
+`Inv.Web` er en selvstændig Blazor WebAssembly-app. Docker bygger de statiske filer og serverer dem med Nginx som ikke-root på port `3000`. `/api/` videresendes med fuld URI til det unikke API-alias. Nginx bruger Docker DNS ved request-tid og kan derfor starte, selvom backendens DNS endnu ikke er klar. Blazor-ruter falder tilbage til `index.html`; manglende framework-filer giver `404`.
+
+Ved containerstart skrives `API_BASE_URL` til den offentlige `client-config.json`. Standardværdien `/api/` bruger samme origin som frontend, så Docker-opsætningen ikke kræver CORS. Filen og `index.html` får `Cache-Control: no-store`. Læg aldrig secrets, forbindelsesstrenge eller tokens i frontendens konfiguration. `API_UPSTREAM` er kun Nginx-konfiguration og sættes af Compose ud fra `NETWORK_ALIAS_PREFIX`.
+
+Til frontendudvikling med Blazors DevServer kan du køre `dotnet run --project src/Inv.Web -- --urls http://localhost:3000`. DevServer har ikke Nginx-proxyen: sæt da `ApiBaseUrl` i `src/Inv.Web/wwwroot/client-config.json` til den lokale API-adresse med `/api/` til sidst og sæt frontendens origin i API'ets `CORS_ORIGINS` via `.env`. Gendan klientkonfigurationen til `/api/` før commit. Den normale Docker-opstart kræver ikke denne ændring.
+
+## Test i Docker
+
+Hvis Windows blokerer lokale assemblies, kan schema- og databasetestene køres i Linux:
+
+```powershell
+docker build -f tests/Inv.Database.Tests/Dockerfile -t inv-database-tests:local .
+docker run --rm --add-host host.docker.internal:host-gateway -e TESTCONTAINERS_HOST_OVERRIDE=host.docker.internal -v /var/run/docker.sock:/var/run/docker.sock inv-database-tests:local
+```
+
+Testcontaineren bruger Docker-socket til at oprette og rydde op i sin egen midlertidige PostgreSQL-container. Den bruger ingen udviklings- eller produktionsdata. Konfigurationstest kontrollerer desuden indlæsning af lokal `.env`, forrang for eksisterende variabler og udelukkelse af lokal config i produktion og containere.
 
 ## Migrationer
 
@@ -48,7 +61,7 @@ Migrationer er versionsstyret i `src/Inv.Infrastructure/Data/Migrations`. Runtim
 
 ```powershell
 dotnet tool restore
-# Sæt CONNECTION_STRING i miljøet først.
+$env:ASPNETCORE_ENVIRONMENT='Development'
 dotnet ef migrations add BeskrivAendringen --project src/Inv.Infrastructure --startup-project src/Inv.Api
 dotnet ef migrations has-pending-model-changes --project src/Inv.Infrastructure --startup-project src/Inv.Api
 dotnet ef migrations script --idempotent --project src/Inv.Infrastructure --startup-project src/Inv.Api --output artifacts/migrations.sql
@@ -77,7 +90,7 @@ Deploy med:
 docker compose up -d --build
 ```
 
-API'et lytter på port `8080` og kører som den indbyggede ikke-root-bruger i .NET-imaget. `DOTNET_HOSTBUILDER__RELOADCONFIGONCHANGE=false` er sat i både image og Compose. Base-Compose publicerer ingen hostporte. Hvis API'et eksponeres direkte, konfigureres Dokploy-domænet til service `api`, port `8080`; for `*.mags.dk` bruges `certificateType: none` og `https: false` bag Cloudflare. En kommende frontend skal route `/api` til det unikke API-alias via Docker DNS med request-time resolution og selv lytte på port `3000`.
+API'et lytter på port `8080` og kører som den indbyggede ikke-root-bruger i .NET-imaget. `DOTNET_HOSTBUILDER__RELOADCONFIGONCHANGE=false` er sat i både image og Compose. Base-Compose publicerer ingen hostporte. Dokploy-domænet konfigureres til service `web`, port `3000`; for `*.mags.dk` bruges `certificateType: none` og `https: false` bag Cloudflare. Frontendens Nginx router `/api` til det unikke API-alias via Docker DNS. API'et eksponeres gennem frontendens proxy.
 
 ## Mercantec Auth
 
