@@ -1,0 +1,55 @@
+@inject Inv.Web.Services.MercantecAuthClient Auth
+@inject NavigationManager Navigation
+
+@if (verified)
+{
+    @ChildContent
+}
+else
+{
+    <div class="loading-screen" role="status" aria-live="polite">
+        <strong>Udstyrsinventar</strong>
+        <p>@message</p>
+        @if (failed)
+        {
+            <button class="button" @onclick="VerifyAsync">Prøv igen</button>
+            <a href="login">Gå til login</a>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    private bool verified, failed;
+    private int revision;
+    private string message = "Kontrollerer din adgang…";
+
+    protected override Task OnParametersSetAsync() => VerifyAsync();
+
+    private async Task VerifyAsync()
+    {
+        var current = ++revision;
+        verified = false;
+        failed = false;
+        message = "Kontrollerer din adgang…";
+        try
+        {
+            if (!await Auth.IsSignedInAsync())
+            {
+                Navigation.NavigateTo("login", replace: true);
+                return;
+            }
+            var response = await Auth.GetAsync("me");
+            if (current != revision) return;
+            if (response.Status == 200) verified = true;
+            else if (response.Status == 401) Navigation.NavigateTo("login", replace: true);
+            else { failed = true; message = "Adgangen kunne ikke bekræftes. Prøv igen."; }
+        }
+        catch (JSException)
+        {
+            if (current != revision) return;
+            if (!await Auth.IsSignedInAsync()) Navigation.NavigateTo("login", replace: true);
+            else { failed = true; message = "Der er ikke forbindelse til systemet. Prøv igen."; }
+        }
+    }
+}

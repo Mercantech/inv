@@ -1,12 +1,30 @@
 @page "/login"
+@layout AuthLayout
 @inject Inv.Web.Services.MercantecAuthClient Auth
 
 <PageTitle>Log ind · Udstyrsinventar</PageTitle>
-<section class="page-intro">
-    <h1>Log ind</h1>
-    <p>Brug din Mercantec-konto for at få adgang til udstyrsregistret.</p>
-    <button class="button" @onclick="LoginAsync" disabled="@busy">Log ind med Mercantec Auth</button>
-    <p role="alert">@error</p>
+<section class="login-card" aria-labelledby="login-title">
+    <div class="login-intro">
+        <span class="login-brand">Udstyrsinventar<span>Mercantec</span></span>
+        <p class="eyebrow">Et fælles overblik</p>
+        <h1 id="login-title">Styr på udstyret.<br />Plads til hverdagen.</h1>
+        <p>Udstyr, udlån og fejlrapporter samlet ét sted, så du altid ved, hvem der har hvad.</p>
+        <div class="login-features" aria-label="Systemets funktioner">
+            <span>01 · Udstyr</span><span>02 · Udlån</span><span>03 · Fejl og mangler</span>
+        </div>
+    </div>
+    <div class="login-action">
+        <p class="eyebrow">Velkommen</p>
+        <h2>Log ind på dit inventar</h2>
+        <p>Brug din Mercantec-konto for at fortsætte.</p>
+        <button class="button login-button" @onclick="LoginAsync" disabled="@busy">
+            @(busy ? "Åbner login…" : "Log ind med Mercantec Auth")
+            <span aria-hidden="true">↗</span>
+        </button>
+        @if (error is not null) { <p class="login-error" role="alert">@error</p> }
+        <p class="login-help">Du bliver sendt videre til Mercantec Auth og kommer automatisk tilbage hertil efter login.</p>
+        <p class="login-support">Har du brug for adgang? <a href="mailto:mags@mercantec.dk">Kontakt den ansvarlige</a></p>
+    </div>
 </section>
 @code {
     private bool busy;
@@ -14,6 +32,7 @@
     private async Task LoginAsync()
     {
         busy = true;
+        error = null;
         try { await Auth.LoginAsync(); }
         catch (JSException) { error = "Login kunne ikke startes. Prøv igen."; busy = false; }
     }

@@ -4,6 +4,7 @@ body { margin: 0; }
 a { color: inherit; text-underline-offset: .2em; }
 button { font: inherit; }
 :focus-visible { outline: 3px solid #c2842a; outline-offset: 4px; }
+h1[tabindex="-1"]:focus { outline: none; }
 h1, h2, p { margin-top: 0; }
 h1 { font-size: clamp(2rem, 4vw, 3.4rem); line-height: 1.12; letter-spacing: -.04em; margin-bottom: 1.2rem; }
 h2 { font-size: 1.35rem; line-height: 1.35; letter-spacing: -.02em; }
@@ -60,4 +61,31 @@ footer { padding: 1.5rem 3rem; font-size: .75rem; color: #637368; }
     .welcome-panel { gap: 1rem; padding: 1.5rem; }
     .section-number { font-size: 2rem; }
     footer { padding: 1rem 1.25rem; }
+}
+
+.login-shell { min-height: 100dvh; display: flex; flex-direction: column; background: #f5f6f2; }
+.login-main { max-width: 1180px; margin: auto; padding: 3rem 2rem 1rem; display: grid; align-content: center; }
+.login-card { display: grid; grid-template-columns: 1.15fr 1fr; border: 1px solid #dce2d9; border-radius: 1.25rem; overflow: hidden; background: white; box-shadow: 0 18px 60px #143e360a; }
+.login-intro { padding: 3rem; background: #143e36; color: white; }
+.login-brand { display: block; font-size: 1.35rem; font-weight: 700; letter-spacing: -.03em; margin-bottom: 5rem; }
+.login-brand span { display: block; color: #b9d0c8; font-size: .75rem; font-weight: 400; letter-spacing: .08em; }
+.login-intro .eyebrow { color: #b9d0c8; }
+.login-intro h1 { font-size: clamp(2rem, 3.4vw, 3.1rem); }
+.login-intro > p:not(.eyebrow) { color: #c2d6ce; max-width: 350px; }
+.login-features { display: flex; flex-wrap: wrap; gap: .75rem 1.25rem; border-top: 1px solid #ffffff26; padding-top: 1.5rem; margin-top: 3rem; font-size: .75rem; color: #b9d0c8; }
+.login-action { padding: 3rem; display: flex; flex-direction: column; justify-content: center; }
+.login-action h2 { font-size: 1.8rem; }
+.login-button { display: flex; align-items: center; justify-content: space-between; gap: 1rem; width: 100%; padding: .95rem 1.15rem; margin-top: 1rem; text-align: left; }
+.login-button span { font-size: 1.25rem; }
+.login-help { font-size: .82rem; margin-top: 1rem; }
+.login-support { margin: 2.5rem 0 0; font-size: .8rem; border-top: 1px solid #dce2d9; padding-top: 1.5rem; }
+.login-support a { display: block; color: #143e36; font-weight: 600; }
+.login-error { color: #9b342b; font-size: .9rem; margin-top: 1rem; }
+.login-footer { text-align: center; }
+@media (max-width: 750px) {
+    .login-main { padding: 1.25rem; }
+    .login-card { grid-template-columns: 1fr; }
+    .login-intro, .login-action { padding: 2rem; }
+    .login-brand { margin-bottom: 2.5rem; }
+    .login-features { margin-top: 1.5rem; }
 }

@@ -16,7 +16,7 @@ Docker genererer `client-config.json` fra miljøvariabler ved opstart. Ved Blazo
 
 ## Brugerflow
 
-Åbn `/login` eller vælg **Min konto**. Login bruger fuld navigation til Auth-serveren. `/auth/callback` kontrollerer state og en maksimal flowalder på ti minutter, fjerner callback-parametrene og bytter koden med den oprindelige verifier. Tokens gemmes kun i sessionStorage. `/konto` henter den validerede bruger via `/api/me` og kan kontrollere den konfigurerede administratorrolle (403 uden rollen).
+Alle app-sider kræver en session, som bekræftes via `/api/me`, før indhold og navigation vises. Uden login viderestilles brugeren til `/login`, der har sit eget layout. Kun login og OAuth-callback er offentlige. Efter login vises overblikket. `/api/health/ready` kræver også login; driftsproberne `/health/live` og `/health/ready` er fortsat offentlige til containerdrift. Åbn `/login` eller vælg **Min konto**. Login bruger fuld navigation til Auth-serveren. `/auth/callback` kontrollerer state og en maksimal flowalder på ti minutter, fjerner callback-parametrene og bytter koden med den oprindelige verifier. Tokens gemmes kun i sessionStorage. `/konto` henter den validerede bruger via `/api/me` og kan kontrollere den konfigurerede administratorrolle (403 uden rollen).
 
 Den beskyttede GET-wrapper `MercantecAuthClient.GetAsync` sender kun tokens til det konfigurerede API, fornyer før udløb og forsøger én refresh og én genafsendelse ved 401. Samtidige refresh-kald deler ét token-kald, og det roterede refresh-token erstatter det gamle. Netværksfejl genafsender ikke automatisk API-kald. Til fremtidige skrivende endpoints skal wrapperen udvides med eksplicit metode/body og hensyn til genafsendelse.
 

@@ -66,11 +66,11 @@ app.MapHealthChecks("/health/ready", new HealthCheckOptions
 app.MapHealthChecks("/api/health/ready", new HealthCheckOptions
 {
     Predicate = check => check.Tags.Contains("ready")
-}).AllowAnonymous();
+}).RequireAuthorization();
 
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi().AllowAnonymous();
+    app.MapOpenApi().RequireAuthorization();
 }
 
 app.MapGet("/api/me", (System.Security.Claims.ClaimsPrincipal user) => Results.Ok(new
