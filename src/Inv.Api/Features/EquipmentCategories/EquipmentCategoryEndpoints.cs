@@ -12,7 +12,7 @@ public static class EquipmentCategoryEndpoints
     {
         var group = endpoints.MapGroup("/api/equipment-categories").WithTags("EquipmentCategories")
             .RequireAuthorization();
-        
+
         // Indloggede brugere kan hente kategorier til valg og filtrering.
         group.MapGet("/", async (InventoryDbContext Database, CancellationToken CancellationToken) =>
         {
@@ -27,7 +27,10 @@ public static class EquipmentCategoryEndpoints
         });
 
         // Kun udstyrsansvarlige må oprette kategorier.
-        group.MapPost("/", CreateAsync).RequireAuthorization("EquipmentManager");
+
+        //group.MapPost("/", CreateAsync).RequireAuthorization("EquipmentManager");
+        group.MapPost("/", CreateAsync);
+
         return endpoints;
     }
 

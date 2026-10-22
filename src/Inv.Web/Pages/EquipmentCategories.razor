@@ -1,0 +1,83 @@
+@page "/kategorier"
+@using System.Text.Json
+@using Inv.Web.Models
+@using Inv.Web.Services
+@inject EquipmentCategoryClient Categories
+
+<PageTitle>Udstyrskategorier · Udstyrsinventar</PageTitle>
+
+<section class="page-intro">
+    <h1>Udstyrskategorier</h1>
+    <p>Se de kategorier, udstyret kan organiseres i.</p>
+    <a class="button" href="kategorier/opret">Opret kategori</a>
+</section>
+
+@if (loading)
+{
+    <p role="status">Henter kategorier…</p>
+}
+else if (error is not null)
+{
+    <p role="alert">@error</p>
+    <button class="button" @onclick="LoadAsync">Prøv igen</button>
+}
+else if (categories.Count == 0)
+{
+    <p>Der er endnu ikke oprettet nogen kategorier.</p>
+}
+else
+{
+    <ul>
+        @foreach (var category in categories)
+        {
+            <li @key="category.Id">@category.Name</li>
+        }
+    </ul>
+}
+
+@code {
+    private List<EquipmentcategoryResponse> categories = [];
+    private bool loading = true;
+    private string? error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        loading = true;
+        error = null;
+
+        try
+        {
+            categories = await Categories.GetAllAsync();
+        }
+        catch (HttpRequestException exception)
+        {
+            error = exception.StatusCode switch
+            {
+                System.Net.HttpStatusCode.Unauthorized =>
+                    "Dit login er udløbet. Log ind igen.",
+
+                System.Net.HttpStatusCode.Forbidden =>
+                    "Du har ikke adgang til at se kategorierne.",
+
+                _ => "Kategorierne kunne ikke hentes. Prøv igen."
+            };
+        }
+        catch (JSException)
+        {
+            error = "Kontrollér forbindelsen og dit login, og prøv igen.";
+        }
+        catch (JsonException)
+        {
+            error = "Svaret fra API'et kunne ikke læses.";
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+}
