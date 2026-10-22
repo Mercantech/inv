@@ -37,12 +37,17 @@ builder.Services.AddScoped(_ => new HttpClient
 builder.Services.AddScoped<ApiStatusClient>();
 var authority = builder.Configuration["AuthAuthority"]!;
 if (!Uri.TryCreate(authority, UriKind.Absolute, out var authAddress) || authAddress.Scheme != "https"
-    || string.IsNullOrWhiteSpace(builder.Configuration["AuthClientId"]))
+                                                                     || string.IsNullOrWhiteSpace(
+                                                                         builder.Configuration["AuthClientId"]))
 {
     throw new InvalidOperationException("AuthAuthority skal være HTTPS, og AuthClientId skal være udfyldt.");
 }
+
 builder.Services.AddSingleton(new AuthConfiguration(authority, builder.Configuration["AuthClientId"]!,
     builder.Configuration["AuthRedirectUri"] ?? "", apiBaseAddress.AbsoluteUri));
+
+
 builder.Services.AddScoped<MercantecAuthClient>();
+builder.Services.AddScoped<EquipmentCategoryClient>();
 
 await builder.Build().RunAsync();

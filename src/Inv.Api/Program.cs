@@ -2,6 +2,7 @@ using Inv.Api.Authentication;
 using Inv.Api.Health;
 using Inv.Infrastructure.Data;
 using Inv.Infrastructure.Configuration;
+using Inv.Api.Features.EquipmentCategories;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.EntityFrameworkCore;
 
@@ -82,6 +83,8 @@ app.MapGet("/api/me", (System.Security.Claims.ClaimsPrincipal user) => Results.O
 
 app.MapGet("/api/manager-access", () => Results.Ok(new { Allowed = true }))
     .RequireAuthorization("EquipmentManager").WithTags("Authentication");
+
+app.MapEquipmentCategoryEndpoints();
 
 await app.RunAsync();
 

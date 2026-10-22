@@ -1,0 +1,100 @@
+@page "/kategorier/opret"
+@using Inv.Web.Models
+@using Inv.Web.Services
+@inject EquipmentCategoryClient Categories
+
+<PageTitle>Opret kategori · Udstyrsinventar</PageTitle>
+
+<section class="page-intro">
+    <h1>Opret udstyrskategori</h1>
+    <p>Angiv et navn, eksempelvis Opladere eller Skærme.</p>
+</section>
+
+<EditForm Model="@model" OnValidSubmit="CreateAsync">
+    <DataAnnotationsValidator />
+
+    <fieldset disabled="@saving">
+        <legend>Kategorioplysninger</legend>
+
+        <label for="category-name">Navn</label>
+        <InputText id="category-name"
+                   @bind-Value="model.Name"
+                   maxlength="150" />
+        <ValidationMessage For="@(() => model.Name)" />
+
+        <button type="submit" class="button">
+            @(saving ? "Opretter…" : "Opret kategori")
+        </button>
+    </fieldset>
+</EditForm>
+
+@if (!string.IsNullOrEmpty(error))
+{
+    <p role="alert">@error</p>
+}
+
+<p role="status">@success</p>
+
+@code {
+    private CreateEquipmentCategoryModel model = new();
+    private bool saving;
+    private string? error;
+    private string? success;
+
+    private async Task CreateAsync()
+    {
+        if (saving)
+        {
+            return;
+        }
+
+        saving = true;
+        error = null;
+        success = null;
+
+        try
+        {
+            var response = await Categories.CreateAsync(model);
+
+            switch (response.Status)
+            {
+                case 201:
+                    success = $"Kategorien \"{model.Name.Trim()}\" er oprettet.";
+                    model = new();
+                    break;
+
+                case 400:
+                    error = "Angiv et navn på højst 150 tegn.";
+                    break;
+
+                case 401:
+                    error = "Dit login er udløbet. Log ind igen.";
+                    break;
+
+                case 403:
+                    error = "Du mangler rettigheden til at oprette kategorier.";
+                    break;
+
+                case 409:
+                    error = "Der findes allerede en kategori med det navn.";
+                    break;
+
+                default:
+                    error = "Kategorien kunne ikke oprettes. Prøv igen senere.";
+                    break;
+            }
+        }
+        catch (JSException)
+        {
+            error = "Forespørgslen kunne ikke gennemføres. Kontrollér forbindelsen og dit login.";
+        }
+        catch (HttpRequestException)
+        {
+            error = "Der kunne ikke oprettes forbindelse til API'et.";
+        }
+        finally
+        {
+            saving = false;
+        }
+    }
+}

@@ -60,22 +60,60 @@ async function refresh(config, rejectedToken) {
 
 export function isSignedIn() { return !!read(tokenKey); }
 
-export async function request(config, url) {
-    // Only the configured API may receive our Bearer token.
+export async function request(config, url, method = 'GET', body = null) {
+    // Send kun login-token til vores eget API.
     const target = new URL(url, document.baseURI);
     const api = new URL(config.apiBaseUrl, document.baseURI);
-    if (target.origin !== api.origin || !target.pathname.startsWith(api.pathname)) throw new Error('Ugyldig API-adresse.');
+
+    if (target.origin !== api.origin
+        || !target.pathname.startsWith(api.pathname)) {
+        throw new Error('Ugyldig API-adresse.');
+    }
+
     let tokens = read(tokenKey);
-    if (!tokens) throw new Error('Log ind for at fortsætte.');
-    if (tokens.expiresAt <= Date.now() + 30000) tokens = await refresh(config);
-    const send = token => fetch(target, { headers: { Authorization: `Bearer ${token}` }, credentials: 'omit', redirect: 'error' });
+
+    if (!tokens) {
+        throw new Error('Log ind for at fortsætte.');
+    }
+
+    if (tokens.expiresAt <= Date.now() + 30000) {
+        tokens = await refresh(config);
+    }
+
+    const send = token => {
+        const headers = {
+            Authorization: `Bearer ${token}`
+        };
+
+        if (body !== null) {
+            headers['Content-Type'] = 'application/json';
+        }
+
+        return fetch(target, {
+            method,
+            headers,
+            body: body === null ? undefined : JSON.stringify(body),
+            credentials: 'omit',
+            redirect: 'error'
+        });
+    };
+
     let response = await send(tokens.access_token);
+
+    // Forny login og prøv én gang mere ved et udløbet token.
     if (response.status === 401) {
         tokens = await refresh(config, tokens.access_token);
         response = await send(tokens.access_token);
-        if (response.status === 401) sessionStorage.removeItem(tokenKey);
+
+        if (response.status === 401) {
+            sessionStorage.removeItem(tokenKey);
+        }
     }
-    return { status: response.status, body: await response.text() };
+
+    return {
+        status: response.status,
+        body: await response.text()
+    };
 }
 
 export function logout(config) {
