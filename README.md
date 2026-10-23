@@ -80,6 +80,24 @@ GitHub Actions bygger løsningen, kontrollerer at modellen matcher migrationerne
 
 API'et validerer Mercantec Auth-tokens med RS256, JWKS, `kid`, issuer, audience, udløb og et gyldigt UUID i `sub`. Brugerreferencer gemmes som `sub`; der er ingen lokal brugertabel med passwords. `EquipmentManager`-policyen bruger rollen fra `EQUIPMENT_MANAGER_ROLE`, som skal aftales med og tildeles i Mercantec Auth.
 
-Blazor-frontenden har login med authorization code + PKCE, callback og automatisk token-refresh. Klientregistrering og CORS hos Auth-platformen skal passe til miljøets adresser. Logout afslutter Auth-sessionen som specificeret i integrationsopgaven. Se [auth-vejledningen](docs/auth.md) for opsætning, test og logout-adfærd. CRUD-funktioner er fortsat opgaver i backloggen.
+Blazor-frontenden har login med authorization code + PKCE, callback og automatisk token-refresh. Klientregistrering og CORS hos Auth-platformen skal passe til miljøets adresser. Logout afslutter Auth-sessionen som specificeret i integrationsopgaven. Se [auth-vejledningen](docs/auth.md) for opsætning, test og logout-adfærd. Oprettelse af kategorier og udstyr er implementeret; de øvrige funktioner følges i backloggen.
 
 Se [datamodellen](docs/database.md) og [udviklings- og driftsvejledningen](docs/development.md).
+
+## Tilføj udstyr (V1-02)
+
+Åbn `/udstyr` for at se oversigten, og vælg **Opret udstyr**. Formularen på `/udstyr/opret` kræver navn, serienummer, en eksisterende kategori og tilstand. Navn og serienummer må højst indeholde 200 tegn. Efter oprettelse åbnes detaljesiden på `/udstyr/{id}`, og udstyret kan findes i oversigten.
+
+API'et tildeler automatisk et entydigt ID samt oprettelses- og ændringstidspunkt. Funktionen bruger den eksisterende udstyrstabel og kræver ingen ny migration.
+
+| Metode | Endpoint | Funktion |
+| --- | --- | --- |
+| GET | `/api/equipment/` | Hent udstyrsoversigten |
+| GET | `/api/equipment/{id}` | Hent ét udstyr; ukendt ID giver 404 |
+| POST | `/api/equipment/` | Opret udstyr |
+
+POST modtager felterne `name`, `serialNumber`, `equipmentCategoryId` og `condition`. Tilstand sendes som et tal: 0 = ukendt, 1 = god, 2 = slidt, 3 = beskadiget og 4 = ude af drift. Ugyldige feltværdier giver 400 med valideringsbeskeder.
+
+**Midlertidig adgangsbeslutning:** Alle endpoints kræver login, men oprettelse kræver foreløbigt ingen bestemt rolle, ligesom oprettelse af kategorier. Rollekravet `EquipmentManager` er fjernet efter aftale med brugeren. Rollebegrænsning skal genindføres, når den ønskede adgangsmodel aktiveres.
+
+**Validering den 23. oktober 2026:** Brugeren har gennemført den aftalte manuelle afprøvning og meldt testene bestået: oprettelse, oversigt og detaljeside, påkrævede felter og ugyldige værdier, ID og tidsstempler samt login uden rollekrav. Release-build og lokal Docker-opstart er gennemført uden fejl. Produktionsdeployment af commit `abe1313` er gennemført i Dokploy.
