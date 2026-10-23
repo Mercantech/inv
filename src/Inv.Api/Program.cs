@@ -1,4 +1,5 @@
 using Inv.Api.Authentication;
+using Inv.Api.Features.Equipment;
 using Inv.Api.Health;
 using Inv.Infrastructure.Data;
 using Inv.Infrastructure.Configuration;
@@ -85,6 +86,7 @@ app.MapGet("/api/manager-access", () => Results.Ok(new { Allowed = true }))
     .RequireAuthorization("EquipmentManager").WithTags("Authentication");
 
 app.MapEquipmentCategoryEndpoints();
+app.MapEquipmentEndpoints();
 
 await app.RunAsync();
 

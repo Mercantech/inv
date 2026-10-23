@@ -1,0 +1,105 @@
+@page "/udstyr/{Id:guid}"
+@using System.Net
+@using System.Text.Json
+@using Inv.Web.Models
+@using Inv.Web.Services
+@inject EquipmentClient Equipment
+
+<PageTitle>Udstyrsdetaljer · Udstyrsinventar</PageTitle>
+
+<section class="page-intro">
+    <h1>Udstyrsdetaljer</h1>
+</section>
+
+@if (loading)
+{
+    <p role="status">Henter udstyr…</p>
+}
+else if (!string.IsNullOrWhiteSpace(error))
+{
+    <p role="alert">@error</p>
+}
+else if (equipment is null)
+{
+    <p>Udstyret blev ikke fundet.</p>
+}
+else
+{
+    <h2>@equipment.Name</h2>
+
+    <dl>
+        <dt>Serienummer</dt>
+        <dd>@equipment.SerialNumber</dd>
+
+        <dt>Kategori</dt>
+        <dd>@equipment.CategoryName</dd>
+
+        <dt>Tilstand</dt>
+        <dd>@GetConditionName(equipment.Condition)</dd>
+
+        <dt>ID</dt>
+        <dd>@equipment.Id</dd>
+
+        <dt>Oprettet (UTC)</dt>
+        <dd>@equipment.CreatedAt.UtcDateTime.ToString("dd-MM-yyyy HH:mm")</dd>
+
+        <dt>Senest ændret (UTC)</dt>
+        <dd>@equipment.UpdatedAt.UtcDateTime.ToString("dd-MM-yyyy HH:mm")</dd>
+    </dl>
+}
+
+<a href="/udstyr">Til udstyrsoversigten</a>
+
+@code {
+    [Parameter]
+    public Guid Id { get; set; }
+
+    private EquipmentResponse? equipment;
+    private bool loading;
+    private string? error;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        loading = true;
+        error = null;
+        equipment = null;
+
+        try
+        {
+            equipment = await Equipment.GetByIdAsync(Id);
+        }
+        catch (HttpRequestException exception)
+        {
+            error = exception.StatusCode switch
+            {
+                HttpStatusCode.Unauthorized =>
+                    "Dit login er udløbet. Log ind igen.",
+                HttpStatusCode.Forbidden =>
+                    "Du mangler rettigheden til at se udstyret.",
+                _ => "Udstyret kunne ikke hentes. Prøv igen senere."
+            };
+        }
+        catch (JSException)
+        {
+            error = "Forespørgslen kunne ikke gennemføres. Kontrollér forbindelsen og dit login.";
+        }
+        catch (JsonException)
+        {
+            error = "API'et returnerede ugyldige udstyrsoplysninger.";
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private static string GetConditionName(int condition) => condition switch
+    {
+        0 => "Ukendt",
+        1 => "God",
+        2 => "Slidt",
+        3 => "Beskadiget",
+        4 => "Ude af drift",
+        _ => "Ukendt"
+    };
+}

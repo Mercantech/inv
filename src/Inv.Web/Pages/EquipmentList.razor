@@ -1,0 +1,112 @@
+@page "/udstyr"
+@using System.Net
+@using System.Text.Json
+@using Inv.Web.Models
+@using Inv.Web.Services
+@inject EquipmentClient Equipment
+
+<PageTitle>Udstyr · Udstyrsinventar</PageTitle>
+
+<section class="page-intro">
+    <h1>Udstyr</h1>
+    <p>Se registreret udstyr, og åbn det enkelte udstyrs oplysninger.</p>
+    <a href="/udstyr/opret" class="button">Opret udstyr</a>
+</section>
+
+@if (loading)
+{
+    <p role="status">Henter udstyr…</p>
+}
+else if (!string.IsNullOrWhiteSpace(error))
+{
+    <p role="alert">@error</p>
+    <button type="button" class="button" @onclick="LoadAsync">
+        Prøv igen
+    </button>
+}
+else if (equipment.Count == 0)
+{
+    <p>Der er endnu ikke registreret udstyr.</p>
+}
+else
+{
+    <table>
+        <caption>Registreret udstyr</caption>
+        <thead>
+            <tr>
+                <th scope="col">Navn</th>
+                <th scope="col">Serienummer</th>
+                <th scope="col">Kategori</th>
+                <th scope="col">Tilstand</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var item in equipment)
+            {
+                <tr @key="item.Id">
+                    <td>
+                        <a href="@($"/udstyr/{item.Id}")">@item.Name</a>
+                    </td>
+                    <td>@item.SerialNumber</td>
+                    <td>@item.CategoryName</td>
+                    <td>@GetConditionName(item.Condition)</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<EquipmentResponse> equipment = [];
+    private bool loading;
+    private string? error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        loading = true;
+        error = null;
+
+        try
+        {
+            equipment = await Equipment.GetAllAsync();
+        }
+        catch (HttpRequestException exception)
+        {
+            error = exception.StatusCode switch
+            {
+                HttpStatusCode.Unauthorized =>
+                    "Dit login er udløbet. Log ind igen.",
+                HttpStatusCode.Forbidden =>
+                    "Du mangler rettigheden til at se udstyret.",
+                _ => "Udstyret kunne ikke hentes. Prøv igen senere."
+            };
+        }
+        catch (JSException)
+        {
+            error = "Forespørgslen kunne ikke gennemføres. Kontrollér forbindelsen og dit login.";
+        }
+        catch (JsonException)
+        {
+            error = "API'et returnerede en ugyldig udstyrsliste.";
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private static string GetConditionName(int condition) => condition switch
+    {
+        0 => "Ukendt",
+        1 => "God",
+        2 => "Slidt",
+        3 => "Beskadiget",
+        4 => "Ude af drift",
+        _ => "Ukendt"
+    };
+}

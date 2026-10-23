@@ -1,0 +1,231 @@
+@* src/Inv.Web/Pages/CreateEquipment.razor *@
+
+@page "/udstyr/opret"
+@using System.Text.Json
+@using Inv.Web.Models
+@using Inv.Web.Services
+@inject EquipmentCategoryClient Categories
+@inject EquipmentClient Equipment
+@inject NavigationManager Navigation
+
+<PageTitle>Opret udstyr · Udstyrsinventar</PageTitle>
+
+<section class="page-intro">
+    <h1>Opret udstyr</h1>
+    <p>Angiv udstyrets navn, serienummer, kategori og tilstand.</p>
+</section>
+
+@if (loading)
+{
+    <p role="status">Henter kategorier…</p>
+}
+else if (categories.Count == 0)
+{
+    <p>Der skal være oprettet en kategori, før du kan oprette udstyr.</p>
+    <a href="/kategorier/opret">Opret kategori</a>
+}
+else
+{
+    <EditForm Model="@model" OnValidSubmit="CreateAsync">
+        <DataAnnotationsValidator />
+
+        <fieldset disabled="@saving">
+            <legend>Udstyrsoplysninger</legend>
+
+            <label for="equipment-name">Navn</label>
+            <InputText id="equipment-name"
+                       @bind-Value="model.Name"
+                       maxlength="200" />
+            <ValidationMessage For="@(() => model.Name)" />
+
+            <label for="equipment-serial-number">Serienummer</label>
+            <InputText id="equipment-serial-number"
+                       @bind-Value="model.SerialNumber"
+                       maxlength="200" />
+            <ValidationMessage For="@(() => model.SerialNumber)" />
+
+            <label for="equipment-category">Kategori</label>
+            <InputSelect id="equipment-category"
+                         TValue="Guid?"
+                         @bind-Value="model.EquipmentCategoryId">
+                <option value="">Vælg en kategori</option>
+                @foreach (var category in categories)
+                {
+                    <option value="@category.Id">@category.Name</option>
+                }
+            </InputSelect>
+            <ValidationMessage For="@(() => model.EquipmentCategoryId)" />
+
+            <label for="equipment-condition">Tilstand</label>
+            <InputSelect id="equipment-condition"
+                         TValue="int?"
+                         @bind-Value="model.Condition">
+                <option value="">Vælg en tilstand</option>
+                <option value="0">Ukendt</option>
+                <option value="1">God</option>
+                <option value="2">Slidt</option>
+                <option value="3">Beskadiget</option>
+                <option value="4">Ude af drift</option>
+            </InputSelect>
+            <ValidationMessage For="@(() => model.Condition)" />
+
+            <button type="submit" class="button">
+                @(saving ? "Opretter…" : "Opret udstyr")
+            </button>
+        </fieldset>
+    </EditForm>
+}
+
+@if (!string.IsNullOrWhiteSpace(error))
+{
+    <p role="alert">@error</p>
+}
+
+@if (validationErrors.Count > 0)
+{
+    <ul role="alert">
+        @foreach (var message in validationErrors)
+        {
+            <li>@message</li>
+        }
+    </ul>
+}
+
+@code {
+    private static readonly JsonSerializerOptions JsonOptions =
+        new(JsonSerializerDefaults.Web);
+
+    private readonly CreateEquipmentModel model = new();
+    private List<EquipmentcategoryResponse> categories = [];
+    private readonly List<string> validationErrors = [];
+    private bool loading = true;
+    private bool saving;
+    private string? error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            categories = await Categories.GetAllAsync();
+        }
+        catch (HttpRequestException)
+        {
+            error = "Kategorierne kunne ikke hentes. Kontrollér forbindelsen og dit login.";
+        }
+        catch (JSException)
+        {
+            error = "Forespørgslen kunne ikke gennemføres. Kontrollér forbindelsen og dit login.";
+        }
+        catch (JsonException)
+        {
+            error = "API'et returnerede ugyldige kategorioplysninger.";
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private async Task CreateAsync()
+    {
+        if (saving)
+        {
+            return;
+        }
+
+        saving = true;
+        error = null;
+        validationErrors.Clear();
+
+        try
+        {
+            var response = await Equipment.CreateAsync(model);
+
+            switch (response.Status)
+            {
+                case 201:
+                    var created = JsonSerializer.Deserialize<EquipmentResponse>(
+                        response.Body,
+                        JsonOptions);
+
+                    if (created is null || created.Id == Guid.Empty)
+                    {
+                        error = "Udstyret er oprettet, men detaljesiden kunne ikke åbnes.";
+                        break;
+                    }
+
+                    Navigation.NavigateTo($"/udstyr/{created.Id}");
+                    break;
+
+                case 400:
+                    ReadValidationErrors(response.Body);
+                    break;
+
+                case 401:
+                    error = "Dit login er udløbet. Log ind igen.";
+                    break;
+
+                case 403:
+                    error = "Du mangler rettigheden til at oprette udstyr.";
+                    break;
+
+                default:
+                    error = "Udstyret kunne ikke oprettes. Prøv igen senere.";
+                    break;
+            }
+        }
+        catch (JSException)
+        {
+            error = "Forespørgslen kunne ikke gennemføres. Kontrollér forbindelsen og dit login.";
+        }
+        catch (HttpRequestException)
+        {
+            error = "Der kunne ikke oprettes forbindelse til API'et.";
+        }
+        catch (JsonException)
+        {
+            error = "API'et returnerede et ugyldigt svar. Kontrollér udstyrsoversigten, før du prøver igen.";
+        }
+        finally
+        {
+            saving = false;
+        }
+    }
+
+    private void ReadValidationErrors(string body)
+    {
+        error = "Kontrollér de indtastede oplysninger.";
+
+        try
+        {
+            using var document = JsonDocument.Parse(body);
+
+            if (!document.RootElement.TryGetProperty("errors", out var errors) ||
+                errors.ValueKind != JsonValueKind.Object)
+            {
+                return;
+            }
+
+            foreach (var field in errors.EnumerateObject())
+            {
+                if (field.Value.ValueKind != JsonValueKind.Array)
+                {
+                    continue;
+                }
+
+                foreach (var message in field.Value.EnumerateArray())
+                {
+                    if (message.ValueKind == JsonValueKind.String &&
+                        !string.IsNullOrWhiteSpace(message.GetString()))
+                    {
+                        validationErrors.Add(message.GetString()!);
+                    }
+                }
+            }
+        }
+        catch (JsonException)
+        {
+            // Den generelle fejlbesked vises, hvis svaret ikke kan læses.
+        }
+    }
+}

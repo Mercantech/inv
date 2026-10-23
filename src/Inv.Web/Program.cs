@@ -49,5 +49,6 @@ builder.Services.AddSingleton(new AuthConfiguration(authority, builder.Configura
 
 builder.Services.AddScoped<MercantecAuthClient>();
 builder.Services.AddScoped<EquipmentCategoryClient>();
+builder.Services.AddScoped<EquipmentClient>();
 
 await builder.Build().RunAsync();
