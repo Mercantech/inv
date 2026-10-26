@@ -3,6 +3,7 @@
 bool testRelays(MKRIoTCarrier &carrier) {
   clearDisplay(carrier);
   drawCenteredF(carrier, F("Relay"), OLED_CY - 12, 2, ST77XX_WHITE);
+  Serial.println(F("Relay: lyt efter klik (relay 1, 2, begge)"));
   delay(800);
 
   clearDisplay(carrier);
@@ -25,15 +26,24 @@ bool testRelays(MKRIoTCarrier &carrier) {
   carrier.Relay1.close();
   carrier.Relay2.close();
 
-  setTestNote("relay1+2_cycled");
-  showTestResult(carrier, "Relay", true);
-  return true;
+  bool ok = confirmPhysical(carrier, F("Relay"),
+                            F("Horte/folte du klik for relay 1, 2 og begge?"),
+                            60000);
+  if (ok) {
+    setTestNote("relay1+2_cycled;confirmed");
+  }
+  showTestResult(carrier, "Relay", ok);
+  return ok;
 }
 
 bool testButtons(MKRIoTCarrier &carrier) {
   clearDisplay(carrier);
   drawCenteredF(carrier, F("Knapper"), 55, 2, ST77XX_WHITE);
   drawCenteredF(carrier, F("Tryk alle 5"), 110, 2, ST77XX_CYAN);
+  Serial.println();
+  Serial.println(F(">>> FYSISK TJEK — knapper <<<"));
+  Serial.println(F("  Tryk alle 5 touch-knapper rundt om skaermen (30s)"));
+  Serial.println();
 
   unsigned long startTime = millis();
   bool buttonPressed[5] = {false, false, false, false, false};
@@ -80,6 +90,7 @@ bool testButtons(MKRIoTCarrier &carrier) {
 bool testLEDs(MKRIoTCarrier &carrier) {
   clearDisplay(carrier);
   drawCenteredF(carrier, F("LED"), OLED_CY - 12, 3, ST77XX_WHITE);
+  Serial.println(F("LED: se alle 5 pixels skifte rod/gron/bla + farvecyklus"));
   delay(500);
 
   carrier.leds.setBrightness(255);
@@ -120,9 +131,14 @@ bool testLEDs(MKRIoTCarrier &carrier) {
   carrier.leds.clear();
   carrier.leds.show();
 
-  setTestNote("pixels=5 rgb_cycle");
-  showTestResult(carrier, "LED", true);
-  return true;
+  bool ok = confirmPhysical(carrier, F("LED"),
+                            F("Alle 5 LED lyser korrekt i rod/gron/bla?"),
+                            60000);
+  if (ok) {
+    setTestNote("pixels=5 rgb_cycle;confirmed");
+  }
+  showTestResult(carrier, "LED", ok);
+  return ok;
 }
 
 bool testBuzzer(MKRIoTCarrier &carrier) {
@@ -153,8 +169,13 @@ bool testBuzzer(MKRIoTCarrier &carrier) {
     delay(300);
   }
 
-  setTestNote("scale+beep");
-  showTestResult(carrier, "Buzzer", true);
-  return true;
+  bool ok = confirmPhysical(carrier, F("Buzzer"),
+                            F("Horte du skalaen og beep-lydene?"),
+                            60000);
+  if (ok) {
+    setTestNote("scale+beep;confirmed");
+  }
+  showTestResult(carrier, "Buzzer", ok);
+  return ok;
 #endif
 }

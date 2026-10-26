@@ -1,7 +1,7 @@
 # Arduino Oplà hardwaretester
 
 Hardwaretesteren er portet fra [Mercantech/Arduino-Opla](https://github.com/Mercantech/Arduino-Opla/tree/2633e373230a5bbc9196a57348d93c0343566d8e/Hardwaretestere/HardwareTest), commit `2633e373230a5bbc9196a57348d93c0343566d8e`.
-Sensor- og komponenttestene er bevaret. API-afsendelsen bruger nu inventarsystemets modtagelse med en separat enhedsnøgle, kontrollerer HTTP-status og opbygger JSON uden den tidligere faste rapportbuffer. WiFi-navnet sendes ikke i nye rapporter.
+Sensor- og komponenttestene er bevaret. Visuelle/fysiske trin (OLED, LED, relay, buzzer) kræver bekræftelse i Serial Monitor (`OK` / `FEJL`) — timeout uden svar tæller som fejl. API-afsendelsen går til inventarsystemet uden enhedsnøgle.
 
 ## Konfiguration og upload
 

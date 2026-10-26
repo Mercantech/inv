@@ -19,6 +19,13 @@ void runAllTests(MKRIoTCarrier &carrier) {
 
   resetTestLog();
 
+  Serial.println();
+  Serial.println(F("=== Hardwaretest ==="));
+  Serial.println(F("Fysiske/visuelle trin: folg skarmen og Serial."));
+  Serial.println(F("Nar der sporges: skriv OK (virker) eller FEJL (virker ikke)."));
+  Serial.println(F("Uden svar inden timeout taelles det som FEJL."));
+  Serial.println();
+
 #if ENABLE_SOUND_TEST
   Serial.println(F("Lyd: TIL (buzzer + bip)"));
 #else

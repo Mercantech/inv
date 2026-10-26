@@ -9,6 +9,7 @@ bool testOLEDScreen(MKRIoTCarrier &carrier) {
   clearDisplay(carrier);
   drawCentered(carrier, "OLED Test", 70, 2, ST77XX_WHITE);
   drawCentered(carrier, "Arduino Opla", 110, 2, ST77XX_CYAN);
+  Serial.println(F("OLED: viser farver og grafik — se skærmen"));
   delay(2000);
 
   testFarver(carrier);
@@ -16,9 +17,15 @@ bool testOLEDScreen(MKRIoTCarrier &carrier) {
   drawCircleTest(carrier);
   drawGraphicsTest(carrier);
 
-  setTestNote("colors+graphics");
-  showTestResult(carrier, "OLED", true);
-  return true;
+  // Kode kan ikke se døde pixels, forkerte farver osv. — operatør skal bekræfte.
+  bool ok = confirmPhysical(carrier, F("OLED"),
+                            F("Farver, tekst og figurer ser korrekte ud pa skaermen?"),
+                            90000);
+  if (ok) {
+    setTestNote("colors+graphics;confirmed");
+  }
+  showTestResult(carrier, "OLED", ok);
+  return ok;
 }
 
 void testFarver(MKRIoTCarrier &carrier) {

@@ -56,6 +56,11 @@ void printDeviceIds(MKRIoTCarrier &carrier);
 // Bip kun hvis ENABLE_SOUND_TEST er true
 void maybeBeep(MKRIoTCarrier &carrier);
 
+// Bed operatøren bekræfte et fysisk/visuelt resultat via Serial Monitor.
+// Skriv OK/y/ja eller FEJL/n/nej. Timeout tæller som fejl.
+bool confirmPhysical(MKRIoTCarrier &carrier, const __FlashStringHelper *title,
+                     const __FlashStringHelper *hint, unsigned long timeoutMs = 90000);
+
 // Registrér/opdatér enhed + testrapport via HTTPS
 bool reportToApi(MKRIoTCarrier &carrier);
 

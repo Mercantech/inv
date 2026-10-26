@@ -101,6 +101,109 @@ void maybeBeep(MKRIoTCarrier &carrier) {
 #endif
 }
 
+static void flushSerialInput() {
+  while (Serial.available() > 0) {
+    (void)Serial.read();
+  }
+}
+
+static void toLowerAscii(char *s) {
+  for (; *s; ++s) {
+    if (*s >= 'A' && *s <= 'Z') {
+      *s = (char)(*s - 'A' + 'a');
+    }
+  }
+}
+
+static bool isConfirmOk(const char *line) {
+  return strcmp(line, "ok") == 0 || strcmp(line, "y") == 0 || strcmp(line, "yes") == 0
+      || strcmp(line, "ja") == 0 || strcmp(line, "1") == 0;
+}
+
+static bool isConfirmFail(const char *line) {
+  return strcmp(line, "fejl") == 0 || strcmp(line, "fail") == 0 || strcmp(line, "n") == 0
+      || strcmp(line, "no") == 0 || strcmp(line, "nej") == 0 || strcmp(line, "0") == 0;
+}
+
+bool confirmPhysical(MKRIoTCarrier &carrier, const __FlashStringHelper *title,
+                     const __FlashStringHelper *hint, unsigned long timeoutMs) {
+  flushSerialInput();
+
+  Serial.println();
+  Serial.println(F(">>> FYSISK TJEK — svar i Serial Monitor <<<"));
+  Serial.print(F("  "));
+  Serial.println(title);
+  Serial.print(F("  "));
+  Serial.println(hint);
+  Serial.println(F("  Skriv OK  (eller y/ja/1)  hvis det virker"));
+  Serial.println(F("  Skriv FEJL (eller n/nej/0) hvis det IKKE virker"));
+  Serial.println(F("  (Timeout uden svar = FEJL)"));
+  Serial.println();
+
+  char titleBuf[24];
+  strncpy_P(titleBuf, (PGM_P)title, sizeof(titleBuf) - 1);
+  titleBuf[sizeof(titleBuf) - 1] = '\0';
+
+  char line[24];
+  size_t len = 0;
+  line[0] = '\0';
+  unsigned long start = millis();
+  unsigned long lastUi = 0;
+
+  while (millis() - start < timeoutMs) {
+    unsigned long elapsed = millis() - start;
+    if (elapsed - lastUi >= 500 || lastUi == 0) {
+      lastUi = elapsed;
+      unsigned long leftSec = (timeoutMs - elapsed + 999) / 1000;
+      char countdown[16];
+      snprintf(countdown, sizeof(countdown), "%lus", leftSec);
+      clearDisplay(carrier);
+      drawCentered(carrier, titleBuf, 40, 2, ST77XX_CYAN);
+      drawCenteredF(carrier, F("Ser det OK ud?"), 85, 2, ST77XX_WHITE);
+      drawCenteredF(carrier, F("Skriv i Serial"), 120, 1, ST77XX_YELLOW);
+      drawCenteredF(carrier, F("OK eller FEJL"), 140, 1, ST77XX_YELLOW);
+      drawCentered(carrier, countdown, 175, 2, ST77XX_WHITE);
+    }
+
+    while (Serial.available() > 0) {
+      char c = (char)Serial.read();
+      if (c == '\r') {
+        continue;
+      }
+      if (c == '\n') {
+        line[len] = '\0';
+        toLowerAscii(line);
+        if (len == 0) {
+          continue;
+        }
+        Serial.print(F("  Modtog: "));
+        Serial.println(line);
+        if (isConfirmOk(line)) {
+          Serial.println(F("  -> Bekraeftet OK"));
+          return true;
+        }
+        if (isConfirmFail(line)) {
+          Serial.println(F("  -> Markeret som FEJL"));
+          setTestNote("operator_fail");
+          return false;
+        }
+        Serial.println(F("  Ugyldigt — brug OK eller FEJL"));
+        len = 0;
+        line[0] = '\0';
+        continue;
+      }
+      if (len + 1 < sizeof(line)) {
+        line[len++] = c;
+      }
+    }
+    delay(10);
+  }
+
+  Serial.println(F("  -> Timeout uden svar = FEJL"));
+  setTestNote("timeout_no_serial");
+  return false;
+}
+
 void showTestResult(MKRIoTCarrier &carrier, const char *name, bool ok) {
   clearDisplay(carrier);
   drawCentered(carrier, name, OLED_CY - 28, 2, ok ? ST77XX_GREEN : ST77XX_RED);
