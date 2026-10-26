@@ -1,6 +1,7 @@
-@* src/Inv.Web/Pages/CreateEquipment.razor *@
+@* Fælles formular til oprettelse og redigering af udstyr. *@
 
 @page "/udstyr/opret"
+@page "/udstyr/{Id:guid}/rediger"
 @using System.Text.Json
 @using Inv.Web.Models
 @using Inv.Web.Services
@@ -8,25 +9,29 @@
 @inject EquipmentClient Equipment
 @inject NavigationManager Navigation
 
-<PageTitle>Opret udstyr · Udstyrsinventar</PageTitle>
+<PageTitle>@(IsEditing ? "Rediger udstyr" : "Opret udstyr") · Udstyrsinventar</PageTitle>
 
 <section class="page-intro">
-    <h1>Opret udstyr</h1>
+    <h1>@(IsEditing ? "Rediger udstyr" : "Opret udstyr")</h1>
     <p>Angiv udstyrets navn, serienummer, kategori og tilstand.</p>
 </section>
 
 @if (loading)
 {
-    <p role="status">Henter kategorier…</p>
+    <p role="status">Henter oplysninger…</p>
+}
+else if (!loaded)
+{
+    <button class="button" @onclick="LoadAsync">Prøv igen</button>
 }
 else if (categories.Count == 0)
 {
-    <p>Der skal være oprettet en kategori, før du kan oprette udstyr.</p>
+    <p>Der skal være oprettet en kategori, før du kan gemme udstyr.</p>
     <a href="/kategorier/opret">Opret kategori</a>
 }
 else
 {
-    <EditForm Model="@model" OnValidSubmit="CreateAsync">
+    <EditForm Model="@model" OnValidSubmit="SaveAsync" @key="model">
         <DataAnnotationsValidator />
 
         <fieldset disabled="@saving">
@@ -70,8 +75,9 @@ else
             <ValidationMessage For="@(() => model.Condition)" />
 
             <button type="submit" class="button">
-                @(saving ? "Opretter…" : "Opret udstyr")
+                @(saving ? "Gemmer…" : IsEditing ? "Gem ændringer" : "Opret udstyr")
             </button>
+            <button type="button" class="button" @onclick="Cancel">Annuller</button>
         </fieldset>
     </EditForm>
 }
@@ -92,25 +98,58 @@ else
 }
 
 @code {
+    [Parameter]
+    public Guid? Id { get; set; }
+
+    private bool IsEditing => Id.HasValue;
+
     private static readonly JsonSerializerOptions JsonOptions =
         new(JsonSerializerDefaults.Web);
 
-    private readonly CreateEquipmentModel model = new();
+    private EquipmentFormModel model = new();
     private List<EquipmentcategoryResponse> categories = [];
     private readonly List<string> validationErrors = [];
     private bool loading = true;
+    private bool loaded;
     private bool saving;
     private string? error;
 
-    protected override async Task OnInitializedAsync()
+    protected override Task OnParametersSetAsync() => LoadAsync();
+
+    private void Cancel() => Navigation.NavigateTo(IsEditing ? $"/udstyr/{Id}" : "/udstyr");
+
+    private async Task LoadAsync()
     {
+        loading = true;
+        loaded = false;
+        error = null;
+        validationErrors.Clear();
+        model = new();
         try
         {
             categories = await Categories.GetAllAsync();
+            if (Id is Guid id)
+            {
+                var existing = await Equipment.GetByIdAsync(id);
+                if (existing is null)
+                {
+                    error = "Udstyret blev ikke fundet.";
+                    return;
+                }
+
+                model = new EquipmentFormModel
+                {
+                    Name = existing.Name,
+                    SerialNumber = existing.SerialNumber,
+                    EquipmentCategoryId = existing.EquipmentCategoryId,
+                    Condition = existing.Condition
+                };
+            }
+            loaded = true;
         }
         catch (HttpRequestException)
         {
-            error = "Kategorierne kunne ikke hentes. Kontrollér forbindelsen og dit login.";
+            error = "Oplysningerne kunne ikke hentes. Kontrollér forbindelsen og dit login.";
         }
         catch (JSException)
         {
@@ -118,7 +157,7 @@ else
         }
         catch (JsonException)
         {
-            error = "API'et returnerede ugyldige kategorioplysninger.";
+            error = "API'et returnerede ugyldige oplysninger.";
         }
         finally
         {
@@ -126,7 +165,7 @@ else
         }
     }
 
-    private async Task CreateAsync()
+    private async Task SaveAsync()
     {
         if (saving)
         {
@@ -139,22 +178,25 @@ else
 
         try
         {
-            var response = await Equipment.CreateAsync(model);
+            var response = Id is Guid id
+                ? await Equipment.UpdateAsync(id, model)
+                : await Equipment.CreateAsync(model);
 
             switch (response.Status)
             {
-                case 201:
-                    var created = JsonSerializer.Deserialize<EquipmentResponse>(
+                case 200 when IsEditing:
+                case 201 when !IsEditing:
+                    var saved = JsonSerializer.Deserialize<EquipmentResponse>(
                         response.Body,
                         JsonOptions);
 
-                    if (created is null || created.Id == Guid.Empty)
+                    if (saved is null || saved.Id == Guid.Empty)
                     {
-                        error = "Udstyret er oprettet, men detaljesiden kunne ikke åbnes.";
+                        error = "Udstyret er gemt, men detaljesiden kunne ikke åbnes.";
                         break;
                     }
 
-                    Navigation.NavigateTo($"/udstyr/{created.Id}");
+                    Navigation.NavigateTo($"/udstyr/{saved.Id}");
                     break;
 
                 case 400:
@@ -166,11 +208,15 @@ else
                     break;
 
                 case 403:
-                    error = "Du mangler rettigheden til at oprette udstyr.";
+                    error = "Du mangler rettigheden til at gemme udstyr.";
+                    break;
+
+                case 404:
+                    error = "Udstyret findes ikke længere. Ændringerne blev ikke gemt.";
                     break;
 
                 default:
-                    error = "Udstyret kunne ikke oprettes. Prøv igen senere.";
+                    error = "Udstyret kunne ikke gemmes. Prøv igen senere.";
                     break;
             }
         }

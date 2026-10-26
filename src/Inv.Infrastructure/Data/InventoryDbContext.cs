@@ -15,6 +15,7 @@ public sealed class InventoryDbContext(DbContextOptions<InventoryDbContext> opti
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.HasSequence<int>("ShortIds").StartsAt(100);
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(InventoryDbContext).Assembly);
     }
 

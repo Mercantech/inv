@@ -103,6 +103,7 @@ public sealed class HardwareStore(InventoryDbContext database)
         var rows = await query.OrderByDescending(device => device.LastSeenAt).ThenBy(device => device.SamdId)
             .Select(device => new
             {
+                device.ShortId, EquipmentShortId = device.Equipment == null ? (int?)null : device.Equipment.ShortId,
                 device.SamdId, device.Label, device.Mac, device.EccSerial, device.EquipmentId,
                 EquipmentName = device.Equipment == null ? null : device.Equipment.Name,
                 device.LastSeenAt, TestCount = device.Reports.Count,
@@ -110,6 +111,6 @@ public sealed class HardwareStore(InventoryDbContext database)
             }).ToListAsync(cancellationToken);
         return rows.Select(row => new DeviceResult(row.SamdId, row.Label, row.Mac, row.EccSerial,
             row.EquipmentId, row.EquipmentName, row.LastSeenAt, row.TestCount,
-            row.Latest is null ? null : HardwareContracts.Result(row.Latest))).ToList();
+            row.Latest is null ? null : HardwareContracts.Result(row.Latest), row.ShortId, row.EquipmentShortId)).ToList();
     }
 }

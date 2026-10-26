@@ -1,4 +1,5 @@
 using Microsoft.JSInterop;
+using Microsoft.AspNetCore.Components;
 
 namespace Inv.Web.Services;
 
@@ -6,16 +7,20 @@ public sealed record AuthConfiguration(string Authority, string ClientId, string
 
 public sealed record AuthResponse(int Status, string Body);
 
-public sealed class MercantecAuthClient(IJSRuntime js, AuthConfiguration configuration) : IAsyncDisposable
+public sealed class MercantecAuthClient(IJSRuntime js, AuthConfiguration configuration, NavigationManager navigation) : IAsyncDisposable
 {
     private Task<IJSObjectReference>? module;
 
     private Task<IJSObjectReference> Module =>
-        module ??= js.InvokeAsync<IJSObjectReference>("import", "./auth.js").AsTask();
+        module ??= js.InvokeAsync<IJSObjectReference>("import", "./auth.js?v=2").AsTask();
 
     public async Task LoginAsync() => await (await Module).InvokeVoidAsync("login", configuration);
     public async Task CompleteLoginAsync() => await (await Module).InvokeVoidAsync("callback", configuration);
-    public async Task LogoutAsync() => await (await Module).InvokeVoidAsync("logout", configuration);
+    public async Task LogoutAsync()
+    {
+        await (await Module).InvokeVoidAsync("clearSession");
+        navigation.NavigateTo("login", forceLoad: true, replace: true);
+    }
     public async Task<bool> IsSignedInAsync() => await (await Module).InvokeAsync<bool>("isSignedIn");
 
     public async Task<AuthResponse> GetAsync(string relativePath) => await (await Module).InvokeAsync<AuthResponse>(
@@ -36,6 +41,12 @@ public sealed class MercantecAuthClient(IJSRuntime js, AuthConfiguration configu
             "POST",
             body);
     }
+
+    public async Task<AuthResponse> PutAsync<T>(string relativePath, T body) =>
+        await (await Module).InvokeAsync<AuthResponse>(
+            "request", configuration,
+            new Uri(new Uri(configuration.ApiBaseUrl), relativePath).AbsoluteUri,
+            "PUT", body);
 
     public async ValueTask DisposeAsync()
     {

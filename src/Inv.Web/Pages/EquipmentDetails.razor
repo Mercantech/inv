@@ -27,8 +27,12 @@ else if (equipment is null)
 else
 {
     <h2>@equipment.Name</h2>
+    <a class="button" href="@($"/udstyr/{Id}/rediger")">Rediger udstyr</a>
 
     <dl>
+        <dt>Kort ID</dt>
+        <dd>#@equipment.ShortId</dd>
+
         <dt>Serienummer</dt>
         <dd>@equipment.SerialNumber</dd>
 
@@ -47,6 +51,7 @@ else
         <dt>Senest ændret (UTC)</dt>
         <dd>@equipment.UpdatedAt.UtcDateTime.ToString("dd-MM-yyyy HH:mm")</dd>
     </dl>
+    <EquipmentLoan EquipmentId="Id" @key="Id" />
     <EquipmentHardware EquipmentId="Id" />
 }
 

@@ -8,4 +8,6 @@ public sealed record EquipmentResponse(
     string CategoryName,
     int Condition,
     DateTimeOffset CreatedAt,
-    DateTimeOffset UpdatedAt);
+    DateTimeOffset UpdatedAt,
+    int ShortId = 0,
+    bool IsLoaned = false);

@@ -83,7 +83,7 @@ public static class HardwareEndpoints
             var device = await store.RegisterAsync(request, ct);
             await db.SaveChangesAsync(ct);
             await transaction.CommitAsync(ct);
-            return Results.Ok(new { samd_id = device.SamdId });
+            return Results.Ok(new { samd_id = device.SamdId, short_id = device.ShortId });
         });
         ingestion.MapPost("/{samdId}/tests", async (string samdId, TestSubmission request, HardwareStore store, InventoryDbContext db, CancellationToken ct) =>
         {

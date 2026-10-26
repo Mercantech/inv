@@ -84,7 +84,7 @@ GitHub Actions bygger løsningen, kontrollerer at modellen matcher migrationerne
 
 API'et validerer Mercantec Auth-tokens med RS256, JWKS, `kid`, issuer, audience, udløb og et gyldigt UUID i `sub`. Brugerreferencer gemmes som `sub`; der er ingen lokal brugertabel med passwords. `EquipmentManager`-policyen bruger rollen fra `EQUIPMENT_MANAGER_ROLE`, som skal aftales med og tildeles i Mercantec Auth.
 
-Blazor-frontenden har login med authorization code + PKCE, callback og automatisk token-refresh. Klientregistrering og CORS hos Auth-platformen skal passe til miljøets adresser. Logout afslutter Auth-sessionen som specificeret i integrationsopgaven. Se [auth-vejledningen](docs/auth.md) for opsætning, test og logout-adfærd. Oprettelse af kategorier og udstyr er implementeret; de øvrige funktioner følges i backloggen.
+Blazor-frontenden har login med authorization code + PKCE, callback og automatisk token-refresh. Klientregistrering og CORS hos Auth-platformen skal passe til miljøets adresser. Logout rydder appens egne tokens og åbner dens login-side; den fælles Mercantec Auth-session og andre apps bevares. Se [auth-vejledningen](docs/auth.md) for opsætning, test og logout-adfærd. Oprettelse af kategorier og udstyr er implementeret; de øvrige funktioner følges i backloggen.
 
 Se [datamodellen](docs/database.md) og [udviklings- og driftsvejledningen](docs/development.md).
 
@@ -123,3 +123,53 @@ Eksempel: `/api/equipment/?search=arduino&condition=1`. Filtrene kombineres, så
 **Manuel afprøvning den 26. oktober 2026:** Brugeren har meldt søgning og kategori- og tilstandsfiltrering bestået efter afprøvning lokalt i Docker, herunder kombinerede filtre, tilstanden ukendt, ingen resultater og nulstilling.
 
 **Resterende arbejde:** V1-05 forbliver åbent. Visning af udlånsstatus og filter på udlånsstatus afventer udlånsmodulet i Sprint 2. Tilstand er en samlet vurdering; konkrete fejl på eksempelvis skærm eller føler håndteres senere i fejlmodulet med mulighed for flere aktuelle fejl og historik over udbedrede fejl. Filtrering på konkrete fejl er endnu ikke implementeret.
+
+## Redigering af udstyr (V1-03)
+
+Åbn et udstyr fra `/udstyr`, og vælg **Rediger udstyr**. Formularen på `/udstyr/{id}/rediger` viser de gemte værdier for navn, serienummer, kategori og tilstand. **Gem ændringer** validerer og gemmer oplysningerne og åbner detaljesiden igen. **Annuller** vender tilbage til detaljesiden uden at sende ændringer til API'et.
+
+`PUT /api/equipment/{id}` modtager de samme fire felter som oprettelse og returnerer det opdaterede udstyr med status 200. Tomme eller for lange navne/serienumre, en manglende eller ukendt kategori og en ugyldig tilstand afvises med 400. Et ukendt udstyrs-ID giver 404. Feltvalidering og kategorikontrol deles med oprettelse.
+
+ID, kort ID og oprettelsestidspunkt bevares; ændringstidspunktet opdateres ved hver gemning. Eksisterende udlån og deres noter, godkendere og tidsstempler ændres ikke. Funktionen kræver login, men har foreløbigt samme aftalte adgangsmodel som oprettelse: alle indloggede brugere kan redigere. Der kræves ingen migration eller ny miljøkonfiguration.
+
+Automatiske integrationstests i `EquipmentEditingTests` dækker gemning, efterfølgende læsning, bevarelse af identitet og udlånshistorik, gemning uden feltændringer, feltvalidering, ukendt kategori/udstyr, loginbeskyttelse og regression af oprettelse.
+
+Manuel browserkontrol før endelig godkendelse:
+
+1. Åbn et udstyr og vælg **Rediger udstyr**; kontrollér, at alle fire gemte værdier vises.
+2. Ret alle fire felter, gem, og kontrollér værdierne på detaljesiden og i oversigten.
+3. Forsøg at gemme tomt navn/serienummer eller manglende kategori/tilstand; kontrollér fejlbeskederne.
+4. Ret felterne og vælg **Annuller**; kontrollér, at de oprindelige værdier og ændringstidspunktet er bevaret.
+5. Åbn `/udstyr/{et-ukendt-guid}/rediger`; kontrollér beskeden om ukendt udstyr.
+
+Browserkontrollen er endnu ikke meldt gennemført; V1-03 holdes derfor åbent til endelig kontrol.
+
+**Teknisk validering den 26. oktober 2026:** Release-build gennemført uden fejl eller advarsler. Alle 32 integrationstests bestået i Linux/Docker mod en midlertidig PostgreSQL-database. EF-kontrol fandt ingen modelændringer. Lokal Compose-opstart med rebuild er gennemført, og API'ets `/health/ready` svarer `Healthy`.
+
+## Udlåne udstyr (V1-07, Sprint 2)
+
+Åbn et udstyrs detaljeside og vælg **Udlån udstyr**. Søg på navn, e-mail eller bruger-ID, vælg en låner og tilføj eventuelt en note (højst 4000 tegn). **Registrér udlån** gemmer lånerens Mercantec Auth-`sub`, den indloggede brugers `sub` som godkender og serverens aktuelle UTC-tid. **Annuller** lukker formularen uden at gemme.
+
+Låneropslaget omfatter alle konti i Mercantec Auth, også konti som aldrig har logget ind i udstyrssystemet. Deaktiverede konti vises, men kan ikke vælges til nye udlån. Låneren kontrolleres igen hos Auth ved gemning. Backend bruger Auths eksisterende `GET /api/admin/users-directory` med den eksisterende centrale MCP-nøgle i miljøvariablen `AUTH_MCP_API_KEY`; der oprettes ingen nye API-nøgler eller lokale brugerkonti. Nøglen må kun findes i `.env`/Dokploy, aldrig i git eller frontend. Kun navn, e-mail, `sub` og kontostatus sendes til frontend; provider- og klienthistorik videresendes ikke.
+
+Udstyret vises som **Udlånt** på detaljesiden og i udstyrsoversigten. Det aktuelle udlån viser låner, tidspunkt, godkenderens bruger-ID og note. Hvis Auth er utilgængelig, vises eksisterende udlån stadig med lånerens bruger-ID, mens nye udlån afvises med 503. Der bruges ingen lokal kopi af brugerregistret. Samme midlertidige adgangsmodel som udstyrsredigering gælder: alle indloggede brugere kan se lånere og registrere udlån. Rollebegrænsning afventer den aftalte senere aktivering.
+
+| Metode | Endpoint | Funktion |
+| --- | --- | --- |
+| GET | `/api/borrowers?search=...` | Auth-brugere; valgfri søgning på navn, e-mail eller eksakt `sub` |
+| GET | `/api/equipment/{id}/loan` | Aktuelt udlån; 204 hvis udstyret er ledigt, 404 ved ukendt udstyr |
+| POST | `/api/equipment/{id}/loans` | Opret med `borrowerSubject` og valgfri `note`; svar 201 |
+
+Ugyldig låner/note giver 400, manglende login 401, ukendt udstyr 404 og allerede udlånt udstyr 409. Det eksisterende unikke databaseindeks sikrer også mod dobbeltudlån ved samtidige forespørgsler. Afsluttede udlån i `Loans` bevares ved nye udlån. Ingen migration er nødvendig. Udlånsoversigt (#6), returnering (#8), historikvisning (#14) og udlånsfilteret fra #5 følger som separate opgaver.
+
+**Teknisk validering den 26. oktober 2026:** Release-build uden fejl/advarsler, 46 automatiske tests bestået i Linux/Docker og ingen ventende modelændringer. Testene dækker bl.a. låner uden tidligere app-login, validering, loginbeskyttelse, Auth-fejl, samtidige udlån, visning af udlånsstatus efter redigering og bevarelse af afsluttede udlån. Den eksisterende centrale Auth-adgang er verificeret mod det rigtige brugerregister og konfigureret i den ignorerede lokale `.env`.
+
+Manuel browserkontrol før issue #7 afsluttes:
+
+1. Åbn et ledigt udstyr, vælg **Udlån udstyr**, og find en Auth-bruger, som ikke tidligere har brugt appen.
+2. Tilføj en note, registrér udlånet, og kontrollér låner, tidspunkt, godkender og note på detaljesiden efter genindlæsning.
+3. Åbn udstyrsoversigten, og kontrollér status **Udlånt**. Udstyret må ikke kunne udlånes igen.
+4. Åbn formularen på et andet ledigt udstyr og vælg **Annuller**; udstyret skal stadig være ledigt.
+5. Kontrollér søgning uden resultater, valg af en aktiv konto og fejlbesked hvis Auth-opslaget ikke kan hentes.
+
+Issue #7 forbliver åbent til manuel kontrol. Produktionsmiljøet skal have den eksisterende Auth MCP-nøgle konfigureret som `AUTH_MCP_API_KEY`, før funktionen tages i brug dér.

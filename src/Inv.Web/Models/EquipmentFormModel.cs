@@ -2,7 +2,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace Inv.Web.Models;
 
-public sealed class CreateEquipmentModel
+public sealed class EquipmentFormModel
 {
     [Required(ErrorMessage = "Navnet må ikke være tomt.")]
     [StringLength(200, ErrorMessage = "Navnet må højst indeholde 200 tegn.")]

@@ -4,13 +4,15 @@ Inventarsystemet overtager modtagelse og visning af Oplà-testrapporter i .NET/P
 
 ## Brug
 
-Åbn `/hardware` efter login med Mercantec Auth. Oversigten viser hvert board, tilknyttet udstyr, seneste test og fejlede komponenter. Søgning gælder navn, SAMD-chip-ID og udstyrsnavn. **Kun fejl i seneste test** udelader boards, hvis seneste test er bestået eller som endnu ikke er testet.
+Åbn `/hardware` efter login med Mercantec Auth. Oversigten viser hvert board, tilknyttet udstyr, seneste test og fejlede komponenter. Søgning gælder kort ID, navn, SAMD-chip-ID og udstyrsnavn. Boardets og det tilknyttede udstyrs korte ID kan søges som fx `123` eller `#123`. **Kun fejl i seneste test** udelader boards, hvis seneste test er bestået eller som endnu ikke er testet.
 
 På `/hardware/{samdId}` vises seneste test og hele historikken i sider af 20 rapporter. Hver rapport har tidspunkt i UTC, antal beståede/fejlede tests, komponentresultater og noter. Sprungne tests vises som **Ikke testet** og tælles ikke som beståede eller fejlede. Gamle rapporter uden komponentdetaljer bevares med deres opsummering.
 
 Under **Knyt boardet til udstyr** kan brugeren vælge eksisterende udstyr eller vælge **Opret som udstyr**. Det opretter kategorien Arduino Oplà ved behov, bruger chip-ID som serienummer og sætter tilstanden til ukendt. Der gættes ikke på sammenhængen mellem eksisterende serienumre og boards. Et udstyr kan have højst ét board, og et board højst ét udstyr. Tilknytningen kan ændres eller fjernes uden at slette rapporter.
 
 Udstyrets detaljeside viser seneste hardwaretest og et link til hele historikken. En bestået test ændrer ikke den manuelt vurderede tilstand og lukker ingen manuelle fejlrapporter. Hardwaretests er observationer, adskilt fra fejlmodulets arbejdsgang og historik.
+
+Boards og udstyr får automatisk hver sit faste, unikke korte ID fra en fælles databasesekvens, der starter ved 100. Eksisterende registreringer får ID ved migrering. Nye tests og gentagen import bevarer boardets ID. Numrene kan have huller og fortsætter over 999 ved behov; de genbruges ikke. Udstyrsoversigten understøtter også søgning på udstyrets korte ID.
 
 ## API og adgang
 

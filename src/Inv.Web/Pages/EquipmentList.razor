@@ -18,7 +18,7 @@
     <fieldset disabled="@loading">
         <legend>Søgning og filtrering</legend>
 
-        <label for="equipment-search">Navn eller serienummer</label>
+        <label for="equipment-search">Kort ID, navn eller serienummer</label>
         <input id="equipment-search"
                type="search"
                @bind="search"
@@ -84,22 +84,26 @@ else
         <caption>Registreret udstyr</caption>
         <thead>
             <tr>
+                <th scope="col">ID</th>
                 <th scope="col">Navn</th>
                 <th scope="col">Serienummer</th>
                 <th scope="col">Kategori</th>
                 <th scope="col">Tilstand</th>
+                <th scope="col">Udlånsstatus</th>
             </tr>
         </thead>
         <tbody>
             @foreach (var item in equipment)
             {
                 <tr @key="item.Id">
+                    <td>#@item.ShortId</td>
                     <td>
                         <a href="@($"/udstyr/{item.Id}")">@item.Name</a>
                     </td>
                     <td>@item.SerialNumber</td>
                     <td>@item.CategoryName</td>
                     <td>@GetConditionName(item.Condition)</td>
+                    <td>@(item.IsLoaned ? "Udlånt" : "Ledigt")</td>
                 </tr>
             }
         </tbody>

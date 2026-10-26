@@ -5,6 +5,7 @@ using Inv.Infrastructure.Data;
 using Inv.Infrastructure.Configuration;
 using Inv.Api.Features.EquipmentCategories;
 using Inv.Api.Features.Hardware;
+using Inv.Api.Features.Loans;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.EntityFrameworkCore;
@@ -43,6 +44,9 @@ if (importOnly)
 }
 
 builder.Services.AddProblemDetails();
+builder.Services.AddHttpClient<IBorrowerDirectory, BorrowerDirectory>(client => client.Timeout = TimeSpan.FromSeconds(10))
+    .RedactLoggedHeaders(["x-api-key"])
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
 builder.Services.AddOpenApi();
 builder.Services.AddMercantecAuthentication(builder.Configuration);
 builder.Services.AddHealthChecks().AddCheck<DatabaseHealthCheck>("database", tags: ["ready"]);
@@ -105,6 +109,7 @@ app.MapGet("/api/manager-access", () => Results.Ok(new { Allowed = true }))
 
 app.MapEquipmentCategoryEndpoints();
 app.MapEquipmentEndpoints();
+app.MapLoanEndpoints();
 app.MapHardwareEndpoints();
 
 await app.RunAsync();

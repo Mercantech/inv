@@ -70,12 +70,24 @@ test('rejects token leakage to other origins and API paths', async () => {
     for (const url of ['https://evil.example/api/me', 'https://app.example/elsewhere']) await assert.rejects(auth.request(config, url), /API-adresse/);
 });
 
-test('logout clears local data and navigates to the specified signout endpoint', async () => {
+test('clearing the session removes only app authentication data without network or navigation', () => {
     setTokens(0);
-    auth.logout(config);
-    assert.equal(stored.size, 0);
-    assert.equal(new URL(destination).pathname, '/signout');
-    assert.equal(new URL(destination).searchParams.get('returnUrl'), 'https://app.example/login');
+    stored.set('inv.auth.pending', JSON.stringify({ state: 'pending-login' }));
+    stored.set('unrelated-setting', 'preserve');
+    globalThis.fetch = () => { assert.fail('Logout must not make network requests'); };
+    auth.clearSession();
+    assert.equal(auth.isSignedIn(), false);
+    assert.equal(stored.has('inv.auth.pending'), false);
+    assert.deepEqual([...stored], [['unrelated-setting', 'preserve']]);
+    assert.equal(destination, undefined);
+});
+
+test('clearing the session is idempotent and leaves navigation to Blazor', () => {
+    document.baseURI = 'https://app.example/inventory/';
+    auth.clearSession();
+    auth.clearSession();
+    assert.equal(destination, undefined);
+    assert.equal(auth.isSignedIn(), false);
 });
 
 test('expired login state is rejected', async () => {
@@ -99,7 +111,7 @@ test('refresh completing after logout cannot restore the session', async () => {
     let complete;
     globalThis.fetch = () => new Promise(resolve => complete = resolve);
     const request = auth.request(config, config.apiBaseUrl + 'me');
-    auth.logout(config);
+    auth.clearSession();
     complete(reply());
     await assert.rejects(request, /afbrudt/);
     assert.equal(auth.isSignedIn(), false);

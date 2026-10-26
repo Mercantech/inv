@@ -78,8 +78,11 @@ public sealed class EquipmentClient(MercantecAuthClient auth)
             "API'et returnerede ugyldige udstyrsoplysninger.");
     }
 
+    public async Task<AuthResponse> UpdateAsync(Guid id, EquipmentFormModel equipmentModel)
+        => await auth.PutAsync($"equipment/{id}", equipmentModel);
+
     public async Task<AuthResponse> CreateAsync(
-        CreateEquipmentModel equipmentModel)
+        EquipmentFormModel equipmentModel)
     {
         return await auth.PostAsync("equipment/", equipmentModel);
     }

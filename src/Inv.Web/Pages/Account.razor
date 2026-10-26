@@ -49,5 +49,9 @@
         }
         catch (JSException) { message = "Adgangen kunne ikke bekræftes. Prøv at logge ind igen."; }
     }
-    private async Task LogoutAsync() => await Auth.LogoutAsync();
+    private async Task LogoutAsync()
+    {
+        try { await Auth.LogoutAsync(); }
+        catch (JSException) { message = "Log ud kunne ikke gennemføres. Genindlæs siden og prøv igen."; }
+    }
 }

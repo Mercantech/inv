@@ -12,6 +12,7 @@ x-api: &api
     ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
     AUTH_ISSUER: ${AUTH_ISSUER:?Set AUTH_ISSUER in your environment file}
     AUTH_AUDIENCE: ${AUTH_AUDIENCE:?Set AUTH_AUDIENCE in your environment file}
+    AUTH_MCP_API_KEY: ${AUTH_MCP_API_KEY:-}
     JWKS_URI: ${JWKS_URI:?Set JWKS_URI in your environment file}
     EQUIPMENT_MANAGER_ROLE: ${EQUIPMENT_MANAGER_ROLE:-EquipmentManager}
     CORS_ORIGINS: ${CORS_ORIGINS:-}
