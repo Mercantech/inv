@@ -1,0 +1,176 @@
+@using System.Net
+@using System.Text.Json
+@using Inv.Web.Models
+@using Inv.Web.Services
+@inject LoanClient Loans
+
+<section class="hardware-section" aria-label="Udlån">
+    <h2>Udlån</h2>
+    @if (loading)
+    {
+        <p role="status">Henter udlånsstatus…</p>
+    }
+    else if (loadError is not null)
+    {
+        <p role="alert">@loadError</p>
+        <button type="button" @onclick="LoadAsync">Prøv igen</button>
+    }
+    else if (loan is not null)
+    {
+        <p role="status"><strong>Udlånt</strong></p>
+        <dl>
+            <dt>Låner</dt><dd>@BorrowerName(loan.BorrowerSubject)</dd>
+            <dt>Udlånt (UTC)</dt><dd>@loan.LoanedAt.UtcDateTime.ToString("dd-MM-yyyy HH:mm")</dd>
+            <dt>Godkendt af (bruger-ID)</dt><dd>@loan.ApprovedBySubject</dd>
+            @if (loan.Note is not null) { <dt>Note</dt><dd class="loan-note">@loan.Note</dd> }
+        </dl>
+    }
+    else
+    {
+        <p role="status"><strong>Ledigt</strong></p>
+        @if (!showForm)
+        {
+            <button type="button" class="button" @onclick="OpenFormAsync">Udlån udstyr</button>
+        }
+        else
+        {
+            <form class="loan-form" @onsubmit="SaveAsync" @onsubmit:preventDefault>
+                <fieldset disabled="@(saving || directoryLoading)">
+                    <legend>Registrér udlån</legend>
+                    <p>Vælg en låner fra Mercantec Auth. Låneren behøver ikke have brugt udstyrssystemet før.</p>
+                    <label for="borrower-search">Søg på navn, e-mail eller bruger-ID</label>
+                    <input id="borrower-search" type="search" @bind="search" @bind:event="oninput" />
+                    <label for="borrower">Låner</label>
+                    <select id="borrower" @bind="borrowerSubject" required>
+                        <option value="">Vælg låner</option>
+                        @foreach (var borrower in VisibleBorrowers)
+                        {
+                            <option value="@borrower.Subject" disabled="@borrower.IsDisabled">
+                                @borrower.Name · @(borrower.Email ?? borrower.Subject.ToString())@(borrower.IsDisabled ? " (deaktiveret)" : "")
+                            </option>
+                        }
+                    </select>
+                    @if (borrowers.Count > 0 && !VisibleBorrowers.Any()) { <p>Ingen lånere matcher søgningen.</p> }
+                    <label for="loan-note">Note (valgfri)</label>
+                    <textarea id="loan-note" @bind="note" maxlength="4000" rows="3"></textarea>
+                    <button type="submit" class="button" disabled="@(borrowers.Count == 0 || directoryError is not null)">@(saving ? "Gemmer…" : "Registrér udlån")</button>
+                    <button type="button" @onclick="CloseForm">Annuller</button>
+                </fieldset>
+            </form>
+        }
+    }
+    @if (directoryLoading) { <p role="status">Henter lånere fra Mercantec Auth…</p> }
+    @if (directoryError is not null)
+    {
+        <p role="alert">@directoryError</p>
+        <button type="button" disabled="@(directoryLoading || saving)" @onclick="LoadBorrowersAsync">Hent lånere igen</button>
+    }
+    @if (saveError is not null) { <p role="alert">@saveError</p> }
+</section>
+
+@code {
+    [Parameter] public Guid EquipmentId { get; set; }
+    private LoanResponse? loan;
+    private List<BorrowerResponse> borrowers = [];
+    private Guid? borrowerSubject;
+    private string search = "", note = "";
+    private bool loading, directoryLoading, showForm, saving;
+    private string? loadError, directoryError, saveError;
+    private IEnumerable<BorrowerResponse> VisibleBorrowers => borrowers.Where(b =>
+        b.Subject == borrowerSubject || string.IsNullOrWhiteSpace(search)
+        || b.Name.Contains(search.Trim(), StringComparison.OrdinalIgnoreCase)
+        || (b.Email?.Contains(search.Trim(), StringComparison.OrdinalIgnoreCase) ?? false)
+        || b.Subject.ToString().Equals(search.Trim(), StringComparison.OrdinalIgnoreCase));
+
+    private string BorrowerName(Guid subject)
+    {
+        var borrower = borrowers.FirstOrDefault(b => b.Subject == subject);
+        return borrower is null ? subject.ToString() : $"{borrower.Name} · {borrower.Email ?? subject.ToString()}";
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        CloseForm();
+        borrowers = [];
+        directoryError = null;
+        await LoadAsync();
+        if (loan is not null) await LoadBorrowersAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        loading = true;
+        loadError = null;
+        loan = null;
+        try { loan = await Loans.GetCurrentAsync(EquipmentId); }
+        catch (Exception e) when (e is HttpRequestException or JSException or JsonException)
+        {
+            loadError = "Udlånsstatus kunne ikke hentes. Kontrollér forbindelsen og dit login, og prøv igen.";
+        }
+        finally { loading = false; }
+    }
+
+    private async Task OpenFormAsync()
+    {
+        showForm = true;
+        await LoadBorrowersAsync();
+    }
+
+    private async Task LoadBorrowersAsync()
+    {
+        directoryLoading = true;
+        directoryError = null;
+        try { borrowers = await Loans.GetBorrowersAsync(); }
+        catch (Exception e) when (e is HttpRequestException or JSException or JsonException)
+        {
+            directoryError = "Lånerregistret kunne ikke hentes fra Mercantec Auth. Prøv igen, eller kontakt administratoren.";
+        }
+        finally { directoryLoading = false; }
+    }
+
+    private void CloseForm()
+    {
+        showForm = false;
+        borrowerSubject = null;
+        search = note = "";
+        saveError = null;
+    }
+
+    private async Task SaveAsync()
+    {
+        if (saving) return;
+        saveError = null;
+        if (borrowerSubject is not Guid subject || !borrowers.Any(b => b.Subject == subject && !b.IsDisabled))
+        {
+            saveError = "Vælg en aktiv låner fra Mercantec Auth.";
+            return;
+        }
+        saving = true;
+        try
+        {
+            var response = await Loans.CreateAsync(EquipmentId, subject, note);
+            switch (response.Status)
+            {
+                case 201:
+                    CloseForm();
+                    await LoadAsync();
+                    break;
+                case 409:
+                    await LoadAsync();
+                    saveError = "Udstyret er allerede udlånt. Det aktuelle udlån vises ovenfor.";
+                    break;
+                case 400: saveError = "Låneren skal være en aktiv konto i Mercantec Auth, og noten må højst være 4000 tegn."; break;
+                case 401: saveError = "Dit login er udløbet. Log ind igen."; break;
+                case 403: saveError = "Du mangler rettigheden til at udlåne udstyr."; break;
+                case 404: saveError = "Udstyret findes ikke længere."; break;
+                case 503: saveError = "Mercantec Auth kunne ikke bekræfte låneren. Udlånet er ikke gemt. Prøv igen senere."; break;
+                default: saveError = "Udlånet kunne ikke bekræftes. Opdatér udlånsstatus, før du prøver igen."; break;
+            }
+        }
+        catch (Exception e) when (e is HttpRequestException or JSException or JsonException)
+        {
+            saveError = "Svaret kunne ikke hentes. Opdatér siden for at kontrollere, om udlånet blev gemt, før du prøver igen.";
+        }
+        finally { saving = false; }
+    }
+}

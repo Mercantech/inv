@@ -9,4 +9,5 @@ public sealed record EquipmentResponse(
     int Condition,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt,
-    int ShortId = 0);
+    int ShortId = 0,
+    bool IsLoaned = false);

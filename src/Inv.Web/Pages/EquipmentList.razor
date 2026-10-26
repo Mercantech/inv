@@ -89,6 +89,7 @@ else
                 <th scope="col">Serienummer</th>
                 <th scope="col">Kategori</th>
                 <th scope="col">Tilstand</th>
+                <th scope="col">Udlånsstatus</th>
             </tr>
         </thead>
         <tbody>
@@ -102,6 +103,7 @@ else
                     <td>@item.SerialNumber</td>
                     <td>@item.CategoryName</td>
                     <td>@GetConditionName(item.Condition)</td>
+                    <td>@(item.IsLoaned ? "Udlånt" : "Ledigt")</td>
                 </tr>
             }
         </tbody>

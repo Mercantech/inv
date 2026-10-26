@@ -72,7 +72,7 @@ public static class EquipmentEndpoints
                     item.Category.Name,
                     item.Condition,
                     item.CreatedAt,
-                    item.UpdatedAt, item.ShortId))
+                    item.UpdatedAt, item.ShortId, item.Loans.Any(loan => loan.ReturnedAt == null)))
                 .ToListAsync(cancellationToken);
 
             return Results.Ok(equipment);
@@ -94,7 +94,7 @@ public static class EquipmentEndpoints
                     item.Category.Name,
                     item.Condition,
                     item.CreatedAt,
-                    item.UpdatedAt, item.ShortId))
+                    item.UpdatedAt, item.ShortId, item.Loans.Any(loan => loan.ReturnedAt == null)))
                 .SingleOrDefaultAsync(cancellationToken);
 
             return equipment is null
@@ -232,7 +232,8 @@ public static class EquipmentEndpoints
                 category.Name,
                 equipment.Condition,
                 equipment.CreatedAt,
-                equipment.UpdatedAt, equipment.ShortId);
+                equipment.UpdatedAt, equipment.ShortId,
+                await database.Loans.AnyAsync(loan => loan.EquipmentId == equipment.Id && loan.ReturnedAt == null, cancellationToken));
 
         return id.HasValue
             ? Results.Ok(response)

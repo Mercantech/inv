@@ -145,3 +145,31 @@ Manuel browserkontrol før endelig godkendelse:
 Browserkontrollen er endnu ikke meldt gennemført; V1-03 holdes derfor åbent til endelig kontrol.
 
 **Teknisk validering den 26. oktober 2026:** Release-build gennemført uden fejl eller advarsler. Alle 32 integrationstests bestået i Linux/Docker mod en midlertidig PostgreSQL-database. EF-kontrol fandt ingen modelændringer. Lokal Compose-opstart med rebuild er gennemført, og API'ets `/health/ready` svarer `Healthy`.
+
+## Udlåne udstyr (V1-07, Sprint 2)
+
+Åbn et udstyrs detaljeside og vælg **Udlån udstyr**. Søg på navn, e-mail eller bruger-ID, vælg en låner og tilføj eventuelt en note (højst 4000 tegn). **Registrér udlån** gemmer lånerens Mercantec Auth-`sub`, den indloggede brugers `sub` som godkender og serverens aktuelle UTC-tid. **Annuller** lukker formularen uden at gemme.
+
+Låneropslaget omfatter alle konti i Mercantec Auth, også konti som aldrig har logget ind i udstyrssystemet. Deaktiverede konti vises, men kan ikke vælges til nye udlån. Låneren kontrolleres igen hos Auth ved gemning. Backend bruger Auths eksisterende `GET /api/admin/users-directory` med den eksisterende centrale MCP-nøgle i miljøvariablen `AUTH_MCP_API_KEY`; der oprettes ingen nye API-nøgler eller lokale brugerkonti. Nøglen må kun findes i `.env`/Dokploy, aldrig i git eller frontend. Kun navn, e-mail, `sub` og kontostatus sendes til frontend; provider- og klienthistorik videresendes ikke.
+
+Udstyret vises som **Udlånt** på detaljesiden og i udstyrsoversigten. Det aktuelle udlån viser låner, tidspunkt, godkenderens bruger-ID og note. Hvis Auth er utilgængelig, vises eksisterende udlån stadig med lånerens bruger-ID, mens nye udlån afvises med 503. Der bruges ingen lokal kopi af brugerregistret. Samme midlertidige adgangsmodel som udstyrsredigering gælder: alle indloggede brugere kan se lånere og registrere udlån. Rollebegrænsning afventer den aftalte senere aktivering.
+
+| Metode | Endpoint | Funktion |
+| --- | --- | --- |
+| GET | `/api/borrowers?search=...` | Auth-brugere; valgfri søgning på navn, e-mail eller eksakt `sub` |
+| GET | `/api/equipment/{id}/loan` | Aktuelt udlån; 204 hvis udstyret er ledigt, 404 ved ukendt udstyr |
+| POST | `/api/equipment/{id}/loans` | Opret med `borrowerSubject` og valgfri `note`; svar 201 |
+
+Ugyldig låner/note giver 400, manglende login 401, ukendt udstyr 404 og allerede udlånt udstyr 409. Det eksisterende unikke databaseindeks sikrer også mod dobbeltudlån ved samtidige forespørgsler. Afsluttede udlån i `Loans` bevares ved nye udlån. Ingen migration er nødvendig. Udlånsoversigt (#6), returnering (#8), historikvisning (#14) og udlånsfilteret fra #5 følger som separate opgaver.
+
+**Teknisk validering den 26. oktober 2026:** Release-build uden fejl/advarsler, 46 automatiske tests bestået i Linux/Docker og ingen ventende modelændringer. Testene dækker bl.a. låner uden tidligere app-login, validering, loginbeskyttelse, Auth-fejl, samtidige udlån, visning af udlånsstatus efter redigering og bevarelse af afsluttede udlån. Den eksisterende centrale Auth-adgang er verificeret mod det rigtige brugerregister og konfigureret i den ignorerede lokale `.env`.
+
+Manuel browserkontrol før issue #7 afsluttes:
+
+1. Åbn et ledigt udstyr, vælg **Udlån udstyr**, og find en Auth-bruger, som ikke tidligere har brugt appen.
+2. Tilføj en note, registrér udlånet, og kontrollér låner, tidspunkt, godkender og note på detaljesiden efter genindlæsning.
+3. Åbn udstyrsoversigten, og kontrollér status **Udlånt**. Udstyret må ikke kunne udlånes igen.
+4. Åbn formularen på et andet ledigt udstyr og vælg **Annuller**; udstyret skal stadig være ledigt.
+5. Kontrollér søgning uden resultater, valg af en aktiv konto og fejlbesked hvis Auth-opslaget ikke kan hentes.
+
+Issue #7 forbliver åbent til manuel kontrol. Produktionsmiljøet skal have den eksisterende Auth MCP-nøgle konfigureret som `AUTH_MCP_API_KEY`, før funktionen tages i brug dér.

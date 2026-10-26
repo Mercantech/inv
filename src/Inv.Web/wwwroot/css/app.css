@@ -103,6 +103,10 @@ footer { padding: 1.5rem 3rem; font-size: .75rem; color: #637368; }
 .test-skipped { background: #efeee8; color: #5d6058; }
 .test-history { border-bottom: 1px solid #dce2d9; }
 .hardware-error { color: #912f24; }
+.loan-note { white-space: pre-wrap; overflow-wrap: anywhere; }
+.loan-form fieldset { display: grid; gap: .65rem; max-width: 42rem; border: 1px solid #dce2d9; border-radius: .5rem; padding: 1.25rem; }
+.loan-form input, .loan-form select, .loan-form textarea { width: 100%; min-width: 0; padding: .6rem; font: inherit; border: 1px solid #9baa9e; border-radius: .3rem; background: #fff; }
+.loan-form button { justify-self: start; }
 @media (max-width: 650px) { nav { flex-wrap: wrap; } .hardware-filters { align-items: stretch; flex-direction: column; } }
 @media (max-width: 750px) {
     .login-main { padding: 1.25rem; }
