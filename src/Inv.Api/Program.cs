@@ -4,12 +4,15 @@ using Inv.Api.Health;
 using Inv.Infrastructure.Data;
 using Inv.Infrastructure.Configuration;
 using Inv.Api.Features.EquipmentCategories;
+using Inv.Api.Features.Hardware;
+using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.EntityFrameworkCore;
 
 LocalDevelopmentEnvironment.Load();
 var migrateOnly = args.Contains("--migrate", StringComparer.Ordinal);
-var builder = WebApplication.CreateBuilder(args.Where(argument => argument != "--migrate").ToArray());
+var importOnly = args.Contains("--import-opla", StringComparer.Ordinal);
+var builder = WebApplication.CreateBuilder(args.Where(argument => argument is not ("--migrate" or "--import-opla")).ToArray());
 
 var connectionString = builder.Configuration["CONNECTION_STRING"]
     ?? builder.Configuration.GetConnectionString("Default");
@@ -20,6 +23,7 @@ if (string.IsNullOrWhiteSpace(connectionString))
 }
 
 builder.Services.AddDbContext<InventoryDbContext>(options => options.UseNpgsql(connectionString));
+builder.Services.AddScoped<HardwareStore>();
 
 if (migrateOnly)
 {
@@ -31,10 +35,23 @@ if (migrateOnly)
     return;
 }
 
+if (importOnly)
+{
+    await using var importApp = builder.Build();
+    await HardwareImportCommand.RunAsync(importApp.Services, builder.Configuration, importApp.Logger);
+    return;
+}
+
 builder.Services.AddProblemDetails();
 builder.Services.AddOpenApi();
 builder.Services.AddMercantecAuthentication(builder.Configuration);
 builder.Services.AddHealthChecks().AddCheck<DatabaseHealthCheck>("database", tags: ["ready"]);
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy("hardware-ingestion", _ => RateLimitPartition.GetFixedWindowLimiter("devices", _ =>
+        new FixedWindowRateLimiterOptions { PermitLimit = 120, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
+});
 
 var corsOrigins = (builder.Configuration["CORS_ORIGINS"] ?? string.Empty)
     .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
@@ -54,6 +71,7 @@ app.UseStatusCodePages();
 app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseRateLimiter();
 
 app.MapHealthChecks("/health/live", new HealthCheckOptions
 {
@@ -87,6 +105,7 @@ app.MapGet("/api/manager-access", () => Results.Ok(new { Allowed = true }))
 
 app.MapEquipmentCategoryEndpoints();
 app.MapEquipmentEndpoints();
+app.MapHardwareEndpoints();
 
 await app.RunAsync();
 

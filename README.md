@@ -1,5 +1,9 @@
 # Udstyrsinventar
 
+## Arduino Oplà-hardwaretests
+
+Oplà-rapportmodtagelsen er portet til .NET. På `/hardware` kan indloggede brugere se boards, seneste komponentfejl og testhistorik, importere gamle rapporter og knytte boards til udstyr. Udstyrets detaljeside viser derefter seneste test. Hardwaretesteren findes i `hardware/HardwareTest`. Se [integrations- og importvejledningen](docs/hardware.md) for enhedsnøgle, historikimport og upload af firmware.
+
 Grundstruktur til Version 1 af udstyrssystemet, bygget med Blazor WebAssembly på .NET 10, ASP.NET Core 10, EF Core 10 og PostgreSQL 17. Datamodellen dækker udstyr, kategorier, udlån og fejlrapporter fra [backloggen](https://github.com/Mercantech/inv/issues). Blazor har en dansk startside og en forbindelseskontrol. Login med Mercantec Auth er implementeret; forretningsfunktionerne bygges oven på denne struktur.
 
 ## Projektstruktur

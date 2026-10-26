@@ -15,6 +15,7 @@ x-api: &api
     JWKS_URI: ${JWKS_URI:?Set JWKS_URI in your environment file}
     EQUIPMENT_MANAGER_ROLE: ${EQUIPMENT_MANAGER_ROLE:-EquipmentManager}
     CORS_ORIGINS: ${CORS_ORIGINS:-}
+    OPLA_INGEST_KEY: ${OPLA_INGEST_KEY:-}
 
 services:
   db:
@@ -55,6 +56,21 @@ services:
     networks:
       default:
         aliases: ["${NETWORK_ALIAS_PREFIX:-inv}-api"]
+
+  import-opla:
+    <<: *api
+    profiles: [tools]
+    command: ["--import-opla"]
+    restart: "no"
+    environment:
+      CONNECTION_STRING: "${CONNECTION_STRING:-Host=${NETWORK_ALIAS_PREFIX:-inv}-db;Port=5432;Database=${POSTGRES_DB:-inv};Username=${POSTGRES_USER:-inv};Password=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in your environment file}}"
+      OPLA_IMPORT_SOURCE: ${OPLA_IMPORT_SOURCE:-}
+      DOTNET_HOSTBUILDER__RELOADCONFIGONCHANGE: "false"
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
 
   web:
     image: ${COMPOSE_PROJECT_NAME:-inv}-web:${IMAGE_TAG:-local}

@@ -82,6 +82,28 @@ footer { padding: 1.5rem 3rem; font-size: .75rem; color: #637368; }
 .login-support a { display: block; color: #143e36; font-weight: 600; }
 .login-error { color: #9b342b; font-size: .9rem; margin-top: 1rem; }
 .login-footer { text-align: center; }
+.hardware-section { margin: 2rem 0; padding-top: 1.5rem; border-top: 1px solid #dce2d9; }
+.hardware-section > summary, .test-history > summary { cursor: pointer; font-weight: 600; padding: .75rem 0; }
+.hardware-filters { display: flex; flex-wrap: wrap; gap: 1rem; align-items: end; margin: 1rem 0; }
+.hardware-filters label { display: block; }
+.hardware-filters input[type="search"], .hardware-filters select { display: block; max-width: 100%; padding: .6rem; font: inherit; border: 1px solid #9baa9e; border-radius: .3rem; background: #fff; }
+.table-scroll { max-width: 100%; overflow-x: auto; }
+.hardware-table { width: 100%; border-collapse: collapse; text-align: left; background: #fff; }
+.hardware-table td, .hardware-table th { padding: .8rem 1rem; border-bottom: 1px solid #dce2d9; vertical-align: top; }
+.hardware-table thead { background: #e6eee3; }
+.hardware-id { display: block; margin-top: .3rem; font-size: .75rem; overflow-wrap: anywhere; }
+.hardware-chip, .test-note { overflow-wrap: anywhere; }
+.test-report { border: 1px solid #dce2d9; border-radius: .5rem; overflow: hidden; background: #fff; margin: 1rem 0; }
+.test-report-header { display: flex; flex-wrap: wrap; gap: .75rem; justify-content: space-between; padding: 1rem; font-size: .85rem; }
+.test-report-header strong { display: block; margin-bottom: .35rem; }
+.test-report > p { padding: 0 1rem; }
+.test-status { display: inline-block; border-radius: .3rem; padding: .15rem .5rem; font-size: .85rem; }
+.test-pass { background: #e0f0e3; color: #23542f; }
+.test-fail { background: #fbe6e3; color: #912f24; }
+.test-skipped { background: #efeee8; color: #5d6058; }
+.test-history { border-bottom: 1px solid #dce2d9; }
+.hardware-error { color: #912f24; }
+@media (max-width: 650px) { nav { flex-wrap: wrap; } .hardware-filters { align-items: stretch; flex-direction: column; } }
 @media (max-width: 750px) {
     .login-main { padding: 1.25rem; }
     .login-card { grid-template-columns: 1fr; }

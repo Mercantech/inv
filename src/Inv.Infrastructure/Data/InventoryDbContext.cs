@@ -10,6 +10,8 @@ public sealed class InventoryDbContext(DbContextOptions<InventoryDbContext> opti
     public DbSet<Loan> Loans => Set<Loan>();
     public DbSet<IssueCategory> IssueCategories => Set<IssueCategory>();
     public DbSet<EquipmentIssue> EquipmentIssues => Set<EquipmentIssue>();
+    public DbSet<HardwareDevice> HardwareDevices => Set<HardwareDevice>();
+    public DbSet<HardwareTestReport> HardwareTestReports => Set<HardwareTestReport>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

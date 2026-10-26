@@ -1,0 +1,121 @@
+@page "/hardware/{SamdId}"
+@using System.Text.Json
+@using Inv.Web.Components
+@using Inv.Web.Models
+@using Inv.Web.Services
+@inject HardwareClient Hardware
+@inject EquipmentClient Equipment
+
+<PageTitle>Board og testhistorik · Udstyrsinventar</PageTitle>
+<section class="page-intro"><p class="eyebrow">Arduino Oplà</p><h1>Board og testhistorik</h1></section>
+@if (error is not null) { <p role="alert" class="hardware-error">@error</p> }
+@if (message is not null) { <p role="status">@message</p> }
+@if (loading) { <p role="status">Henter testhistorik…</p> }
+else if (device is null) { <p>Boardet blev ikke fundet.</p> }
+else
+{
+    <h2>@(device.Label ?? "Arduino Oplà")</h2>
+    <dl>
+        <dt>SAMD-chip-ID</dt><dd><code class="hardware-chip">@device.SamdId</code></dd>
+        <dt>MAC-adresse</dt><dd>@(device.Mac ?? "Ukendt")</dd>
+        <dt>ECC-serienummer</dt><dd>@(device.EccSerial ?? "Ukendt")</dd>
+        <dt>Senest set (UTC)</dt><dd>@device.LastSeenAt.UtcDateTime.ToString("dd-MM-yyyy HH:mm:ss")</dd>
+        <dt>Udstyr</dt><dd>@if (device.EquipmentId.HasValue) { <a href="@($"/udstyr/{device.EquipmentId}")">@device.EquipmentName</a> } else { <span>Ikke tilknyttet</span> }</dd>
+    </dl>
+    <details class="hardware-section">
+        <summary>Knyt boardet til udstyr</summary>
+        <p>Vælg det udstyr, boardet tilhører, eller opret det med chip-ID som serienummer og ukendt tilstand. Testhistorikken følger boardet.</p>
+        <div class="hardware-filters">
+            <label>Eksisterende udstyr
+                <select @bind="selectedEquipment" disabled="@busy">
+                    <option value="">Ingen tilknytning</option>
+                    @foreach (var item in equipment) { <option value="@item.Id">@item.Name · @item.SerialNumber</option> }
+                </select>
+            </label>
+            <button class="button" @onclick="SaveLinkAsync" disabled="@busy">Gem tilknytning</button>
+            @if (!device.EquipmentId.HasValue) { <button class="button" @onclick="CreateEquipmentAsync" disabled="@busy">Opret som udstyr</button> }
+        </div>
+    </details>
+    <section class="hardware-section">
+        <h2>Seneste test</h2>
+        @if (device.LatestTest is { } latest) { <TestReportView Report="latest" /> }
+        else { <p>Ingen tests endnu.</p> }
+        <p>Ikke testede komponenter tælles hverken som beståede eller fejl. Testresultater ændrer ikke tilstand eller manuelle fejlrapporter.</p>
+    </section>
+    <section class="hardware-section">
+        <h2>Testhistorik · @device.TestCount rapporter</h2>
+        <p>Nyeste først. Åbn en rapport for at se komponenterne.</p>
+        @foreach (var report in reports)
+        {
+            <details class="test-history" @key="report.Id">
+                <summary>@report.TestedAt.UtcDateTime.ToString("dd-MM-yyyy HH:mm:ss") UTC · @(report.Passed ? "Bestået" : "Fejl fundet") · @report.FailedCount fejl @(report.Imported ? "· importeret" : "")</summary>
+                <TestReportView Report="report" />
+            </details>
+        }
+        @if (reports.Count < device.TestCount) { <button class="button" @onclick="LoadMoreAsync" disabled="@busy">Vis flere tests</button> }
+    </section>
+}
+<p><a href="/hardware">Til hardwareoversigten</a></p>
+
+@code {
+    [Parameter] public string SamdId { get; set; } = "";
+    private DeviceResult? device;
+    private List<TestResult> reports = [];
+    private List<EquipmentResponse> equipment = [];
+    private string selectedEquipment = "";
+    private bool loading = true;
+    private bool busy;
+    private string? error;
+    private string? message;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        loading = true;
+        error = message = null;
+        device = null;
+        reports = [];
+        await RunAsync(async () =>
+        {
+            device = (await Hardware.GetDevicesAsync()).SingleOrDefault(item => item.SamdId.Equals(SamdId, StringComparison.OrdinalIgnoreCase));
+            if (device is null) return;
+            reports = await Hardware.GetTestsAsync(device.SamdId);
+            equipment = await Equipment.GetAllAsync();
+            selectedEquipment = device.EquipmentId?.ToString() ?? "";
+        });
+        loading = false;
+    }
+
+    private async Task RefreshDeviceAsync()
+    {
+        device = (await Hardware.GetDevicesAsync()).Single(item => item.SamdId.Equals(SamdId, StringComparison.OrdinalIgnoreCase));
+        selectedEquipment = device.EquipmentId?.ToString() ?? "";
+    }
+
+    private Task SaveLinkAsync() => RunAsync(async () =>
+    {
+        await Hardware.LinkAsync(SamdId, Guid.TryParse(selectedEquipment, out var id) ? id : null);
+        await RefreshDeviceAsync();
+        message = "Tilknytningen er gemt.";
+    });
+
+    private Task CreateEquipmentAsync() => RunAsync(async () =>
+    {
+        await Hardware.CreateEquipmentAsync(SamdId);
+        equipment = await Equipment.GetAllAsync();
+        await RefreshDeviceAsync();
+        message = "Boardet er oprettet som udstyr. Tilstanden er ukendt, indtil den bliver vurderet.";
+    });
+
+    private Task LoadMoreAsync() => RunAsync(async () => reports.AddRange(await Hardware.GetTestsAsync(SamdId, reports.Count)));
+
+    private async Task RunAsync(Func<Task> action)
+    {
+        busy = true;
+        error = message = null;
+        try { await action(); }
+        catch (HttpRequestException exception) { error = exception.Message; }
+        catch (Exception exception) when (exception is JsonException or JSException)
+        { error = "Handlingen kunne ikke gennemføres. Kontrollér forbindelsen og dit login."; }
+        finally { busy = false; }
+    }
+}

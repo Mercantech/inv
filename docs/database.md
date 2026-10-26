@@ -18,8 +18,10 @@ erDiagram
 | `Loans` | `EquipmentId`, `BorrowerSubject`, `ApprovedBySubject`, `LoanedAt`, `Note`, `ReturnedAt`, `ReturnedBySubject`, `ReturnNote` |
 | `IssueCategories` | `Name`, databaseberegnet `NormalizedName`, valgfri `EquipmentCategoryId` |
 | `EquipmentIssues` | `EquipmentId`, `IssueCategoryId`, `Description`, `ReportedBySubject`, `ReportedAt`, `Status`, `ResolutionNote`, `ResolvedAt`, `ResolvedBySubject` |
+| `HardwareDevices` | `SamdId` (primærnøgle), `Mac`, `EccSerial`, `Label`, valgfri/unik `EquipmentId`, `RegisteredAt`, `LastSeenAt` |
+| `HardwareTestReports` | `SamdId`, `TestedAt`, `Passed`, `PassedCount`, `FailedCount`, `ReportJson` (JSONB), `Details`, `ImportSource`, `LegacyReportId` |
 
-Alle fem tabeller indeholder desuden `CreatedAt` og `UpdatedAt`.
+Inventartabellerne og `HardwareTestReports` indeholder desuden `CreatedAt` og `UpdatedAt`. `HardwareDevices` bruger de særskilte registrerings- og senest-set-tidspunkter. Se [hardwarevejledningen](hardware.md) for testhistorik, tilknytning og import.
 
 ## Udstyr og kategorier
 

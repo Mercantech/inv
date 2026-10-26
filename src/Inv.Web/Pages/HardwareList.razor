@@ -1,0 +1,113 @@
+@page "/hardware"
+@using System.Text.Json
+@using Inv.Web.Models
+@using Inv.Web.Services
+@inject HardwareClient Hardware
+
+<PageTitle>Hardwaretests · Udstyrsinventar</PageTitle>
+<section class="page-intro">
+    <p class="eyebrow">Arduino Oplà</p>
+    <h1>Hardwaretests</h1>
+    <p>Se seneste test, konkrete komponentfejl og historik. Knyt et board til udstyr for at samle oplysningerne.</p>
+</section>
+
+@if (error is not null) { <p role="alert" class="hardware-error">@error</p> }
+@if (message is not null) { <p role="status">@message</p> }
+@if (loading) { <p role="status">Henter boards…</p> }
+else
+{
+    <div class="hardware-filters">
+        <label>Søg på navn, chip-ID eller udstyr <input type="search" @bind="search" @bind:event="oninput" /></label>
+        <label><input type="checkbox" @bind="onlyFailures" /> Kun fejl i seneste test</label>
+        <button class="button" @onclick="LoadAsync" disabled="@busy">Opdatér</button>
+    </div>
+    <p>@Filtered.Count() af @devices.Count boards · @devices.Sum(device => device.TestCount) rapporter i alt</p>
+    @if (devices.Count == 0) { <p>Ingen boards endnu. Importér eksisterende historik nedenfor, eller send den første test fra et board.</p> }
+    else if (!Filtered.Any()) { <p>Ingen boards matcher søgningen.</p> }
+    else
+    {
+        <div class="table-scroll">
+            <table class="hardware-table">
+                <thead><tr><th scope="col">Board / chip-ID</th><th scope="col">Udstyr</th><th scope="col">Seneste test</th><th scope="col">Fejl i seneste test</th><th scope="col">Historik</th></tr></thead>
+                <tbody>
+                    @foreach (var device in Filtered)
+                    {
+                        <tr>
+                            <td><a href="@($"/hardware/{device.SamdId}")">@(device.Label ?? "Arduino Oplà")</a><code class="hardware-id">@device.SamdId</code></td>
+                            <td>@if (device.EquipmentId.HasValue) { <a href="@($"/udstyr/{device.EquipmentId}")">@device.EquipmentName</a> } else { <span>Ikke tilknyttet</span> }</td>
+                            <td>
+                                @if (device.LatestTest is { } latest)
+                                {
+                                    <span class="test-status @(latest.Passed ? "test-pass" : "test-fail")">@(latest.Passed ? "Bestået" : "Fejl fundet")</span>
+                                    <small class="hardware-id">@latest.TestedAt.UtcDateTime.ToString("dd-MM-yyyy HH:mm") UTC</small>
+                                }
+                                else { <span>Ikke testet</span> }
+                            </td>
+                            <td>@FailureNames(device)</td>
+                            <td><a href="@($"/hardware/{device.SamdId}")">@device.TestCount tests</a></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+}
+
+<details class="hardware-section">
+    <summary>Importér eksisterende Oplà-historik</summary>
+    <p>Importér et JSON-eksport fra Oplà-systemets <code>/api/devices</code>. Boards og oprindelige testtidspunkter bevares. Gentaget import springer eksisterende rapporter over.</p>
+    <label>JSON-fil (maks. 10 MB) <InputFile OnChange="ImportFileAsync" accept=".json,application/json" disabled="@busy" /></label>
+</details>
+
+@code {
+    private List<DeviceResult> devices = [];
+    private bool loading = true;
+    private bool busy;
+    private string search = "";
+    private bool onlyFailures;
+    private string? error;
+    private string? message;
+    private IEnumerable<DeviceResult> Filtered => devices.Where(device =>
+        (!onlyFailures || device.LatestTest is { Passed: false })
+        && (string.IsNullOrWhiteSpace(search)
+            || device.SamdId.Contains(search.Trim(), StringComparison.OrdinalIgnoreCase)
+            || (device.Label?.Contains(search.Trim(), StringComparison.OrdinalIgnoreCase) ?? false)
+            || (device.EquipmentName?.Contains(search.Trim(), StringComparison.OrdinalIgnoreCase) ?? false)));
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+    private async Task LoadAsync()
+    {
+        loading = true;
+        error = null;
+        try { devices = await Hardware.GetDevicesAsync(); }
+        catch (HttpRequestException exception) { error = exception.Message; }
+        catch (Exception exception) when (exception is JsonException or JSException) { error = "Hardwareoversigten kunne ikke hentes. Kontrollér forbindelsen og dit login."; }
+        finally { loading = false; }
+    }
+
+    private async Task ImportFileAsync(InputFileChangeEventArgs args)
+    {
+        busy = true;
+        error = message = null;
+        try
+        {
+            await using var stream = args.File.OpenReadStream(10 * 1024 * 1024);
+            using var json = await JsonDocument.ParseAsync(stream);
+            if (json.RootElement.ValueKind != JsonValueKind.Array) throw new JsonException();
+            var result = await Hardware.ImportAsync(json.RootElement);
+            await LoadAsync();
+            message = $"Import færdig: {result.DevicesAdded} nye boards, {result.ReportsAdded} nye rapporter og {result.ReportsSkipped} eksisterende rapporter sprunget over.";
+        }
+        catch (HttpRequestException exception) { error = exception.Message; }
+        catch (Exception exception) when (exception is JsonException or IOException or JSException)
+        { error = "Filen kunne ikke importeres. Vælg et JSON-eksport fra /api/devices på højst 10 MB."; }
+        finally { busy = false; }
+    }
+
+    private static string FailureNames(DeviceResult device)
+    {
+        if (device.LatestTest is not { } report) return "—";
+        var failed = report.Components.Where(component => !component.Ok && !component.Skipped).Select(component => component.Name).ToList();
+        return failed.Count > 0 ? string.Join(", ", failed) : report.Passed ? "Ingen" : "Se rapportens opsummering";
+    }
+}

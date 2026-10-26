@@ -3,6 +3,7 @@
 @using System.Text.Json
 @using Inv.Web.Models
 @using Inv.Web.Services
+@using Inv.Web.Components
 @inject EquipmentClient Equipment
 
 <PageTitle>Udstyrsdetaljer · Udstyrsinventar</PageTitle>
@@ -46,6 +47,7 @@ else
         <dt>Senest ændret (UTC)</dt>
         <dd>@equipment.UpdatedAt.UtcDateTime.ToString("dd-MM-yyyy HH:mm")</dd>
     </dl>
+    <EquipmentHardware EquipmentId="Id" />
 }
 
 <a href="/udstyr">Til udstyrsoversigten</a>

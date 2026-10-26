@@ -9,6 +9,14 @@ permissions:
   contents: read
 
 jobs:
+  hardware-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile Arduino Opla hardware tester
+        run: docker build --file hardware/Dockerfile --tag inv-hardware:ci .
+
   build-and-test:
     runs-on: ubuntu-latest
     timeout-minutes: 15

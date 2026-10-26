@@ -7,3 +7,5 @@
 .env.*
 TestResults
 artifacts
+**/Secrets.h
+**/.pio
