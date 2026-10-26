@@ -4,7 +4,9 @@ Inventarsystemet overtager modtagelse og visning af Oplà-testrapporter i .NET/P
 
 ## Brug
 
-Åbn `/hardware` efter login med Mercantec Auth. Oversigten viser hvert board, tilknyttet udstyr, seneste test og fejlede komponenter. Søgning gælder kort ID, navn, SAMD-chip-ID og udstyrsnavn. Boardets og det tilknyttede udstyrs korte ID kan søges som fx `123` eller `#123`. **Kun fejl i seneste test** udelader boards, hvis seneste test er bestået eller som endnu ikke er testet.
+Åbn `/hardware/run` efter login (Chrome eller Edge) for at køre en ny test via **Web Serial**: forbind Oplà over USB, start testen, bekræft visuelle trin (OLED, LED, relay) med OK/FEJL i browseren, og rapporten gemmes automatisk. Firmwaren flashes én gang; se [hardwarevejledningen](../hardware/README.md). Firefox/Safari understøtter ikke Web Serial.
+
+Åbn `/hardware` for oversigten over boards, seneste test og historik. Søgning gælder kort ID, navn, SAMD-chip-ID og udstyrsnavn. Boardets og det tilknyttede udstyrs korte ID kan søges som fx `123` eller `#123`. **Kun fejl i seneste test** udelukker boards, hvis seneste test er bestået eller som endnu ikke er testet.
 
 På `/hardware/{samdId}` vises seneste test og hele historikken i sider af 20 rapporter. Hver rapport har tidspunkt i UTC, antal beståede/fejlede tests, komponentresultater og noter. Sprungne tests vises som **Ikke testet** og tælles ikke som beståede eller fejlede. Gamle rapporter uden komponentdetaljer bevares med deres opsummering.
 
@@ -18,15 +20,17 @@ Boards og udstyr får automatisk hver sit faste, unikke korte ID fra en fælles 
 
 | Metode | Endpoint | Adgang / funktion |
 | --- | --- | --- |
-| POST | `/api/devices` | Åben; registrér/opdatér board på SAMD-ID |
-| POST | `/api/devices/{samdId}/tests` | Åben; gem ny test |
+| POST | `/api/hardware/devices` | Mercantec-login; registrér/opdatér board (web-tester) |
+| POST | `/api/hardware/devices/{samdId}/tests` | Mercantec-login; gem ny test (web-tester) |
+| POST | `/api/devices` | Åben; legacy/board-WiFi registrering |
+| POST | `/api/devices/{samdId}/tests` | Åben; legacy/board-WiFi testrapport |
 | GET | `/api/hardware/devices?equipmentId={uuid}` | Mercantec-login; boards med seneste test; valgfrit udstyrsfilter |
 | GET | `/api/hardware/devices/{samdId}/tests?skip=0&take=20` | Mercantec-login; historik, højst 100 rapporter pr. request |
 | POST | `/api/hardware/devices/{samdId}/equipment` | Mercantec-login; `{ "equipmentId": "uuid" }` eller `null` for at fjerne tilknytningen |
 | POST | `/api/hardware/devices/{samdId}/create-equipment` | Mercantec-login; opret og tilknyt udstyr, eller returnér eksisterende tilknytning |
 | POST | `/api/hardware/import` | Mercantec-login; importér JSON-array fra det gamle `/api/devices`, maks. 10 MB |
 
-Samme midlertidige adgangsmodel som udstyr/kategorier: alle indloggede brugere kan importere og ændre tilknytning. De to board-endpoints er åbne uden nøgle (kun rate limit 120/min og 64 KiB pr. request). De kan ikke læse eller ændre inventar, manuelle fejl eller tilknytninger. Firmware peger på `inv.mercantec.tech`; se [hardwarevejledningen](../hardware/README.md) for WiFi, TLS-certifikat og upload.
+Samme midlertidige adgangsmodel som udstyr/kategorier: alle indloggede brugere kan køre test, importere og ændre tilknytning. De åbne `/api/devices`-endpoints er legacy (rate limit 120/min, 64 KiB). Web-flowet bruger de autentificerede `/api/hardware/...`-endpoints.
 
 En registrering bruger det eksisterende format: `samd_id`, `mac`, `ecc_serial`, `label`. En test bruger `passed`, `passed_count`, `failed_count` og `report.tests` med `name`, `ok`, `skipped`, `note`. Ny indsendelse kræver gyldige, entydige komponentresultater, der stemmer med opsummeringen. Testtidspunktet for nye rapporter sættes af serveren. Hvert accepteret POST er en ny test; firmwaren genforsøger ikke automatisk en rapport. Der er ingen antagelse om, at identiske målinger betyder samme test.
 

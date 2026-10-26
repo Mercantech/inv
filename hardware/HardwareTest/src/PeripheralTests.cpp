@@ -3,7 +3,6 @@
 bool testRelays(MKRIoTCarrier &carrier) {
   clearDisplay(carrier);
   drawCenteredF(carrier, F("Relay"), OLED_CY - 12, 2, ST77XX_WHITE);
-  Serial.println(F("Relay: lyt efter klik (relay 1, 2, begge)"));
   delay(800);
 
   clearDisplay(carrier);
@@ -40,10 +39,6 @@ bool testButtons(MKRIoTCarrier &carrier) {
   clearDisplay(carrier);
   drawCenteredF(carrier, F("Knapper"), 55, 2, ST77XX_WHITE);
   drawCenteredF(carrier, F("Tryk alle 5"), 110, 2, ST77XX_CYAN);
-  Serial.println();
-  Serial.println(F(">>> FYSISK TJEK — knapper <<<"));
-  Serial.println(F("  Tryk alle 5 touch-knapper rundt om skaermen (30s)"));
-  Serial.println();
 
   unsigned long startTime = millis();
   bool buttonPressed[5] = {false, false, false, false, false};
@@ -60,9 +55,6 @@ bool testButtons(MKRIoTCarrier &carrier) {
         snprintf(line, sizeof(line), "Knap %d", i);
         drawCentered(carrier, line, OLED_CY - 28, 3, ST77XX_GREEN);
         drawCenteredF(carrier, F("OK"), OLED_CY + 20, 2, ST77XX_WHITE);
-        Serial.print(F("Knap "));
-        Serial.print(i);
-        Serial.println(F(" trykket"));
         maybeBeep(carrier);
       }
     }
@@ -90,7 +82,6 @@ bool testButtons(MKRIoTCarrier &carrier) {
 bool testLEDs(MKRIoTCarrier &carrier) {
   clearDisplay(carrier);
   drawCenteredF(carrier, F("LED"), OLED_CY - 12, 3, ST77XX_WHITE);
-  Serial.println(F("LED: se alle 5 pixels skifte rod/gron/bla + farvecyklus"));
   delay(500);
 
   carrier.leds.setBrightness(255);

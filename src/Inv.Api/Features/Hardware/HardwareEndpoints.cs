@@ -72,6 +72,37 @@ public static class HardwareEndpoints
         });
         group.MapPost("/import", (List<LegacyDevice> devices, HardwareStore store, CancellationToken ct) => store.ImportAsync(devices, ct))
             .WithMetadata(new RequestSizeLimitAttribute(10 * 1024 * 1024));
+        group.MapPost("/devices", async (DeviceRegistration request, HardwareStore store, InventoryDbContext db, CancellationToken ct) =>
+        {
+            await using var transaction = await store.BeginWriteAsync(ct);
+            var device = await store.RegisterAsync(request, ct);
+            await db.SaveChangesAsync(ct);
+            await transaction.CommitAsync(ct);
+            return Results.Ok(new { samd_id = device.SamdId, short_id = device.ShortId });
+        });
+        group.MapPost("/devices/{samdId}/tests", async (string samdId, TestSubmission request, HardwareStore store, InventoryDbContext db, CancellationToken ct) =>
+        {
+            var samd = HardwareContracts.NormalizeSamd(samdId);
+            HardwareContracts.ValidateSubmission(request);
+            if (request.Report is { } payload && payload.TryGetProperty("samd_id", out var bodySamd)
+                && (bodySamd.ValueKind != System.Text.Json.JsonValueKind.String
+                    || HardwareContracts.NormalizeSamd(bodySamd.GetString()) != samd))
+                throw new ArgumentException("Rapportens SAMD-ID svarer ikke til boardet i adressen.");
+            await using var transaction = await store.BeginWriteAsync(ct);
+            var device = await db.HardwareDevices.FindAsync([samd], ct);
+            if (device is null) return Results.NotFound(new { Message = "Registrér boardet før testen sendes." });
+            var report = new HardwareTestReport
+            {
+                Device = device, SamdId = samd, Passed = request.Passed!.Value,
+                PassedCount = request.PassedCount!.Value, FailedCount = request.FailedCount!.Value,
+                ReportJson = request.Report!.Value.GetRawText(), Details = request.Details
+            };
+            device.LastSeenAt = report.TestedAt;
+            db.HardwareTestReports.Add(report);
+            await db.SaveChangesAsync(ct);
+            await transaction.CommitAsync(ct);
+            return Results.Created($"/api/hardware/devices/{samd}/tests", HardwareContracts.Result(report));
+        });
 
         // Open ingestion for Oplà boards; human access still uses Mercantec Auth.
         var ingestion = endpoints.MapGroup("/api/devices").WithTags("Hardware ingestion").AllowAnonymous()

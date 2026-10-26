@@ -12,9 +12,9 @@
 #define ENABLE_SOUND_TEST false
 #endif
 
-// Send resultat til inventarsystemet efter tests (WiFi i Secrets.h).
+// WiFi-rapport er legacy; browseren gemmer resultatet via Web Serial.
 #ifndef ENABLE_API_REPORT
-#define ENABLE_API_REPORT true
+#define ENABLE_API_REPORT false
 #endif
 
 #ifndef API_HOST
@@ -24,7 +24,7 @@
 #define API_PORT 443
 #endif
 
-// Globale enheds-ID'er (udfyldes af printDeviceIds)
+// Globale enheds-ID'er (udfyldes af loadDeviceIds)
 extern char g_samdId[40];
 extern char g_macStr[18];
 extern char g_eccSerial[32];
@@ -40,7 +40,7 @@ struct TestLogEntry {
   char name[20];
   bool ok;
   bool skipped;
-  char note[64]; // frie detaljer / sensorværdier
+  char note[64];
 };
 extern TestLogEntry g_testLog[MAX_TEST_LOG];
 extern int g_testLogCount;
@@ -51,20 +51,32 @@ void setTestNote(const char *note);
 extern char g_lastNote[64];
 
 // Enheds-ID'er
-void printDeviceIds(MKRIoTCarrier &carrier);
+void loadDeviceIds();
+void showDeviceIds(MKRIoTCarrier &carrier);
+void printDeviceIds(MKRIoTCarrier &carrier); // load + show (legacy)
 
-// Bip kun hvis ENABLE_SOUND_TEST er true
+// Host-protokol (JSON-linjer + START/OK/FAIL/ABORT)
+void emitReady();
+void emitIds();
+void emitError(const char *message);
+void emitStepBegin(const char *name);
+void emitStepAwaitingConfirm(const char *name, const char *prompt);
+void emitStepResult(const char *name, bool ok, bool skipped, const char *note);
+void emitDone(int passed, int failed);
+bool readHostCommand(char *buf, size_t bufLen, unsigned long timeoutMs);
+void clearAbortRequest();
+bool isAbortRequested();
+bool isTestsRunning();
+void setTestsRunning(bool running);
+
 void maybeBeep(MKRIoTCarrier &carrier);
 
-// Bed operatøren bekræfte et fysisk/visuelt resultat via Serial Monitor.
-// Skriv OK/y/ja eller FEJL/n/nej. Timeout tæller som fejl.
+// Vent på OK/FAIL fra host (browser). Timeout = fejl.
 bool confirmPhysical(MKRIoTCarrier &carrier, const __FlashStringHelper *title,
                      const __FlashStringHelper *hint, unsigned long timeoutMs = 90000);
 
-// Registrér/opdatér enhed + testrapport via HTTPS
 bool reportToApi(MKRIoTCarrier &carrier);
 
-// OLED — rund 240x240 (centreret tekst, sikker zone)
 #define OLED_W 240
 #define OLED_H 240
 #define OLED_CX 120
@@ -84,22 +96,17 @@ void testTekstStorrelse(MKRIoTCarrier &carrier);
 void drawCircleTest(MKRIoTCarrier &carrier);
 void drawGraphicsTest(MKRIoTCarrier &carrier);
 
-// Sensorer (returnerer true = bestået)
 bool testHumidityTemperature(MKRIoTCarrier &carrier);
 bool testPressureSensor(MKRIoTCarrier &carrier);
 bool testIMU(MKRIoTCarrier &carrier);
 bool testSDCard(MKRIoTCarrier &carrier);
 
-// Periferi
 bool testRelays(MKRIoTCarrier &carrier);
 bool testButtons(MKRIoTCarrier &carrier);
 bool testLEDs(MKRIoTCarrier &carrier);
 bool testBuzzer(MKRIoTCarrier &carrier);
 
-// Hovedtest
 void runAllTests(MKRIoTCarrier &carrier);
-
-// Hjælpere til resultatvisning
 void showTestResult(MKRIoTCarrier &carrier, const char *name, bool ok);
 
 #endif // HARDWARETESTERE_H

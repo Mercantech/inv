@@ -1,0 +1,342 @@
+@page "/hardware/run"
+@using System.Text.Json
+@using Inv.Web.Services
+@implements IAsyncDisposable
+@inject WebSerialClient Serial
+@inject HardwareClient Hardware
+@inject NavigationManager Navigation
+
+<PageTitle>Kør hardwaretest · Udstyrsinventar</PageTitle>
+<section class="page-intro">
+    <p class="eyebrow">Arduino Oplà</p>
+    <h1>Kør hardwaretest</h1>
+    <p>Forbind boardet via USB (Chrome eller Edge). Browseren styrer testene og gemmer resultatet i inventaret.</p>
+</section>
+
+@if (!supported)
+{
+    <p role="alert" class="hardware-error">Web Serial understøttes ikke i denne browser. Brug Chrome eller Edge på en computer med USB.</p>
+}
+else
+{
+    <div class="hardware-run-actions">
+        @if (!connected)
+        {
+            <button class="button" @onclick="ConnectAsync" disabled="@busy">Forbind board</button>
+        }
+        else
+        {
+            <button class="button" @onclick="StartAsync" disabled="@(busy || running || awaitingConfirm)">Start test</button>
+            <button class="button button-secondary" @onclick="AbortAsync" disabled="@(!running && !awaitingConfirm)">Afbryd</button>
+            <button class="button button-secondary" @onclick="DisconnectAsync" disabled="@busy">Afbryd forbindelse</button>
+        }
+    </div>
+
+    @if (!string.IsNullOrEmpty(samdId))
+    {
+        <p class="hardware-run-ids">Board: <code>@samdId</code>@if (!string.IsNullOrEmpty(mac)) { <span> · MAC @mac</span> }</p>
+    }
+
+    @if (awaitingConfirm)
+    {
+        <div class="hardware-confirm" role="alertdialog" aria-labelledby="confirm-title">
+            <h2 id="confirm-title">@(confirmStep ?? "Bekræft")</h2>
+            <p>@(confirmPrompt ?? "Ser resultatet korrekt ud?")</p>
+            <div class="hardware-run-actions">
+                <button class="button" @onclick='() => ReplyAsync("OK")' disabled="@busy">OK — virker</button>
+                <button class="button button-danger" @onclick='() => ReplyAsync("FAIL")' disabled="@busy">FEJL — virker ikke</button>
+            </div>
+        </div>
+    }
+
+    @if (steps.Count > 0)
+    {
+        <section class="hardware-section" aria-label="Testtrin">
+            <h2>Testtrin</h2>
+            <ol class="hardware-step-list">
+                @foreach (var step in steps)
+                {
+                    <li class="@StepClass(step)">
+                        <strong>@step.Name</strong>
+                        <span>@StepLabel(step)</span>
+                        @if (!string.IsNullOrEmpty(step.Note)) { <small>@step.Note</small> }
+                        @if (!string.IsNullOrEmpty(step.Prompt) && step.Phase == "awaiting_confirm") { <small>@step.Prompt</small> }
+                        @if (step.Phase == "begin" && step.Name == "Knapper") { <small>Tryk alle 5 touch-knapper på boardet</small> }
+                    </li>
+                }
+            </ol>
+        </section>
+    }
+
+    @if (error is not null) { <p role="alert" class="hardware-error">@error</p> }
+    @if (message is not null) { <p role="status">@message</p> }
+    @if (savedSamdId is not null)
+    {
+        <p role="status">Rapport gemt. <a href="@($"/hardware/{savedSamdId}")">Se boardhistorik</a></p>
+    }
+
+    <details class="hardware-section">
+        <summary>Serial-log</summary>
+        <pre class="hardware-serial-log">@string.Join('\n', log.TakeLast(80))</pre>
+    </details>
+}
+
+@code {
+    private bool supported = true;
+    private bool connected;
+    private bool busy;
+    private bool running;
+    private bool awaitingConfirm;
+    private string? confirmStep;
+    private string? confirmPrompt;
+    private string? samdId;
+    private string? mac;
+    private string? eccSerial;
+    private string? error;
+    private string? message;
+    private string? savedSamdId;
+    private readonly List<string> log = [];
+    private readonly List<StepState> steps = [];
+    private readonly List<StepState> completed = [];
+
+    private sealed class StepState
+    {
+        public string Name { get; set; } = "";
+        public string Phase { get; set; } = "begin";
+        public string? Prompt { get; set; }
+        public bool? Ok { get; set; }
+        public bool Skipped { get; set; }
+        public string? Note { get; set; }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        Serial.LineReceived += OnLine;
+        Serial.ErrorReceived += OnError;
+        supported = await Serial.IsSupportedAsync();
+    }
+
+    private async Task ConnectAsync()
+    {
+        busy = true;
+        error = message = savedSamdId = null;
+        try
+        {
+            await Serial.ConnectAsync();
+            connected = true;
+            message = "Forbundet. Vent på READY fra boardet, og tryk Start test.";
+        }
+        catch (JSException ex) { error = ex.Message.Contains("No port", StringComparison.OrdinalIgnoreCase) ? "Ingen port valgt." : "Kunne ikke forbinde. Tillad USB-adgang i browseren."; }
+        catch (Exception ex) { error = ex.Message; }
+        finally { busy = false; }
+    }
+
+    private async Task DisconnectAsync()
+    {
+        busy = true;
+        try
+        {
+            await Serial.DisconnectAsync();
+            connected = running = awaitingConfirm = false;
+            message = "Forbindelsen er afbrudt.";
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { busy = false; }
+    }
+
+    private async Task StartAsync()
+    {
+        error = message = savedSamdId = null;
+        steps.Clear();
+        completed.Clear();
+        running = true;
+        awaitingConfirm = false;
+        try
+        {
+            await Serial.WriteLineAsync("START");
+            message = "Test startet — følg boardet og bekræft visuelle trin her.";
+        }
+        catch (Exception ex)
+        {
+            running = false;
+            error = ex.Message;
+        }
+    }
+
+    private async Task AbortAsync()
+    {
+        try { await Serial.WriteLineAsync("ABORT"); }
+        catch (Exception ex) { error = ex.Message; }
+        awaitingConfirm = false;
+        message = "Afbrydelse sendt.";
+    }
+
+    private async Task ReplyAsync(string reply)
+    {
+        busy = true;
+        try
+        {
+            await Serial.WriteLineAsync(reply);
+            awaitingConfirm = false;
+            confirmStep = confirmPrompt = null;
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { busy = false; }
+    }
+
+    private void OnLine(string line)
+    {
+        _ = InvokeAsync(async () =>
+        {
+            log.Add(line);
+            if (line.Length == 0 || line[0] != '{') { StateHasChanged(); return; }
+            try
+            {
+                using var doc = JsonDocument.Parse(line);
+                var root = doc.RootElement;
+                var type = root.TryGetProperty("type", out var t) ? t.GetString() : null;
+                switch (type)
+                {
+                    case "ready":
+                        running = false;
+                        awaitingConfirm = false;
+                        message ??= "Boardet er klar.";
+                        break;
+                    case "ids":
+                        samdId = root.GetProperty("samd_id").GetString();
+                        mac = root.TryGetProperty("mac", out var m) ? m.GetString() : null;
+                        eccSerial = root.TryGetProperty("ecc_serial", out var e) ? e.GetString() : null;
+                        break;
+                    case "step":
+                        HandleStep(root);
+                        break;
+                    case "done":
+                        running = false;
+                        awaitingConfirm = false;
+                        await SaveReportAsync(root);
+                        break;
+                    case "error":
+                        error = root.TryGetProperty("message", out var msg) ? msg.GetString() : "Boardfejl";
+                        break;
+                }
+            }
+            catch (JsonException)
+            {
+                /* ignore non-protocol JSON */
+            }
+            StateHasChanged();
+        });
+    }
+
+    private void HandleStep(JsonElement root)
+    {
+        var name = root.GetProperty("name").GetString() ?? "?";
+        var phase = root.GetProperty("phase").GetString() ?? "begin";
+        var step = steps.LastOrDefault(s => s.Name == name);
+        if (step is null || phase == "begin")
+        {
+            step = new StepState { Name = name };
+            steps.Add(step);
+        }
+        step.Phase = phase;
+        if (root.TryGetProperty("prompt", out var prompt) && prompt.ValueKind == JsonValueKind.String)
+            step.Prompt = prompt.GetString();
+        if (root.TryGetProperty("ok", out var ok) && ok.ValueKind is JsonValueKind.True or JsonValueKind.False)
+            step.Ok = ok.GetBoolean();
+        if (root.TryGetProperty("skipped", out var skipped) && skipped.ValueKind is JsonValueKind.True or JsonValueKind.False)
+            step.Skipped = skipped.GetBoolean();
+        if (root.TryGetProperty("note", out var note) && note.ValueKind == JsonValueKind.String)
+            step.Note = note.GetString();
+
+        if (phase == "awaiting_confirm")
+        {
+            awaitingConfirm = true;
+            confirmStep = name;
+            confirmPrompt = step.Prompt;
+        }
+        else if (phase == "result")
+        {
+            awaitingConfirm = false;
+            confirmStep = confirmPrompt = null;
+            if (!completed.Any(c => c.Name == name))
+                completed.Add(step);
+        }
+    }
+
+    private async Task SaveReportAsync(JsonElement done)
+    {
+        if (string.IsNullOrWhiteSpace(samdId))
+        {
+            error = "Manglende SAMD-ID — kan ikke gemme rapport.";
+            return;
+        }
+        try
+        {
+            var passed = done.GetProperty("passed").GetInt32();
+            var failed = done.GetProperty("failed").GetInt32();
+            var tests = new List<object>();
+            if (done.TryGetProperty("tests", out var arr) && arr.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var item in arr.EnumerateArray())
+                {
+                    tests.Add(new
+                    {
+                        name = item.GetProperty("name").GetString(),
+                        ok = item.GetProperty("ok").GetBoolean(),
+                        skipped = item.TryGetProperty("skipped", out var s) && s.ValueKind == JsonValueKind.True,
+                        note = item.TryGetProperty("note", out var n) && n.ValueKind == JsonValueKind.String ? n.GetString() : ""
+                    });
+                }
+            }
+            var report = new
+            {
+                firmware = "HardwareTest-webserial",
+                sound_enabled = false,
+                samd_id = samdId,
+                mac,
+                ecc_serial = eccSerial,
+                tests
+            };
+            await Hardware.RegisterDeviceAsync(samdId, mac, string.IsNullOrWhiteSpace(eccSerial) || eccSerial == "-" ? null : eccSerial, "Arduino Oplà");
+            await Hardware.SubmitTestAsync(samdId, failed == 0, passed, failed, report);
+            savedSamdId = samdId;
+            message = failed == 0 ? "Alle tests bestået — rapport gemt." : "Test færdig med fejl — rapport gemt.";
+        }
+        catch (HttpRequestException ex) { error = ex.Message; }
+        catch (Exception ex) { error = $"Kunne ikke gemme rapport: {ex.Message}"; }
+    }
+
+    private void OnError(string message) =>
+        _ = InvokeAsync(() =>
+        {
+            error = message;
+            connected = running = awaitingConfirm = false;
+            StateHasChanged();
+        });
+
+    private static string StepClass(StepState step) => step.Phase switch
+    {
+        "result" when step.Skipped => "step-skip",
+        "result" when step.Ok == true => "step-pass",
+        "result" => "step-fail",
+        "awaiting_confirm" => "step-confirm",
+        _ => "step-active"
+    };
+
+    private static string StepLabel(StepState step) => step.Phase switch
+    {
+        "result" when step.Skipped => "Ikke testet",
+        "result" when step.Ok == true => "OK",
+        "result" => "FEJL",
+        "awaiting_confirm" => "Afventer bekræftelse",
+        _ => "Kører…"
+    };
+
+    public async ValueTask DisposeAsync()
+    {
+        Serial.LineReceived -= OnLine;
+        Serial.ErrorReceived -= OnError;
+        try { await Serial.DisconnectAsync(); }
+        catch (JSDisconnectedException) { }
+    }
+}

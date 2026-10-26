@@ -51,6 +51,7 @@ builder.Services.AddScoped<MercantecAuthClient>();
 builder.Services.AddScoped<EquipmentCategoryClient>();
 builder.Services.AddScoped<EquipmentClient>();
 builder.Services.AddScoped<HardwareClient>();
+builder.Services.AddScoped<WebSerialClient>();
 builder.Services.AddScoped<LoanClient>();
 
 await builder.Build().RunAsync();

@@ -24,6 +24,24 @@ public sealed class HardwareClient(MercantecAuthClient auth)
     public async Task<ImportResult> ImportAsync(JsonElement devices) =>
         await ReadAsync<ImportResult>(await auth.PostAsync("hardware/import", devices));
 
+    public async Task RegisterDeviceAsync(string samdId, string? mac, string? eccSerial, string? label) =>
+        EnsureSuccess(await auth.PostAsync("hardware/devices", new
+        {
+            samd_id = samdId,
+            mac,
+            ecc_serial = eccSerial,
+            label
+        }));
+
+    public async Task<TestResult> SubmitTestAsync(string samdId, bool passed, int passedCount, int failedCount, object report) =>
+        await ReadAsync<TestResult>(await auth.PostAsync($"hardware/devices/{Uri.EscapeDataString(samdId)}/tests", new
+        {
+            passed,
+            passed_count = passedCount,
+            failed_count = failedCount,
+            report
+        }));
+
     private static Task<T> ReadAsync<T>(AuthResponse response)
     {
         EnsureSuccess(response);

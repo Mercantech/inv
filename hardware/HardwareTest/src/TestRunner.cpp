@@ -1,10 +1,23 @@
 #include "Hardwaretestere.h"
 
-static void track(const char *name, bool ok, int &passed, int &failed, bool skipped = false) {
-  recordTest(name, ok, g_lastNote, skipped);
-  if (skipped) {
+static void track(const char *name, bool (*testFn)(MKRIoTCarrier &), MKRIoTCarrier &carrier,
+                  int &passed, int &failed) {
+  if (isAbortRequested()) {
+    setTestNote("aborted");
+    recordTest(name, false, g_lastNote, false);
+    emitStepBegin(name);
+    emitStepResult(name, false, false, "aborted");
+    failed++;
     return;
   }
+
+  emitStepBegin(name);
+  bool ok = testFn(carrier);
+  const char *note = g_lastNote;
+  // recordTest clears g_lastNote — capture via record then use log entry
+  recordTest(name, ok, note, false);
+  const char *savedNote = g_testLog[g_testLogCount - 1].note;
+  emitStepResult(name, ok, false, savedNote);
   if (ok) {
     passed++;
   } else {
@@ -12,69 +25,44 @@ static void track(const char *name, bool ok, int &passed, int &failed, bool skip
   }
 }
 
+static void trackSkipped(const char *name, const char *note, int &passed, int &failed) {
+  (void)passed;
+  (void)failed;
+  emitStepBegin(name);
+  setTestNote(note);
+  recordTest(name, true, note, true);
+  emitStepResult(name, true, true, note);
+}
+
 void runAllTests(MKRIoTCarrier &carrier) {
   int passed = 0;
   int failed = 0;
   char line[24];
 
+  setTestsRunning(true);
+  clearAbortRequest();
   resetTestLog();
 
-  Serial.println();
-  Serial.println(F("=== Hardwaretest ==="));
-  Serial.println(F("Fysiske/visuelle trin: folg skarmen og Serial."));
-  Serial.println(F("Nar der sporges: skriv OK (virker) eller FEJL (virker ikke)."));
-  Serial.println(F("Uden svar inden timeout taelles det som FEJL."));
-  Serial.println();
-
+  track("OLED", testOLEDScreen, carrier, passed, failed);
+  if (!isAbortRequested()) track("Temp/Fugt", testHumidityTemperature, carrier, passed, failed);
+  if (!isAbortRequested()) track("Tryk", testPressureSensor, carrier, passed, failed);
+  if (!isAbortRequested()) track("IMU", testIMU, carrier, passed, failed);
+  if (!isAbortRequested()) track("SD", testSDCard, carrier, passed, failed);
+  if (!isAbortRequested()) track("Relay", testRelays, carrier, passed, failed);
+  if (!isAbortRequested()) track("Knapper", testButtons, carrier, passed, failed);
+  if (!isAbortRequested()) track("LED", testLEDs, carrier, passed, failed);
 #if ENABLE_SOUND_TEST
-  Serial.println(F("Lyd: TIL (buzzer + bip)"));
+  if (!isAbortRequested()) track("Buzzer", testBuzzer, carrier, passed, failed);
 #else
-  Serial.println(F("Lyd: FRA (stille lokale — buzzer sprunget over)"));
-#endif
-
-  track("OLED", testOLEDScreen(carrier), passed, failed);
-  track("Temp/Fugt", testHumidityTemperature(carrier), passed, failed);
-  track("Tryk", testPressureSensor(carrier), passed, failed);
-  track("IMU", testIMU(carrier), passed, failed);
-  track("SD", testSDCard(carrier), passed, failed);
-  track("Relay", testRelays(carrier), passed, failed);
-  track("Knapper", testButtons(carrier), passed, failed);
-  track("LED", testLEDs(carrier), passed, failed);
-#if ENABLE_SOUND_TEST
-  track("Buzzer", testBuzzer(carrier), passed, failed);
-#else
-  setTestNote("disabled_quiet_room");
-  track("Buzzer", true, passed, failed, true);
-  Serial.println(F("Buzzer: SPRUNGET OVER"));
+  if (!isAbortRequested()) trackSkipped("Buzzer", "disabled_quiet_room", passed, failed);
 #endif
 
   g_testsPassed = passed;
   g_testsFailed = failed;
-
-  Serial.println(F("=== Test-opsummering ==="));
-  Serial.print(F("Bestået: "));
-  Serial.println(passed);
-  Serial.print(F("Fejlet:  "));
-  Serial.println(failed);
-  for (int i = 0; i < g_testLogCount; i++) {
-    Serial.print(F("  - "));
-    Serial.print(g_testLog[i].name);
-    Serial.print(F(": "));
-    if (g_testLog[i].skipped) {
-      Serial.print(F("SKIP"));
-    } else {
-      Serial.print(g_testLog[i].ok ? F("OK") : F("FAIL"));
-    }
-    if (g_testLog[i].note[0]) {
-      Serial.print(F(" ("));
-      Serial.print(g_testLog[i].note);
-      Serial.print(')');
-    }
-    Serial.println();
-  }
+  emitDone(passed, failed);
 
   clearDisplay(carrier);
-  if (failed == 0) {
+  if (failed == 0 && !isAbortRequested()) {
     drawCenteredF(carrier, F("Alle tests"), 70, 2, ST77XX_GREEN);
     drawCenteredF(carrier, F("fuldfort"), 105, 2, ST77XX_GREEN);
     drawCenteredF(carrier, F("Hardware OK"), 150, 2, ST77XX_WHITE);
@@ -102,5 +90,13 @@ void runAllTests(MKRIoTCarrier &carrier) {
     }
   }
 
+#if ENABLE_API_REPORT
   reportToApi(carrier);
+#endif
+
+  clearDisplay(carrier);
+  drawCenteredF(carrier, F("Klar"), OLED_CY - 20, 2, ST77XX_CYAN);
+  drawCenteredF(carrier, F("Vent pa START"), OLED_CY + 16, 1, ST77XX_WHITE);
+  setTestsRunning(false);
+  clearAbortRequest();
 }

@@ -115,6 +115,22 @@ public sealed class HardwareTests(PostgresFixture postgres) : IClassFixture<Post
     }
 
     [Fact]
+    public async Task Authenticated_hardware_submit_registers_device_and_saves_test()
+    {
+        await using var app = await StartAsync();
+        using var client = app.GetTestClient();
+        var samd = NewSamd();
+        var registration = new { samd_id = samd, mac = "AA:BB:CC:DD:EE:FF", label = "Web Serial" };
+        Assert.Equal(HttpStatusCode.Unauthorized, (await client.PostAsJsonAsync("/api/hardware/devices", registration)).StatusCode);
+        client.DefaultRequestHeaders.Add("X-Test-User", "yes");
+        Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync("/api/hardware/devices", registration)).StatusCode);
+        var valid = new { passed = true, passed_count = 2, failed_count = 0, report = Report(true) };
+        Assert.Equal(HttpStatusCode.Created, (await client.PostAsJsonAsync($"/api/hardware/devices/{samd}/tests", valid)).StatusCode);
+        var tests = await client.GetFromJsonAsync<List<TestResult>>($"/api/hardware/devices/{samd}/tests");
+        Assert.True(Assert.Single(tests!).Passed);
+    }
+
+    [Fact]
     public async Task Short_ids_are_unique_stable_and_searchable()
     {
         await using var app = await StartAsync();

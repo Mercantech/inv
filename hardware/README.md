@@ -1,25 +1,33 @@
 # Arduino Oplà hardwaretester
 
 Hardwaretesteren er portet fra [Mercantech/Arduino-Opla](https://github.com/Mercantech/Arduino-Opla/tree/2633e373230a5bbc9196a57348d93c0343566d8e/Hardwaretestere/HardwareTest), commit `2633e373230a5bbc9196a57348d93c0343566d8e`.
-Sensor- og komponenttestene er bevaret. Visuelle/fysiske trin (OLED, LED, relay, buzzer) kræver bekræftelse i Serial Monitor (`OK` / `FEJL`) — timeout uden svar tæller som fejl. API-afsendelsen går til inventarsystemet uden enhedsnøgle.
 
-## Konfiguration og upload
+Firmwaren er **host-styret**: boardet venter på kommandoer over USB Serial (9600 baud). Inventarsystemets side `/hardware/run` (Chrome/Edge + Web Serial) starter testen, viser visuelle bekræftelser og gemmer rapporten. WiFi/`Secrets.h` er ikke nødvendigt til den normale web-flow.
 
-1. Kopiér `HardwareTest/src/Secrets.h.example` til `HardwareTest/src/Secrets.h`.
-2. Udfyld WiFi. API-host er hardcoded til `inv.mercantec.tech`. Filen er ignoreret af Git og Docker-builds.
-3. Opdatér NINA-firmware og upload SSL-rodcertifikatet for `inv.mercantec.tech` med Arduino IDE/Firmware Updater. Boardet bruger HTTPS på port 443.
-4. Med PlatformIO installeret:
+## Flash (én gang pr. board)
+
+Med PlatformIO:
 
 ```powershell
 cd hardware/HardwareTest
 pio run -e mkrwifi1010
 pio run -e mkrwifi1010 -t upload
-pio device monitor
 ```
 
-Boardet registreres på `POST /api/devices` og sender derefter rapporten til `POST /api/devices/{samd_id}/tests`. Chip-ID'et er permanent; MAC og ECC-serienummer gemmes som yderligere oplysninger. En afvist eller mislykket request vises som API-fejl på boardet.
+Derefter: log ind på inventaret → **Kør test** → Forbind board → Start test.
 
-`ENABLE_SOUND_TEST` er som standard `false`: buzzer vises som **Ikke testet** og tælles ikke med i beståede eller fejlede tests. `ENABLE_API_REPORT=false` deaktiverer afsendelse.
+## Serial-protokol
+
+Kommandoer (newline-termineret): `START`, `OK` / `FAIL`, `ABORT`.
+
+Events er JSON-linjer, fx:
+
+- `{"v":1,"type":"ready"}`
+- `{"v":1,"type":"ids","samd_id":"...","mac":"...","ecc_serial":"..."}`
+- `{"v":1,"type":"step","name":"OLED","phase":"begin|awaiting_confirm|result",...}`
+- `{"v":1,"type":"done","passed":8,"failed":0,"tests":[...]}`
+
+`ENABLE_SOUND_TEST` er som standard `false` (buzzer = ikke testet). `ENABLE_API_REPORT` er `false` — browseren poster til API'et. Sæt `ENABLE_API_REPORT true` og udfyld WiFi i `Secrets.h` kun hvis boardet selv skal sende via HTTPS.
 
 ## Kompilering i Docker
 
@@ -29,4 +37,4 @@ Fra repoets rod:
 docker build -f hardware/Dockerfile -t inv-hardware:local .
 ```
 
-Buildet kompilerer firmwaren uden lokale secrets og uden fysisk hardware. Upload og afprøvning af sensorer kræver et tilsluttet MKR WiFi 1010 + MKR IoT Carrier. Docker-buildet flasher ikke enheder.
+Buildet kompilerer firmwaren uden lokal secrets og uden fysisk hardware. Flash kræver et tilsluttet MKR WiFi 1010 + MKR IoT Carrier.

@@ -9,7 +9,6 @@ bool testOLEDScreen(MKRIoTCarrier &carrier) {
   clearDisplay(carrier);
   drawCentered(carrier, "OLED Test", 70, 2, ST77XX_WHITE);
   drawCentered(carrier, "Arduino Opla", 110, 2, ST77XX_CYAN);
-  Serial.println(F("OLED: viser farver og grafik — se skærmen"));
   delay(2000);
 
   testFarver(carrier);
