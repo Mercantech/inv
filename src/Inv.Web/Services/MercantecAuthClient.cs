@@ -37,6 +37,12 @@ public sealed class MercantecAuthClient(IJSRuntime js, AuthConfiguration configu
             body);
     }
 
+    public async Task<AuthResponse> PutAsync<T>(string relativePath, T body) =>
+        await (await Module).InvokeAsync<AuthResponse>(
+            "request", configuration,
+            new Uri(new Uri(configuration.ApiBaseUrl), relativePath).AbsoluteUri,
+            "PUT", body);
+
     public async ValueTask DisposeAsync()
     {
         if (module is not null) await (await module).DisposeAsync();

@@ -102,17 +102,41 @@ public static class EquipmentEndpoints
                 : Results.Ok(equipment);
         });
 
-        // Midlertidigt kan alle indloggede brugere oprette udstyr.
+        // Midlertidigt kan alle indloggede brugere oprette og redigere udstyr.
         group.MapPost("/", CreateAsync);
+        group.MapPut("/{id:guid}", UpdateAsync);
 
         return endpoints;
     }
 
     private static async Task<IResult> CreateAsync(
-        CreateEquipmentRequest request,
+        SaveEquipmentRequest request,
+        InventoryDbContext database,
+        CancellationToken cancellationToken)
+        => await SaveAsync(null, request, database, cancellationToken);
+
+    private static async Task<IResult> UpdateAsync(
+        Guid id,
+        SaveEquipmentRequest request,
+        InventoryDbContext database,
+        CancellationToken cancellationToken)
+        => await SaveAsync(id, request, database, cancellationToken);
+
+    private static async Task<IResult> SaveAsync(
+        Guid? id,
+        SaveEquipmentRequest request,
         InventoryDbContext database,
         CancellationToken cancellationToken)
     {
+        var equipment = id.HasValue
+            ? await database.Equipment.SingleOrDefaultAsync(item => item.Id == id.Value, cancellationToken)
+            : null;
+
+        if (id.HasValue && equipment is null)
+        {
+            return Results.NotFound(new { Message = "Udstyret blev ikke fundet." });
+        }
+
         var name = request.Name?.Trim();
         var serialNumber = request.SerialNumber?.Trim();
         var errors = new Dictionary<string, string[]>();
@@ -165,16 +189,23 @@ public static class EquipmentEndpoints
             });
         }
 
-        var equipment = new EquipmentEntity
+        if (equipment is null)
         {
-            Name = name!,
-            SerialNumber = serialNumber!,
-            EquipmentCategoryId = category.Id,
-            Category = category,
-            Condition = request.Condition!.Value
-        };
+            equipment = new EquipmentEntity { Name = name!, SerialNumber = serialNumber! };
+            database.Equipment.Add(equipment);
+        }
 
-        database.Equipment.Add(equipment);
+        equipment.Name = name!;
+        equipment.SerialNumber = serialNumber!;
+        equipment.EquipmentCategoryId = category.Id;
+        equipment.Category = category;
+        equipment.Condition = request.Condition!.Value;
+
+        // Også en gemning uden feltændringer opdaterer ændringstidspunktet.
+        if (id.HasValue)
+        {
+            database.Entry(equipment).Property(item => item.Name).IsModified = true;
+        }
 
         try
         {
@@ -193,9 +224,7 @@ public static class EquipmentEndpoints
             });
         }
 
-        return Results.Created(
-            $"/api/equipment/{equipment.Id}",
-            new EquipmentResponse(
+        var response = new EquipmentResponse(
                 equipment.Id,
                 equipment.Name,
                 equipment.SerialNumber,
@@ -203,6 +232,10 @@ public static class EquipmentEndpoints
                 category.Name,
                 equipment.Condition,
                 equipment.CreatedAt,
-                equipment.UpdatedAt, equipment.ShortId));
+                equipment.UpdatedAt, equipment.ShortId);
+
+        return id.HasValue
+            ? Results.Ok(response)
+            : Results.Created($"/api/equipment/{equipment.Id}", response);
     }
 }
