@@ -8,6 +8,8 @@ internal sealed class HardwareDeviceConfiguration : IEntityTypeConfiguration<Har
 {
     public void Configure(EntityTypeBuilder<HardwareDevice> builder)
     {
+        builder.Property(item => item.ShortId).HasDefaultValueSql("nextval('\"ShortIds\"')").ValueGeneratedOnAdd();
+        builder.HasIndex(item => item.ShortId).IsUnique();
         builder.HasKey(device => device.SamdId);
         builder.Property(device => device.SamdId).HasMaxLength(64).ValueGeneratedNever();
         builder.Property(device => device.Mac).HasMaxLength(32);

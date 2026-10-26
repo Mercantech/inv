@@ -12,7 +12,7 @@
     }
     else
     {
-        <p>Board: <code>@device.SamdId</code> · <a href="@($"/hardware/{device.SamdId}")">Se alle @device.TestCount tests</a></p>
+        <p>Board #@device.ShortId: <code>@device.SamdId</code> · <a href="@($"/hardware/{device.SamdId}")">Se alle @device.TestCount tests</a></p>
         @if (device.LatestTest is { } report) { <TestReportView Report="report" /> }
         else { <p>Boardet har endnu ingen testrapporter.</p> }
         <p>Testresultater ændrer ikke udstyrets tilstand eller manuelle fejlrapporter.</p>

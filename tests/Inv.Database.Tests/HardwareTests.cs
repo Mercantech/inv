@@ -114,6 +114,38 @@ public sealed class HardwareTests(PostgresFixture postgres) : IClassFixture<Post
         Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsJsonAsync($"/api/hardware/devices/{other}/equipment", new { device.EquipmentId })).StatusCode);
     }
 
+    [Fact]
+    public async Task Short_ids_are_unique_stable_and_searchable()
+    {
+        await using var app = await StartAsync();
+        using var client = app.GetTestClient();
+        client.DefaultRequestHeaders.Add("X-Test-User", "yes");
+        var samd = NewSamd();
+        await client.PostAsJsonAsync("/api/devices", new { samd_id = samd });
+        await using var db = postgres.CreateContext();
+        var board = await db.HardwareDevices.SingleAsync(item => item.SamdId == samd);
+        var shortId = board.ShortId;
+        Assert.True(shortId >= 100);
+        await client.PostAsJsonAsync("/api/devices", new { samd_id = samd, label = "Updated" });
+        await client.PostAsJsonAsync($"/api/devices/{samd}/tests", new { passed = true, passed_count = 2, failed_count = 0, report = Report(true) });
+        await db.Entry(board).ReloadAsync();
+        Assert.Equal(shortId, board.ShortId);
+        Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync($"/api/hardware/devices/{samd}/create-equipment", new { })).StatusCode);
+        await db.Entry(board).ReloadAsync();
+        var equipment = await db.Equipment.SingleAsync(item => item.Id == board.EquipmentId);
+        Assert.True(equipment.ShortId >= 100);
+        Assert.NotEqual(shortId, equipment.ShortId);
+        foreach (var term in new[] { equipment.ShortId.ToString(), $"#{equipment.ShortId}" })
+        {
+            var results = await client.GetFromJsonAsync<List<Inv.Api.Features.Equipment.EquipmentResponse>>($"/api/equipment/?search={Uri.EscapeDataString(term)}");
+            Assert.Equal(equipment.Id, Assert.Single(results!).Id);
+        }
+        var boards = await client.GetFromJsonAsync<List<DeviceResult>>("/api/hardware/devices");
+        var result = Assert.Single(boards!, item => item.SamdId == samd);
+        Assert.Equal(shortId, result.ShortId);
+        Assert.Equal(equipment.ShortId, result.EquipmentShortId);
+    }
+
     private async Task<WebApplication> StartAsync()
     {
         var builder = WebApplication.CreateBuilder();
@@ -133,6 +165,7 @@ public sealed class HardwareTests(PostgresFixture postgres) : IClassFixture<Post
         app.UseAuthorization();
         app.UseRateLimiter();
         app.MapHardwareEndpoints();
+        Inv.Api.Features.Equipment.EquipmentEndpoints.MapEquipmentEndpoints(app);
         await app.StartAsync();
         return app;
     }

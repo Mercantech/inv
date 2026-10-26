@@ -16,6 +16,7 @@ else
 {
     <h2>@(device.Label ?? "Arduino Oplà")</h2>
     <dl>
+        <dt>Kort ID</dt><dd>#@device.ShortId</dd>
         <dt>SAMD-chip-ID</dt><dd><code class="hardware-chip">@device.SamdId</code></dd>
         <dt>MAC-adresse</dt><dd>@(device.Mac ?? "Ukendt")</dd>
         <dt>ECC-serienummer</dt><dd>@(device.EccSerial ?? "Ukendt")</dd>
@@ -29,7 +30,7 @@ else
             <label>Eksisterende udstyr
                 <select @bind="selectedEquipment" disabled="@busy">
                     <option value="">Ingen tilknytning</option>
-                    @foreach (var item in equipment) { <option value="@item.Id">@item.Name · @item.SerialNumber</option> }
+                    @foreach (var item in equipment) { <option value="@item.Id">#@item.ShortId · @item.Name · @item.SerialNumber</option> }
                 </select>
             </label>
             <button class="button" @onclick="SaveLinkAsync" disabled="@busy">Gem tilknytning</button>

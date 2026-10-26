@@ -22,6 +22,9 @@ namespace Inv.Infrastructure.Data.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.HasSequence<int>("ShortIds")
+                .StartsAt(100L);
+
             modelBuilder.Entity("Inv.Domain.Entities.Equipment", b =>
                 {
                     b.Property<Guid>("Id")
@@ -48,6 +51,11 @@ namespace Inv.Infrastructure.Data.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
+                    b.Property<int>("ShortId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValueSql("nextval('\"ShortIds\"')");
+
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -58,6 +66,9 @@ namespace Inv.Infrastructure.Data.Migrations
                     b.HasIndex("Name");
 
                     b.HasIndex("SerialNumber");
+
+                    b.HasIndex("ShortId")
+                        .IsUnique();
 
                     b.ToTable("Equipment", null, t =>
                         {
@@ -196,9 +207,17 @@ namespace Inv.Infrastructure.Data.Migrations
                     b.Property<DateTimeOffset>("RegisteredAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<int>("ShortId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValueSql("nextval('\"ShortIds\"')");
+
                     b.HasKey("SamdId");
 
                     b.HasIndex("EquipmentId")
+                        .IsUnique();
+
+                    b.HasIndex("ShortId")
                         .IsUnique();
 
                     b.ToTable("HardwareDevices");

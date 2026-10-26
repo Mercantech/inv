@@ -8,6 +8,8 @@ internal sealed class EquipmentConfiguration : IEntityTypeConfiguration<Equipmen
 {
     public void Configure(EntityTypeBuilder<Equipment> builder)
     {
+        builder.Property(item => item.ShortId).HasDefaultValueSql("nextval('\"ShortIds\"')").ValueGeneratedOnAdd();
+        builder.HasIndex(item => item.ShortId).IsUnique();
         builder.ConfigureEntity();
         builder.ToTable("Equipment", table =>
         {

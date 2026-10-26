@@ -2,6 +2,7 @@ namespace Inv.Domain.Entities;
 
 public sealed class HardwareDevice
 {
+    public int ShortId { get; private set; }
     public required string SamdId { get; set; }
     public string? Mac { get; set; }
     public string? EccSerial { get; set; }

@@ -44,6 +44,7 @@ public static class EquipmentEndpoints
                 var pattern = $"%{term}%";
 
                 query = query.Where(item =>
+                    item.ShortId.ToString() == search.Trim().TrimStart('#') ||
                     EF.Functions.ILike(item.Name, pattern, "\\") ||
                     EF.Functions.ILike(item.SerialNumber, pattern, "\\"));
             }
@@ -71,7 +72,7 @@ public static class EquipmentEndpoints
                     item.Category.Name,
                     item.Condition,
                     item.CreatedAt,
-                    item.UpdatedAt))
+                    item.UpdatedAt, item.ShortId))
                 .ToListAsync(cancellationToken);
 
             return Results.Ok(equipment);
@@ -93,7 +94,7 @@ public static class EquipmentEndpoints
                     item.Category.Name,
                     item.Condition,
                     item.CreatedAt,
-                    item.UpdatedAt))
+                    item.UpdatedAt, item.ShortId))
                 .SingleOrDefaultAsync(cancellationToken);
 
             return equipment is null
@@ -202,6 +203,6 @@ public static class EquipmentEndpoints
                 category.Name,
                 equipment.Condition,
                 equipment.CreatedAt,
-                equipment.UpdatedAt));
+                equipment.UpdatedAt, equipment.ShortId));
     }
 }
