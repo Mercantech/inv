@@ -116,9 +116,8 @@ export async function request(config, url, method = 'GET', body = null) {
     };
 }
 
-export function logout() {
+export function clearSession() {
     generation++;
     sessionStorage.removeItem(tokenKey);
     sessionStorage.removeItem(pendingKey);
-    location.assign(new URL('login', document.baseURI).href);
 }
