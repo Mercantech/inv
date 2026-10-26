@@ -121,8 +121,6 @@ static String httpRequest(const char *method, const char *path, const char *json
   client.println(API_HOST);
   client.println(F("User-Agent: Arduino-Opla-HardwareTest"));
   client.println(F("Accept: application/json"));
-  client.print(F("X-Device-Key: "));
-  client.println(API_DEVICE_KEY);
   if (bodyLen > 0) {
     client.println(F("Content-Type: application/json"));
     client.print(F("Content-Length: "));
@@ -198,10 +196,6 @@ bool reportToApi(MKRIoTCarrier &carrier) {
   (void)carrier;
   return false;
 #else
-  if (API_HOST[0] == '\0' || strlen(API_DEVICE_KEY) < 32) {
-    Serial.println(F("API: udfyld API_HOST og API_DEVICE_KEY i Secrets.h"));
-    return false;
-  }
   clearDisplay(carrier);
   drawCenteredF(carrier, F("Sender til"), 80, 2, ST77XX_WHITE);
   drawCenteredF(carrier, F("API..."), 120, 2, ST77XX_CYAN);

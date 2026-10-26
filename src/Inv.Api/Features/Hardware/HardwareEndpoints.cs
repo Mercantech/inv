@@ -1,5 +1,3 @@
-using System.Security.Cryptography;
-using System.Text;
 using Inv.Domain.Entities;
 using Inv.Infrastructure.Data;
 using Microsoft.AspNetCore.Mvc;
@@ -75,10 +73,9 @@ public static class HardwareEndpoints
         group.MapPost("/import", (List<LegacyDevice> devices, HardwareStore store, CancellationToken ct) => store.ImportAsync(devices, ct))
             .WithMetadata(new RequestSizeLimitAttribute(10 * 1024 * 1024));
 
-        // Device credentials only authorize these two write endpoints. Human access still uses Mercantec Auth.
+        // Open ingestion for Oplà boards; human access still uses Mercantec Auth.
         var ingestion = endpoints.MapGroup("/api/devices").WithTags("Hardware ingestion").AllowAnonymous()
             .RequireRateLimiting("hardware-ingestion").WithMetadata(new RequestSizeLimitAttribute(65536));
-        ingestion.AddEndpointFilter<DeviceKeyFilter>();
         ingestion.AddEndpointFilter<HardwareValidationFilter>();
         ingestion.MapPost("", async (DeviceRegistration request, HardwareStore store, InventoryDbContext db, CancellationToken ct) =>
         {
@@ -112,22 +109,6 @@ public static class HardwareEndpoints
             return Results.Created($"/api/hardware/devices/{samd}/tests", HardwareContracts.Result(report));
         });
         return endpoints;
-    }
-}
-
-internal sealed class DeviceKeyFilter(IConfiguration configuration) : IEndpointFilter
-{
-    public async ValueTask<object?> InvokeAsync(EndpointFilterInvocationContext context, EndpointFilterDelegate next)
-    {
-        var expected = configuration["OPLA_INGEST_KEY"];
-        if (string.IsNullOrWhiteSpace(expected) || expected.Length < 32)
-            return Results.Problem("Modtagelse af hardwaretests er ikke konfigureret.", statusCode: 503);
-        var provided = context.HttpContext.Request.Headers["X-Device-Key"];
-        if (provided.Count != 1 || string.IsNullOrEmpty(provided[0]) || provided[0]!.Length > 512
-            || !CryptographicOperations.FixedTimeEquals(SHA256.HashData(Encoding.UTF8.GetBytes(expected)),
-                SHA256.HashData(Encoding.UTF8.GetBytes(provided[0]!))))
-            return Results.Unauthorized();
-        return await next(context);
     }
 }
 

@@ -15,7 +15,6 @@ x-api: &api
     JWKS_URI: ${JWKS_URI:?Set JWKS_URI in your environment file}
     EQUIPMENT_MANAGER_ROLE: ${EQUIPMENT_MANAGER_ROLE:-EquipmentManager}
     CORS_ORIGINS: ${CORS_ORIGINS:-}
-    OPLA_INGEST_KEY: ${OPLA_INGEST_KEY:-}
 
 services:
   db:

@@ -6,8 +6,8 @@ Sensor- og komponenttestene er bevaret. API-afsendelsen bruger nu inventarsystem
 ## Konfiguration og upload
 
 1. Kopiér `HardwareTest/src/Secrets.h.example` til `HardwareTest/src/Secrets.h`.
-2. Udfyld WiFi, `API_HOST` (kun værtsnavnet) og `API_DEVICE_KEY`. Nøglen skal matche API'ets `OPLA_INGEST_KEY` og være mindst 32 tilfældige tegn. Filen er ignoreret af Git og Docker-builds.
-3. Opdatér NINA-firmware og upload SSL-rodcertifikatet for det valgte API-værtsnavn med Arduino IDE/Firmware Updater. Boardet bruger HTTPS på port 443.
+2. Udfyld WiFi. API-host er hardcoded til `inv.mercantec.tech`. Filen er ignoreret af Git og Docker-builds.
+3. Opdatér NINA-firmware og upload SSL-rodcertifikatet for `inv.mercantec.tech` med Arduino IDE/Firmware Updater. Boardet bruger HTTPS på port 443.
 4. Med PlatformIO installeret:
 
 ```powershell
@@ -17,7 +17,7 @@ pio run -e mkrwifi1010 -t upload
 pio device monitor
 ```
 
-Boardet registreres på `POST /api/devices` og sender derefter rapporten til `POST /api/devices/{samd_id}/tests`. Begge requests bruger `X-Device-Key`. Chip-ID'et er permanent; MAC og ECC-serienummer gemmes som yderligere oplysninger. En afvist eller mislykket request vises som API-fejl på boardet.
+Boardet registreres på `POST /api/devices` og sender derefter rapporten til `POST /api/devices/{samd_id}/tests`. Chip-ID'et er permanent; MAC og ECC-serienummer gemmes som yderligere oplysninger. En afvist eller mislykket request vises som API-fejl på boardet.
 
 `ENABLE_SOUND_TEST` er som standard `false`: buzzer vises som **Ikke testet** og tælles ikke med i beståede eller fejlede tests. `ENABLE_API_REPORT=false` deaktiverer afsendelse.
 

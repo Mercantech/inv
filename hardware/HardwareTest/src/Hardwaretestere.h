@@ -12,19 +12,16 @@
 #define ENABLE_SOUND_TEST false
 #endif
 
-// Send resultat til inventarsystemet efter tests (konfiguration i Secrets.h).
+// Send resultat til inventarsystemet efter tests (WiFi i Secrets.h).
 #ifndef ENABLE_API_REPORT
 #define ENABLE_API_REPORT true
 #endif
 
 #ifndef API_HOST
-#define API_HOST ""
+#define API_HOST "inv.mercantec.tech"
 #endif
 #ifndef API_PORT
 #define API_PORT 443
-#endif
-#ifndef API_DEVICE_KEY
-#define API_DEVICE_KEY ""
 #endif
 
 // Globale enheds-ID'er (udfyldes af printDeviceIds)

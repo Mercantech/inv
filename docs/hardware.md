@@ -16,17 +16,15 @@ Udstyrets detaljeside viser seneste hardwaretest og et link til hele historikken
 
 | Metode | Endpoint | Adgang / funktion |
 | --- | --- | --- |
-| POST | `/api/devices` | Enhedsnøgle; registrér/opdatér board på SAMD-ID |
-| POST | `/api/devices/{samdId}/tests` | Enhedsnøgle; gem ny test |
+| POST | `/api/devices` | Åben; registrér/opdatér board på SAMD-ID |
+| POST | `/api/devices/{samdId}/tests` | Åben; gem ny test |
 | GET | `/api/hardware/devices?equipmentId={uuid}` | Mercantec-login; boards med seneste test; valgfrit udstyrsfilter |
 | GET | `/api/hardware/devices/{samdId}/tests?skip=0&take=20` | Mercantec-login; historik, højst 100 rapporter pr. request |
 | POST | `/api/hardware/devices/{samdId}/equipment` | Mercantec-login; `{ "equipmentId": "uuid" }` eller `null` for at fjerne tilknytningen |
 | POST | `/api/hardware/devices/{samdId}/create-equipment` | Mercantec-login; opret og tilknyt udstyr, eller returnér eksisterende tilknytning |
 | POST | `/api/hardware/import` | Mercantec-login; importér JSON-array fra det gamle `/api/devices`, maks. 10 MB |
 
-Samme midlertidige adgangsmodel som udstyr/kategorier: alle indloggede brugere kan importere og ændre tilknytning. Boardets nøgle giver kun adgang til de to modtagelses-endpoints. Den er ingen brugeridentitet og kan ikke læse eller ændre inventar, manuelle fejl eller tilknytninger. Nøglen skal ligge i env/Dokploy og i boardets ignorerede `Secrets.h`; aldrig i frontend eller Git. Manglende konfiguration deaktiverer modtagelsen med 503, forkert/manglende nøgle giver 401. De to endpoints har en samlet grænse på 120 requests/minut pr. API-proces og 64 KiB pr. request.
-
-Sæt `OPLA_INGEST_KEY` til mindst 32 tilfældige tegn i miljøets env. Compose videresender den til API'et. Boardet sender den som `X-Device-Key`. Se [hardwarevejledningen](../hardware/README.md) for konfiguration, TLS-certifikat og upload. Firmware, som stadig sender til det gamle domæne uden nøgle, skal opdateres før den sender direkte til inventarsystemet.
+Samme midlertidige adgangsmodel som udstyr/kategorier: alle indloggede brugere kan importere og ændre tilknytning. De to board-endpoints er åbne uden nøgle (kun rate limit 120/min og 64 KiB pr. request). De kan ikke læse eller ændre inventar, manuelle fejl eller tilknytninger. Firmware peger på `inv.mercantec.tech`; se [hardwarevejledningen](../hardware/README.md) for WiFi, TLS-certifikat og upload.
 
 En registrering bruger det eksisterende format: `samd_id`, `mac`, `ecc_serial`, `label`. En test bruger `passed`, `passed_count`, `failed_count` og `report.tests` med `name`, `ok`, `skipped`, `note`. Ny indsendelse kræver gyldige, entydige komponentresultater, der stemmer med opsummeringen. Testtidspunktet for nye rapporter sættes af serveren. Hvert accepteret POST er en ny test; firmwaren genforsøger ikke automatisk en rapport. Der er ingen antagelse om, at identiske målinger betyder samme test.
 

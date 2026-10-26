@@ -12,7 +12,6 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -22,8 +21,6 @@ namespace Inv.Database.Tests;
 
 public sealed class HardwareTests(PostgresFixture postgres) : IClassFixture<PostgresFixture>
 {
-    private const string DeviceKey = "a-test-device-key-with-at-least-32-characters";
-
     [Fact]
     public async Task Import_preserves_timestamps_raw_details_and_links_and_is_repeatable()
     {
@@ -68,18 +65,13 @@ public sealed class HardwareTests(PostgresFixture postgres) : IClassFixture<Post
     }
 
     [Fact]
-    public async Task Hardware_endpoints_enforce_device_and_user_access_and_validate_reports()
+    public async Task Hardware_endpoints_enforce_user_access_and_validate_reports()
     {
         await using var app = await StartAsync();
         using var client = app.GetTestClient();
         var samd = NewSamd();
         var registration = new { samd_id = samd, label = "Testboard" };
         Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/hardware/devices")).StatusCode);
-        Assert.Equal(HttpStatusCode.Unauthorized, (await client.PostAsJsonAsync("/api/devices", registration)).StatusCode);
-        client.DefaultRequestHeaders.Add("X-Test-User", "yes");
-        Assert.Equal(HttpStatusCode.Unauthorized, (await client.PostAsJsonAsync("/api/devices", registration)).StatusCode);
-        client.DefaultRequestHeaders.Remove("X-Test-User");
-        client.DefaultRequestHeaders.Add("X-Device-Key", DeviceKey);
         Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync("/api/devices", registration)).StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/hardware/devices")).StatusCode);
         var invalid = new { passed = true, passed_count = 2, failed_count = 0, report = Report(false) };
@@ -105,7 +97,6 @@ public sealed class HardwareTests(PostgresFixture postgres) : IClassFixture<Post
     {
         await using var app = await StartAsync();
         using var client = app.GetTestClient();
-        client.DefaultRequestHeaders.Add("X-Device-Key", DeviceKey);
         client.DefaultRequestHeaders.Add("X-Test-User", "yes");
         var samd = NewSamd();
         var results = await Task.WhenAll(Enumerable.Range(0, 4).Select(_ => client.PostAsJsonAsync("/api/devices", new { samd_id = samd })));
@@ -123,20 +114,10 @@ public sealed class HardwareTests(PostgresFixture postgres) : IClassFixture<Post
         Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsJsonAsync($"/api/hardware/devices/{other}/equipment", new { device.EquipmentId })).StatusCode);
     }
 
-    [Fact]
-    public async Task Device_ingestion_is_disabled_without_configuration()
-    {
-        await using var app = await StartAsync("");
-        using var client = app.GetTestClient();
-        client.DefaultRequestHeaders.Add("X-Device-Key", DeviceKey);
-        Assert.Equal(HttpStatusCode.ServiceUnavailable, (await client.PostAsJsonAsync("/api/devices", new { samd_id = NewSamd() })).StatusCode);
-    }
-
-    private async Task<WebApplication> StartAsync(string key = DeviceKey)
+    private async Task<WebApplication> StartAsync()
     {
         var builder = WebApplication.CreateBuilder();
         builder.WebHost.UseTestServer();
-        builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?> { ["OPLA_INGEST_KEY"] = key });
         builder.Services.AddDbContext<Inv.Infrastructure.Data.InventoryDbContext>(options =>
         {
             using var db = postgres.CreateContext();
