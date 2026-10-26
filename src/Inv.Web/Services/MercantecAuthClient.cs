@@ -15,7 +15,7 @@ public sealed class MercantecAuthClient(IJSRuntime js, AuthConfiguration configu
 
     public async Task LoginAsync() => await (await Module).InvokeVoidAsync("login", configuration);
     public async Task CompleteLoginAsync() => await (await Module).InvokeVoidAsync("callback", configuration);
-    public async Task LogoutAsync() => await (await Module).InvokeVoidAsync("logout", configuration);
+    public async Task LogoutAsync() => await (await Module).InvokeVoidAsync("logout");
     public async Task<bool> IsSignedInAsync() => await (await Module).InvokeAsync<bool>("isSignedIn");
 
     public async Task<AuthResponse> GetAsync(string relativePath) => await (await Module).InvokeAsync<AuthResponse>(

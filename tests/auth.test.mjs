@@ -70,12 +70,24 @@ test('rejects token leakage to other origins and API paths', async () => {
     for (const url of ['https://evil.example/api/me', 'https://app.example/elsewhere']) await assert.rejects(auth.request(config, url), /API-adresse/);
 });
 
-test('logout clears local data and navigates to the specified signout endpoint', async () => {
+test('logout clears only app authentication data and navigates locally without contacting Auth', () => {
     setTokens(0);
-    auth.logout(config);
-    assert.equal(stored.size, 0);
-    assert.equal(new URL(destination).pathname, '/signout');
-    assert.equal(new URL(destination).searchParams.get('returnUrl'), 'https://app.example/login');
+    stored.set('inv.auth.pending', JSON.stringify({ state: 'pending-login' }));
+    stored.set('unrelated-setting', 'preserve');
+    globalThis.fetch = () => { assert.fail('Logout must not make network requests'); };
+    auth.logout();
+    assert.equal(auth.isSignedIn(), false);
+    assert.equal(stored.has('inv.auth.pending'), false);
+    assert.deepEqual([...stored], [['unrelated-setting', 'preserve']]);
+    assert.equal(destination, 'https://app.example/login');
+});
+
+test('logout respects the app base path and works without an active session', () => {
+    document.baseURI = 'https://app.example/inventory/';
+    auth.logout();
+    auth.logout();
+    assert.equal(destination, 'https://app.example/inventory/login');
+    assert.equal(auth.isSignedIn(), false);
 });
 
 test('expired login state is rejected', async () => {
@@ -99,7 +111,7 @@ test('refresh completing after logout cannot restore the session', async () => {
     let complete;
     globalThis.fetch = () => new Promise(resolve => complete = resolve);
     const request = auth.request(config, config.apiBaseUrl + 'me');
-    auth.logout(config);
+    auth.logout();
     complete(reply());
     await assert.rejects(request, /afbrudt/);
     assert.equal(auth.isSignedIn(), false);

@@ -116,11 +116,9 @@ export async function request(config, url, method = 'GET', body = null) {
     };
 }
 
-export function logout(config) {
+export function logout() {
     generation++;
     sessionStorage.removeItem(tokenKey);
     sessionStorage.removeItem(pendingKey);
-    const url = new URL('/signout', config.authority);
-    url.searchParams.set('returnUrl', new URL('login', document.baseURI).href);
-    location.assign(url.href);
+    location.assign(new URL('login', document.baseURI).href);
 }

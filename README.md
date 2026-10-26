@@ -84,7 +84,7 @@ GitHub Actions bygger løsningen, kontrollerer at modellen matcher migrationerne
 
 API'et validerer Mercantec Auth-tokens med RS256, JWKS, `kid`, issuer, audience, udløb og et gyldigt UUID i `sub`. Brugerreferencer gemmes som `sub`; der er ingen lokal brugertabel med passwords. `EquipmentManager`-policyen bruger rollen fra `EQUIPMENT_MANAGER_ROLE`, som skal aftales med og tildeles i Mercantec Auth.
 
-Blazor-frontenden har login med authorization code + PKCE, callback og automatisk token-refresh. Klientregistrering og CORS hos Auth-platformen skal passe til miljøets adresser. Logout afslutter Auth-sessionen som specificeret i integrationsopgaven. Se [auth-vejledningen](docs/auth.md) for opsætning, test og logout-adfærd. Oprettelse af kategorier og udstyr er implementeret; de øvrige funktioner følges i backloggen.
+Blazor-frontenden har login med authorization code + PKCE, callback og automatisk token-refresh. Klientregistrering og CORS hos Auth-platformen skal passe til miljøets adresser. Logout rydder appens egne tokens og åbner dens login-side; den fælles Mercantec Auth-session og andre apps bevares. Se [auth-vejledningen](docs/auth.md) for opsætning, test og logout-adfærd. Oprettelse af kategorier og udstyr er implementeret; de øvrige funktioner følges i backloggen.
 
 Se [datamodellen](docs/database.md) og [udviklings- og driftsvejledningen](docs/development.md).
 
