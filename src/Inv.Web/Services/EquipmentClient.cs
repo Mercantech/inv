@@ -9,9 +9,37 @@ public sealed class EquipmentClient(MercantecAuthClient auth)
     private static readonly JsonSerializerOptions JsonOptions =
         new(JsonSerializerDefaults.Web);
 
-    public async Task<List<EquipmentResponse>> GetAllAsync()
+    public async Task<List<EquipmentResponse>> GetAllAsync(
+        string? search = null,
+        Guid? categoryId = null,
+        int? condition = null)
     {
-        var response = await auth.GetAsync("equipment/");
+        var parameters = new List<string>();
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            parameters.Add($"search={Uri.EscapeDataString(search.Trim())}");
+        }
+
+        if (categoryId.HasValue)
+        {
+            parameters.Add($"categoryId={categoryId.Value}");
+        }
+
+        if (condition.HasValue)
+        {
+            parameters.Add(
+                $"condition={condition.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)}");
+        }
+
+        var url = "equipment/";
+
+        if (parameters.Count > 0)
+        {
+            url += "?" + string.Join("&", parameters);
+        }
+
+        var response = await auth.GetAsync(url);
 
         if (response.Status != 200)
         {

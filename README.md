@@ -101,3 +101,21 @@ POST modtager felterne `name`, `serialNumber`, `equipmentCategoryId` og `conditi
 **Midlertidig adgangsbeslutning:** Alle endpoints kræver login, men oprettelse kræver foreløbigt ingen bestemt rolle, ligesom oprettelse af kategorier. Rollekravet `EquipmentManager` er fjernet efter aftale med brugeren. Rollebegrænsning skal genindføres, når den ønskede adgangsmodel aktiveres.
 
 **Validering den 23. oktober 2026:** Brugeren har gennemført den aftalte manuelle afprøvning og meldt testene bestået: oprettelse, oversigt og detaljeside, påkrævede felter og ugyldige værdier, ID og tidsstempler samt login uden rollekrav. Release-build og lokal Docker-opstart er gennemført uden fejl. Produktionsdeployment af commit `abe1313` er gennemført i Dokploy.
+
+## Søgning og filtrering af udstyr (V1-05)
+
+På `/udstyr` kan indloggede brugere søge på dele af navn eller serienummer uden hensyn til store og små bogstaver. Kategori og tilstand kan vælges som filtre og kombineres med søgningen. Vælg **Søg** for at anvende valgene; **Nulstil** rydder søgning og filtre og viser alt udstyr igen. Oversigten viser antal resultater, links til detaljesider og en tydelig besked, hvis ingen udstyr matcher.
+
+`GET /api/equipment/` accepterer følgende valgfrie query-parametre:
+
+| Parameter | Betydning |
+| --- | --- |
+| `search` | Del af navn eller serienummer; indledende og afsluttende mellemrum fjernes |
+| `categoryId` | ID på den ønskede kategori |
+| `condition` | Tilstand: 0 = ukendt, 1 = god, 2 = slidt, 3 = beskadiget, 4 = ude af drift |
+
+Eksempel: `/api/equipment/?search=arduino&condition=1`. Filtrene kombineres, så udstyret skal opfylde alle valgte betingelser. Særlige søgetegn som `%` og `_` behandles som almindelig tekst. En ugyldig tilstand afvises med 400. Datamodellen er uændret, og der kræves ingen ny migration.
+
+**Manuel afprøvning den 26. oktober 2026:** Brugeren har meldt søgning og kategori- og tilstandsfiltrering bestået efter afprøvning lokalt i Docker, herunder kombinerede filtre, tilstanden ukendt, ingen resultater og nulstilling.
+
+**Resterende arbejde:** V1-05 forbliver åbent. Visning af udlånsstatus og filter på udlånsstatus afventer udlånsmodulet i Sprint 2. Tilstand er en samlet vurdering; konkrete fejl på eksempelvis skærm eller føler håndteres senere i fejlmodulet med mulighed for flere aktuelle fejl og historik over udbedrede fejl. Filtrering på konkrete fejl er endnu ikke implementeret.

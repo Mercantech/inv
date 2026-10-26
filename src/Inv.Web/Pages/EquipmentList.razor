@@ -4,14 +4,58 @@
 @using Inv.Web.Models
 @using Inv.Web.Services
 @inject EquipmentClient Equipment
+@inject EquipmentCategoryClient Categories
 
 <PageTitle>Udstyr · Udstyrsinventar</PageTitle>
 
 <section class="page-intro">
     <h1>Udstyr</h1>
-    <p>Se registreret udstyr, og åbn det enkelte udstyrs oplysninger.</p>
+    <p>Søg efter udstyr, og filtrér på kategori og tilstand.</p>
     <a href="/udstyr/opret" class="button">Opret udstyr</a>
 </section>
+
+<form @onsubmit="LoadAsync" @onsubmit:preventDefault>
+    <fieldset disabled="@loading">
+        <legend>Søgning og filtrering</legend>
+
+        <label for="equipment-search">Navn eller serienummer</label>
+        <input id="equipment-search"
+               type="search"
+               @bind="search"
+               @bind:event="oninput" />
+
+        <label for="equipment-category-filter">Kategori</label>
+        <InputSelect id="equipment-category-filter"
+                     TValue="Guid?"
+                     @bind-Value="categoryId">
+            <option value="">Alle kategorier</option>
+            @foreach (var category in categories)
+            {
+                <option value="@category.Id">@category.Name</option>
+            }
+        </InputSelect>
+
+        <label for="equipment-condition-filter">Tilstand</label>
+        <InputSelect id="equipment-condition-filter"
+                     TValue="int?"
+                     @bind-Value="condition">
+            <option value="">Alle tilstande</option>
+            <option value="0">Ukendt</option>
+            <option value="1">God</option>
+            <option value="2">Slidt</option>
+            <option value="3">Beskadiget</option>
+            <option value="4">Ude af drift</option>
+        </InputSelect>
+
+        <button type="submit" class="button">Søg</button>
+        <button type="button" @onclick="ResetAsync">Nulstil</button>
+    </fieldset>
+</form>
+
+@if (!string.IsNullOrWhiteSpace(categoryError))
+{
+    <p role="alert">@categoryError</p>
+}
 
 @if (loading)
 {
@@ -26,10 +70,16 @@ else if (!string.IsNullOrWhiteSpace(error))
 }
 else if (equipment.Count == 0)
 {
-    <p>Der er endnu ikke registreret udstyr.</p>
+    <p role="status">
+        @(hasAppliedFilters
+            ? "Ingen udstyr matcher din søgning og de valgte filtre."
+            : "Der er endnu ikke registreret udstyr.")
+    </p>
 }
 else
 {
+    <p role="status">Antal fundne udstyr: @equipment.Count</p>
+
     <table>
         <caption>Registreret udstyr</caption>
         <thead>
@@ -58,11 +108,34 @@ else
 
 @code {
     private List<EquipmentResponse> equipment = [];
-    private bool loading;
+    private List<EquipmentcategoryResponse> categories = [];
+    private string search = string.Empty;
+    private Guid? categoryId;
+    private int? condition;
+    private bool loading = true;
+    private bool hasAppliedFilters;
     private string? error;
+    private string? categoryError;
 
     protected override async Task OnInitializedAsync()
     {
+        try
+        {
+            categories = await Categories.GetAllAsync();
+        }
+        catch (HttpRequestException)
+        {
+            categoryError = "Kategorierne kunne ikke hentes. Du kan stadig søge på navn, serienummer og tilstand.";
+        }
+        catch (JSException)
+        {
+            categoryError = "Kategorierne kunne ikke hentes. Kontrollér forbindelsen og dit login.";
+        }
+        catch (JsonException)
+        {
+            categoryError = "API'et returnerede ugyldige kategorioplysninger.";
+        }
+
         await LoadAsync();
     }
 
@@ -71,14 +144,28 @@ else
         loading = true;
         error = null;
 
+        var appliedSearch = search.Trim();
+        var appliedCategoryId = categoryId;
+        var appliedCondition = condition;
+
         try
         {
-            equipment = await Equipment.GetAllAsync();
+            equipment = await Equipment.GetAllAsync(
+                appliedSearch,
+                appliedCategoryId,
+                appliedCondition);
+
+            hasAppliedFilters =
+                !string.IsNullOrWhiteSpace(appliedSearch) ||
+                appliedCategoryId.HasValue ||
+                appliedCondition.HasValue;
         }
         catch (HttpRequestException exception)
         {
             error = exception.StatusCode switch
             {
+                HttpStatusCode.BadRequest =>
+                    "Søgningen indeholder ugyldige filtre.",
                 HttpStatusCode.Unauthorized =>
                     "Dit login er udløbet. Log ind igen.",
                 HttpStatusCode.Forbidden =>
@@ -98,6 +185,14 @@ else
         {
             loading = false;
         }
+    }
+
+    private async Task ResetAsync()
+    {
+        search = string.Empty;
+        categoryId = null;
+        condition = null;
+        await LoadAsync();
     }
 
     private static string GetConditionName(int condition) => condition switch

@@ -18,12 +18,51 @@ public static class EquipmentEndpoints
             .RequireAuthorization();
 
         group.MapGet("/", async (
+            string? search,
+            Guid? categoryId,
+            EquipmentCondition? condition,
             InventoryDbContext database,
             CancellationToken cancellationToken) =>
         {
-            var equipment = await database.Equipment
-                .AsNoTracking()
+            if (condition.HasValue && !Enum.IsDefined(condition.Value))
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    ["Condition"] = ["Vælg en gyldig tilstand."]
+                });
+            }
+
+            var query = database.Equipment.AsNoTracking();
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var term = search.Trim()
+                    .Replace("\\", "\\\\")
+                    .Replace("%", "\\%")
+                    .Replace("_", "\\_");
+
+                var pattern = $"%{term}%";
+
+                query = query.Where(item =>
+                    EF.Functions.ILike(item.Name, pattern, "\\") ||
+                    EF.Functions.ILike(item.SerialNumber, pattern, "\\"));
+            }
+
+            if (categoryId.HasValue)
+            {
+                query = query.Where(item =>
+                    item.EquipmentCategoryId == categoryId.Value);
+            }
+
+            if (condition.HasValue)
+            {
+                query = query.Where(item =>
+                    item.Condition == condition.Value);
+            }
+
+            var equipment = await query
                 .OrderBy(item => item.Name)
+                .ThenBy(item => item.Id)
                 .Select(item => new EquipmentResponse(
                     item.Id,
                     item.Name,
