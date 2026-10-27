@@ -1,11 +1,14 @@
 @inherits LayoutComponentBase
+@inject NavigationManager Navigation
+@using System.Net.Http.Json
+@using System.Text.Json.Serialization
 
 <AuthGate>
 <a class="skip-link" href="#main-content">Gå til indhold</a>
 
 <div class="app-shell">
     <aside class="sidebar">
-        <a class="brand" href="/">Udstyrsinventar<span>Version 1</span></a>
+        <a class="brand" href="/">Udstyrsinventar<span>@BrandVersion</span></a>
         <nav aria-label="Hovednavigation">
             <NavLink href="/" Match="NavLinkMatch.All">Overblik</NavLink>
             <NavLink href="forbindelse">Forbindelse</NavLink>
@@ -23,7 +26,53 @@
         <main id="main-content" tabindex="-1">
             @Body
         </main>
-        <footer>Udstyrsinventar · Version 1</footer>
+        <footer class="app-footer">
+            <span>Udstyrsinventar</span>
+            <span class="app-version" title="@VersionTitle">@VersionLabel</span>
+        </footer>
     </div>
 </div>
 </AuthGate>
+
+@code {
+    private string version = "…";
+    private string? builtAt;
+
+    private string BrandVersion => version is "…" or "dev" or "?" ? "INV" : version;
+    private string VersionLabel => builtAt is null ? $"byg {version}" : $"byg {version} · {builtAt}";
+    private string VersionTitle => $"version.json — opdateres ved hvert deploy ({version})";
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            using var client = new HttpClient { BaseAddress = new Uri(Navigation.BaseUri) };
+            var info = await client.GetFromJsonAsync<AppVersionInfo>("version.json");
+            if (info is null || string.IsNullOrWhiteSpace(info.Version))
+            {
+                version = "?";
+                return;
+            }
+
+            version = info.Version.Trim();
+            builtAt = FormatBuiltAt(info.BuiltAt);
+        }
+        catch
+        {
+            version = "?";
+        }
+    }
+
+    private static string? FormatBuiltAt(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value is "unknown" or "local")
+            return null;
+        if (DateTimeOffset.TryParse(value, out var when))
+            return when.ToLocalTime().ToString("dd-MM-yyyy HH:mm");
+        return value;
+    }
+
+    private sealed record AppVersionInfo(
+        [property: JsonPropertyName("version")] string? Version,
+        [property: JsonPropertyName("builtAt")] string? BuiltAt);
+}

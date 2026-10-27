@@ -1,4 +1,6 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+ARG APP_VERSION=dev
+ARG APP_BUILT_AT=unknown
 WORKDIR /source
 COPY global.json Directory.Build.props Directory.Packages.props ./
 COPY src/Inv.Web/Inv.Web.csproj src/Inv.Web/
@@ -6,6 +8,9 @@ RUN dotnet restore src/Inv.Web/Inv.Web.csproj
 COPY src/Inv.Web/ src/Inv.Web/
 # Firmware.bin ligger i wwwroot/firmware (bygges separat via hardware/Dockerfile / CI).
 RUN test -f src/Inv.Web/wwwroot/firmware/opla-hardwaretest.bin
+RUN printf '%s\n' "{\"version\":\"${APP_VERSION}\",\"builtAt\":\"${APP_BUILT_AT}\"}" \
+    > src/Inv.Web/wwwroot/version.json \
+ && cat src/Inv.Web/wwwroot/version.json
 RUN dotnet publish src/Inv.Web/Inv.Web.csproj --configuration Release --no-restore --output /app/publish
 
 FROM nginxinc/nginx-unprivileged:stable-alpine AS runtime

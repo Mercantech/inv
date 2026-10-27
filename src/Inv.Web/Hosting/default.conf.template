@@ -25,13 +25,40 @@ server {
         try_files $uri =404;
     }
 
+    location = /version.json {
+        add_header Cache-Control "no-store";
+        default_type application/json;
+        try_files $uri =404;
+    }
+
     location = /auth.js {
+        add_header Cache-Control "no-cache";
+        try_files $uri =404;
+    }
+
+    location = /webserial.js {
+        add_header Cache-Control "no-cache";
+        try_files $uri =404;
+    }
+
+    location = /firmware-flash.js {
+        add_header Cache-Control "no-cache";
+        try_files $uri =404;
+    }
+
+    location = /samba-flasher.js {
         add_header Cache-Control "no-cache";
         try_files $uri =404;
     }
 
     location = /index.html {
         add_header Cache-Control "no-store";
+    }
+
+    location /firmware/ {
+        default_type application/octet-stream;
+        add_header Cache-Control "no-cache";
+        try_files $uri =404;
     }
 
     location /_framework/ {

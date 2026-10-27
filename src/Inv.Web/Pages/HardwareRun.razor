@@ -145,15 +145,20 @@ else
         }
         catch (JSException ex)
         {
-            error = ex.Message.Contains("No port", StringComparison.OrdinalIgnoreCase)
-                ? "Ingen port valgt."
+            error = ex.Message.Contains("Ingen port", StringComparison.OrdinalIgnoreCase)
+                    || ex.Message.Contains("No port", StringComparison.OrdinalIgnoreCase)
+                ? ex.Message
                 : $"Firmware-installation fejlede: {ex.Message}";
-            flashStatus = "Fejl";
+            flashStatus = string.IsNullOrWhiteSpace(flashStatus) || flashStatus == "Starter…"
+                ? "Fejl"
+                : $"Fejl — {flashStatus}";
         }
         catch (Exception ex)
         {
             error = $"Firmware-installation fejlede: {ex.Message}";
-            flashStatus = "Fejl";
+            flashStatus = string.IsNullOrWhiteSpace(flashStatus) || flashStatus == "Starter…"
+                ? "Fejl"
+                : $"Fejl — {flashStatus}";
         }
         finally
         {
@@ -205,7 +210,13 @@ else
                 message = "Boardet er klar. Tryk Start test.";
             }
         }
-        catch (JSException ex) { error = ex.Message.Contains("No port", StringComparison.OrdinalIgnoreCase) ? "Ingen port valgt." : "Kunne ikke forbinde. Tillad USB-adgang i browseren."; }
+        catch (JSException ex)
+        {
+            error = ex.Message.Contains("Ingen port", StringComparison.OrdinalIgnoreCase)
+                    || ex.Message.Contains("No port", StringComparison.OrdinalIgnoreCase)
+                ? ex.Message
+                : "Kunne ikke forbinde. Tillad USB-adgang i browseren.";
+        }
         catch (Exception ex) { error = ex.Message; }
         finally { busy = false; }
     }

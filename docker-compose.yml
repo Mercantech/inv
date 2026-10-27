@@ -77,6 +77,9 @@ services:
     build:
       context: .
       dockerfile: src/Inv.Web/Dockerfile
+      args:
+        APP_VERSION: ${APP_VERSION:-dev}
+        APP_BUILT_AT: ${APP_BUILT_AT:-unknown}
     restart: unless-stopped
     environment:
       API_BASE_URL: ${API_BASE_URL:-/api/}

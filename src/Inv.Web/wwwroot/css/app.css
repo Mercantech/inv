@@ -39,7 +39,9 @@ main { width: 100%; max-width: 1250px; padding: 3.5rem 3rem; flex: 1; }
 .status-panel { display: flex; gap: 1.2rem; align-items: flex-start; border: 1px solid #dce2d9; background: #fff; padding: 2rem; border-radius: .65rem; max-width: 800px; }
 .status-indicator { width: .8rem; height: .8rem; border-radius: 50%; flex-shrink: 0; background: #a49063; margin-top: .5rem; }
 .status-indicator.is-ready { background: #2b7853; }
-footer { padding: 1.5rem 3rem; font-size: .75rem; color: #637368; }
+footer, .app-footer { padding: 1.5rem 3rem; font-size: .75rem; color: #637368; }
+.app-footer { display: flex; flex-wrap: wrap; gap: .5rem 1rem; align-items: baseline; justify-content: space-between; border-top: 1px solid #dce2d9; }
+.app-version { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; color: #4a5c54; }
 .skip-link { position: absolute; top: -100px; left: 1rem; padding: .7rem 1rem; background: #fff; z-index: 10; }
 .skip-link:focus { top: 1rem; }
 .loading-screen { display: grid; place-content: center; min-height: 100dvh; text-align: center; padding: 2rem; }
@@ -48,7 +50,7 @@ footer { padding: 1.5rem 3rem; font-size: .75rem; color: #637368; }
 #blazor-error-ui a { margin-left: 1rem; }
 @media (max-width: 1050px) {
     .sidebar { width: 210px; }
-    main, .topbar, footer { padding-left: 2rem; padding-right: 2rem; }
+    main, .topbar, footer, .app-footer { padding-left: 2rem; padding-right: 2rem; }
     .module-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 650px) {

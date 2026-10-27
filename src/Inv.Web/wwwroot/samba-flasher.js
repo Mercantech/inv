@@ -1,5 +1,6 @@
 // Adapted from Vail-CW/vail-adapter online-updater/samba-flasher.js (MIT).
 // WebSerial SAM-BA / BOSSA flasher for SAMD21 (Arduino MKR WiFi 1010 uses offset 0x2000).
+// Importeres af firmware-flash.js — nginx sender Cache-Control: no-cache for disse scripts.
 
 const FLASH_APP_ADDR = 0x2000;
 const SRAM_BUFFER = 0x20004000;

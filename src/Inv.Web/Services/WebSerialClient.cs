@@ -9,10 +9,10 @@ public sealed class WebSerialClient(IJSRuntime js) : IAsyncDisposable
     private DotNetObjectReference<WebSerialClient>? selfRef;
 
     private Task<IJSObjectReference> Module =>
-        module ??= js.InvokeAsync<IJSObjectReference>("import", "./webserial.js?v=3").AsTask();
+        module ??= js.InvokeAsync<IJSObjectReference>("import", "./webserial.js").AsTask();
 
     private Task<IJSObjectReference> FlashModule =>
-        flashModule ??= js.InvokeAsync<IJSObjectReference>("import", "./firmware-flash.js?v=1").AsTask();
+        flashModule ??= js.InvokeAsync<IJSObjectReference>("import", "./firmware-flash.js").AsTask();
 
     public event Action<string>? LineReceived;
     public event Action<string>? ErrorReceived;
