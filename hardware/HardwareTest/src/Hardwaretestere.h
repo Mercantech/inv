@@ -70,6 +70,7 @@ void emitError(const char *message);
 void emitStepBegin(const char *name);
 void emitStepAwaitingConfirm(const char *name, const char *prompt);
 void emitStepResult(const char *name, bool ok, bool skipped, const char *note);
+void emitReading(const char *name, const char *text);
 void emitDone(int passed, int failed);
 bool readHostCommand(char *buf, size_t bufLen, unsigned long timeoutMs);
 void clearAbortRequest();

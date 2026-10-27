@@ -118,6 +118,7 @@ bool testWiFi(MKRIoTCarrier &carrier) {
   char note[48];
   snprintf(note, sizeof(note), "%d.%d.%d.%d", ip[0], ip[1], ip[2], ip[3]);
   setTestNote(note);
+  emitReading("WiFi", note);
 
   clearDisplay(carrier);
   drawCenteredF(carrier, F("WiFi OK"), 55, 2, ST77XX_GREEN);

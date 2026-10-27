@@ -78,6 +78,16 @@ void emitStepResult(const char *name, bool ok, bool skipped, const char *note) {
   Serial.println(F("\"}"));
 }
 
+void emitReading(const char *name, const char *text) {
+  char esc[96];
+  jsonEscapeTo(text ? text : "", esc, sizeof(esc));
+  Serial.print(F("{\"v\":1,\"type\":\"reading\",\"name\":\""));
+  Serial.print(name ? name : "");
+  Serial.print(F("\",\"text\":\""));
+  Serial.print(esc);
+  Serial.println(F("\"}"));
+}
+
 void emitDone(int passed, int failed) {
   Serial.print(F("{\"v\":1,\"type\":\"done\",\"passed\":"));
   Serial.print(passed);

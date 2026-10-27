@@ -10,7 +10,7 @@
 
 <PageTitle>Kør hardwaretest · Udstyrsinventar</PageTitle>
 <HeadContent>
-    <link rel="stylesheet" href="css/hardware-run.css?v=1" />
+    <link rel="stylesheet" href="css/hardware-run.css?v=2" />
 </HeadContent>
 
 <div class="hr-page">
@@ -40,13 +40,14 @@
                                  Phase="@(awaitingConfirm ? "awaiting_confirm" : running ? "running" : connected ? "ready" : "idle")"
                                  Connected="connected"
                                  Running="running"
-                                 AwaitingConfirm="awaitingConfirm" />
+                                 AwaitingConfirm="awaitingConfirm"
+                                 Reading="@ActiveGuide" />
 
-                @if (running || awaitingConfirm)
+                @if (running || awaitingConfirm || !string.IsNullOrEmpty(liveReading))
                 {
-                    <div class="hr-active-banner" aria-live="polite">
+                    <div class="hr-active-banner @(string.IsNullOrEmpty(liveReading) ? null : "hr-active-banner-reading")" aria-live="polite">
                         <strong>@(awaitingConfirm ? $"Bekræft: {confirmStep}" : ActiveStepName ?? "Starter…")</strong>
-                        <span>@ActiveGuide</span>
+                        <span class="@(IsLiveReading ? "hr-reading-value" : null)">@ActiveGuide</span>
                     </div>
                 }
             </section>
@@ -204,6 +205,8 @@
     private string wifiSsid = "MAGS-OLC";
     private string wifiPassword = "";
     private string? wifiConfiguredOnBoard;
+    private string? liveReading;
+    private string? liveReadingStep;
     private readonly List<string> log = [];
     private readonly List<StepState> steps = [];
     private readonly List<StepState> completed = [];
@@ -231,10 +234,28 @@
         : steps.LastOrDefault(s => s.Phase is "begin" or "awaiting_confirm")?.Name
           ?? steps.LastOrDefault()?.Name;
 
-    private string ActiveGuide =>
-        awaitingConfirm
-            ? (confirmPrompt ?? OplaBoardVisual.StepCaption(confirmStep))
-            : OplaBoardVisual.StepCaption(ActiveStepName);
+    private bool IsLiveReading =>
+        !awaitingConfirm
+        && !string.IsNullOrEmpty(liveReading)
+        && string.Equals(liveReadingStep, ActiveStepName, StringComparison.Ordinal);
+
+    private string ActiveGuide
+    {
+        get
+        {
+            if (awaitingConfirm)
+                return confirmPrompt ?? OplaBoardVisual.StepCaption(confirmStep);
+
+            if (IsLiveReading)
+                return liveReading!;
+
+            var active = steps.LastOrDefault(s => s.Name == ActiveStepName);
+            if (active?.Phase == "result" && !string.IsNullOrWhiteSpace(active.Note))
+                return FormatReadingNote(active.Name, active.Note);
+
+            return OplaBoardVisual.StepCaption(ActiveStepName);
+        }
+    }
 
     private int CompletedCount => steps.Count(s => s.Phase == "result");
 
@@ -460,6 +481,7 @@
         error = message = savedSamdId = null;
         steps.Clear();
         completed.Clear();
+        liveReading = liveReadingStep = null;
         running = true;
         awaitingConfirm = false;
         try
@@ -547,6 +569,14 @@
                     case "step":
                         HandleStep(root);
                         break;
+                    case "reading":
+                        liveReadingStep = root.TryGetProperty("name", out var rn) && rn.ValueKind == JsonValueKind.String
+                            ? rn.GetString()
+                            : ActiveStepName;
+                        liveReading = root.TryGetProperty("text", out var rt) && rt.ValueKind == JsonValueKind.String
+                            ? rt.GetString()
+                            : null;
+                        break;
                     case "done":
                         running = false;
                         awaitingConfirm = false;
@@ -574,6 +604,11 @@
         {
             step = new StepState { Name = name };
             steps.Add(step);
+            if (phase == "begin")
+            {
+                liveReading = null;
+                liveReadingStep = name;
+            }
         }
         step.Phase = phase;
         if (root.TryGetProperty("prompt", out var prompt) && prompt.ValueKind == JsonValueKind.String)
@@ -595,9 +630,63 @@
         {
             awaitingConfirm = false;
             confirmStep = confirmPrompt = null;
+            if (!string.IsNullOrWhiteSpace(step.Note))
+            {
+                liveReadingStep = name;
+                liveReading = FormatReadingNote(name, step.Note);
+            }
             if (!completed.Any(c => c.Name == name))
                 completed.Add(step);
         }
+    }
+
+    /// <summary>Gør firmware-noter læsbare i banneret (fx pressure_kpa=101.2 → 101.2 kPa).</summary>
+    private static string FormatReadingNote(string? name, string? note)
+    {
+        if (string.IsNullOrWhiteSpace(note)) return OplaBoardVisual.StepCaption(name);
+        note = note.Trim();
+
+        if (note.StartsWith("pressure_kpa=", StringComparison.OrdinalIgnoreCase)
+            && double.TryParse(note.AsSpan("pressure_kpa=".Length),
+                System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture, out var kpa))
+            return $"{kpa:0.##} kPa · {kpa * 10:0} hPa";
+
+        if (note.Contains("temp_c=", StringComparison.OrdinalIgnoreCase)
+            && note.Contains("humidity=", StringComparison.OrdinalIgnoreCase))
+        {
+            double? temp = null, hum = null;
+            foreach (var part in note.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+            {
+                if (part.StartsWith("temp_c=", StringComparison.OrdinalIgnoreCase)
+                    && double.TryParse(part.AsSpan("temp_c=".Length),
+                        System.Globalization.NumberStyles.Float,
+                        System.Globalization.CultureInfo.InvariantCulture, out var t))
+                    temp = t;
+                if (part.StartsWith("humidity=", StringComparison.OrdinalIgnoreCase)
+                    && double.TryParse(part.AsSpan("humidity=".Length),
+                        System.Globalization.NumberStyles.Float,
+                        System.Globalization.CultureInfo.InvariantCulture, out var h))
+                    hum = h;
+            }
+            if (temp is not null && hum is not null)
+                return $"{temp:0.#} °C · {hum:0.#} %";
+        }
+
+        if (note.StartsWith("accel=", StringComparison.OrdinalIgnoreCase))
+            return note.Replace("accel=", "A ", StringComparison.OrdinalIgnoreCase)
+                .Replace("gyro=", "· G ", StringComparison.OrdinalIgnoreCase);
+
+        if (name == "WiFi" && note.Contains('.') && !note.Contains('='))
+            return $"IP {note}";
+
+        if (note is "rw=ok") return "SD læs/skriv OK";
+        if (note is "rw=fail") return "SD fejlede";
+        if (note is "no_credentials") return "Ingen WiFi valgt";
+        if (note.StartsWith("status=", StringComparison.OrdinalIgnoreCase))
+            return $"WiFi-status {note["status=".Length..]}";
+
+        return note;
     }
 
     private async Task EnsureBoardRegisteredAsync()

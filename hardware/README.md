@@ -38,6 +38,7 @@ Events er JSON-linjer, fx:
 - `{"v":1,"type":"ids","samd_id":"...","mac":"...","ecc_serial":"..."}`
 - `{"v":1,"type":"wifi","ok":true,"ssid":"..."}`
 - `{"v":1,"type":"step","name":"OLED","phase":"begin|awaiting_confirm|result",...}`
+- `{"v":1,"type":"reading","name":"Tryk","text":"101.23 kPa · 1012 hPa"}` — live sensorværdi til UI
 - `{"v":1,"type":"done","passed":8,"failed":0,"tests":[...]}`
 
 WiFi-trinnet springes over (`skipped`) hvis der ikke er sat credentials. `ENABLE_SOUND_TEST` er som standard `false`. `ENABLE_API_REPORT` er `false` — browseren poster til API'et.

@@ -23,12 +23,9 @@ bool testHumidityTemperature(MKRIoTCarrier &carrier) {
     snprintf(line, sizeof(line), "%.0f %%", humidity);
     drawCentered(carrier, line, 145, 2, ST77XX_WHITE);
 
-    Serial.print(F("Temperatur: "));
-    Serial.print(temperature);
-    Serial.println(F(" C"));
-    Serial.print(F("Fugtighed: "));
-    Serial.print(humidity);
-    Serial.println(F(" %"));
+    char reading[40];
+    snprintf(reading, sizeof(reading), "%.1f C · %.0f %%", temperature, humidity);
+    emitReading("Temp/Fugt", reading);
 
     if (temperature > -20 && temperature < 60 && humidity >= 0 && humidity <= 100) {
       ok = true;
@@ -61,9 +58,9 @@ bool testPressureSensor(MKRIoTCarrier &carrier) {
     snprintf(line, sizeof(line), "%.0f hPa", pressure * 10);
     drawCentered(carrier, line, 145, 2, ST77XX_WHITE);
 
-    Serial.print(F("Tryk: "));
-    Serial.print(pressure);
-    Serial.println(F(" kPa"));
+    char reading[40];
+    snprintf(reading, sizeof(reading), "%.2f kPa · %.0f hPa", pressure, pressure * 10);
+    emitReading("Tryk", reading);
 
     if (pressure > 20 && pressure < 2000) {
       ok = true;
@@ -87,6 +84,7 @@ bool testIMU(MKRIoTCarrier &carrier) {
   bool accelOk = false;
   bool gyroOk = false;
   unsigned long startTime = millis();
+  unsigned long lastEmit = 0;
   char line[40];
 
   while (millis() - startTime < 10000) {
@@ -97,12 +95,6 @@ bool testIMU(MKRIoTCarrier &carrier) {
       carrier.IMUmodule.readAcceleration(ax, ay, az);
       snprintf(line, sizeof(line), "A %.1f %.1f %.1f", ax, ay, az);
       drawCentered(carrier, line, 90, 1, ST77XX_WHITE);
-      Serial.print(F("Accel X:"));
-      Serial.print(ax);
-      Serial.print(F(" Y:"));
-      Serial.print(ay);
-      Serial.print(F(" Z:"));
-      Serial.println(az);
       if (fabs(ax) < 5 && fabs(ay) < 5 && fabs(az) < 5) {
         accelOk = true;
       }
@@ -112,13 +104,14 @@ bool testIMU(MKRIoTCarrier &carrier) {
       carrier.IMUmodule.readGyroscope(gx, gy, gz);
       snprintf(line, sizeof(line), "G %.0f %.0f %.0f", gx, gy, gz);
       drawCentered(carrier, line, 120, 1, ST77XX_WHITE);
-      Serial.print(F("Gyro X:"));
-      Serial.print(gx);
-      Serial.print(F(" Y:"));
-      Serial.print(gy);
-      Serial.print(F(" Z:"));
-      Serial.println(gz);
       gyroOk = true;
+    }
+
+    if (millis() - lastEmit >= 400) {
+      lastEmit = millis();
+      char reading[48];
+      snprintf(reading, sizeof(reading), "A %.1f %.1f %.1f · G %.0f %.0f %.0f", ax, ay, az, gx, gy, gz);
+      emitReading("IMU", reading);
     }
 
     delay(100);

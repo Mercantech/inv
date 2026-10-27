@@ -198,6 +198,17 @@
     margin-bottom: .25rem;
 }
 .hr-active-banner span { color: var(--hr-muted); font-size: .9rem; }
+.hr-active-banner-reading {
+    border-color: #3ecf8e55;
+    background: #3ecf8e14;
+}
+.hr-reading-value {
+    color: #9fe7c4 !important;
+    font-size: 1.25rem !important;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -.02em;
+}
 
 .hr-steps {
     display: grid;
