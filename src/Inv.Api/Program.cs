@@ -101,7 +101,11 @@ app.MapGet("/api/me", (System.Security.Claims.ClaimsPrincipal user) => Results.O
 {
     Subject = Guid.Parse(user.FindFirst("sub")!.Value),
     Name = user.FindFirst("name")?.Value,
-    Roles = user.FindAll("role").Select(claim => claim.Value).ToArray()
+    Roles = user.FindAll("role")
+        .Concat(user.FindAll(System.Security.Claims.ClaimTypes.Role))
+        .Select(claim => claim.Value)
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .ToArray()
 })).RequireAuthorization().WithTags("Authentication").WithName("GetCurrentUser");
 
 app.MapGet("/api/manager-access", () => Results.Ok(new { Allowed = true }))
