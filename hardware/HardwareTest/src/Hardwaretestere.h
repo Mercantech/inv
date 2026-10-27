@@ -55,6 +55,14 @@ void loadDeviceIds();
 void showDeviceIds(MKRIoTCarrier &carrier);
 void printDeviceIds(MKRIoTCarrier &carrier); // load + show (legacy)
 
+// WiFi-credentials fra browser (runtime — ikke Secrets.h)
+extern char g_wifiSsid[33];
+extern char g_wifiPassword[65];
+bool hasWifiCredentials();
+void clearWifiCredentials();
+bool applyWifiConfigJson(const char *json);
+bool testWiFi(MKRIoTCarrier &carrier);
+
 // Host-protokol (JSON-linjer + START/OK/FAIL/ABORT)
 void emitReady();
 void emitIds();

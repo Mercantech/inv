@@ -5,12 +5,13 @@
 @inject WebSerialClient Serial
 @inject HardwareClient Hardware
 @inject NavigationManager Navigation
+@inject IJSRuntime Js
 
 <PageTitle>Kør hardwaretest · Udstyrsinventar</PageTitle>
 <section class="page-intro">
     <p class="eyebrow">Arduino Oplà</p>
     <h1>Kør hardwaretest</h1>
-    <p>Forbind boardet via USB (Chrome eller Edge). Første gang: installér firmwaren herfra — derefter styrer browseren testene. Når testen er færdig, registreres boardet automatisk på SAMD-ID (hvis det er nyt) og rapporten gemmes i API. Ingen Arduino IDE eller PlatformIO på PC'en.</p>
+    <p>Forbind boardet via USB (Chrome eller Edge). Første gang: installér firmwaren herfra — derefter styrer browseren testene. Vælg WiFi herunder, så boardet tester netværket. Når testen er færdig, registreres boardet automatisk på SAMD-ID (hvis det er nyt) og rapporten gemmes i API.</p>
 </section>
 
 @if (!supported)
@@ -47,7 +48,7 @@ else
         }
         else
         {
-            <text>Installér firmware: 1) vælg port → board går i bootloader → 2) tryk «Vælg bootloader-port». To klik er nødvendigt pga. browser-sikkerhed.</text>
+            <text>Installér firmware: 1) vælg port → board går i bootloader → 2) tryk «Vælg bootloader-port». To klik er nødvendigt pga. browser-sikkerhed. Opdatér firmwaren hvis WiFi-trinnet mangler.</text>
         }
     </p>
     @if (flashing || flashPercent is not null || awaitingBootloaderPort)
@@ -55,6 +56,41 @@ else
         <p role="status">Firmware: @(flashPercent?.ToString() ?? "…")%@if (!string.IsNullOrEmpty(flashStatus)) { <span> — @flashStatus</span> }</p>
         <progress class="hardware-flash-progress" max="100" value="@(flashPercent ?? 0)"></progress>
     }
+
+    <section class="hardware-wifi" aria-label="WiFi til test">
+        <h2>WiFi til test</h2>
+        <p class="hardware-flash-hint">Vælges før «Start test». Uden SSID springes WiFi-trinnet over. Gemmes kun i denne browsersession.</p>
+        <div class="hardware-wifi-fields">
+            <label>
+                Netværk
+                <select @bind="wifiPreset" @bind:after="OnWifiPresetChanged" disabled="@(busy || running || flashing)">
+                    <option value="MAGS-OLC">MAGS-OLC</option>
+                    <option value="custom">Andet…</option>
+                    <option value="none">Spring WiFi over</option>
+                </select>
+            </label>
+            @if (wifiPreset == "custom")
+            {
+                <label>
+                    SSID
+                    <input type="text" maxlength="32" @bind="wifiSsid" @bind:event="oninput" @bind:after="PersistWifiAsync"
+                           disabled="@(busy || running || flashing)" autocomplete="off" />
+                </label>
+            }
+            @if (wifiPreset != "none")
+            {
+                <label>
+                    Password
+                    <input type="password" maxlength="63" @bind="wifiPassword" @bind:event="oninput" @bind:after="PersistWifiAsync"
+                           disabled="@(busy || running || flashing)" autocomplete="off" />
+                </label>
+            }
+        </div>
+        @if (wifiConfiguredOnBoard is not null)
+        {
+            <p role="status" class="hardware-run-ids">Board: WiFi sat til <code>@wifiConfiguredOnBoard</code></p>
+        }
+    </section>
 
     @if (!string.IsNullOrEmpty(samdId))
     {
@@ -123,9 +159,14 @@ else
     private string? error;
     private string? message;
     private string? savedSamdId;
+    private string wifiPreset = "MAGS-OLC";
+    private string wifiSsid = "MAGS-OLC";
+    private string wifiPassword = "";
+    private string? wifiConfiguredOnBoard;
     private readonly List<string> log = [];
     private readonly List<StepState> steps = [];
     private readonly List<StepState> completed = [];
+    private const string WifiStorageKey = "inv.hardware.wifi";
 
     private sealed class StepState
     {
@@ -137,6 +178,13 @@ else
         public string? Note { get; set; }
     }
 
+    private string? EffectiveWifiSsid => wifiPreset switch
+    {
+        "none" => null,
+        "custom" => string.IsNullOrWhiteSpace(wifiSsid) ? null : wifiSsid.Trim(),
+        _ => wifiPreset
+    };
+
     protected override async Task OnInitializedAsync()
     {
         Serial.LineReceived += OnLine;
@@ -146,6 +194,54 @@ else
         supported = await Serial.IsSupportedAsync();
         if (supported)
             await Serial.WarmFlashModuleAsync();
+        await LoadWifiAsync();
+    }
+
+    private async Task LoadWifiAsync()
+    {
+        try
+        {
+            var raw = await Js.InvokeAsync<string?>("sessionStorage.getItem", WifiStorageKey);
+            if (string.IsNullOrWhiteSpace(raw)) return;
+            using var doc = JsonDocument.Parse(raw);
+            var root = doc.RootElement;
+            if (root.TryGetProperty("preset", out var p) && p.ValueKind == JsonValueKind.String)
+                wifiPreset = p.GetString() ?? wifiPreset;
+            if (root.TryGetProperty("ssid", out var s) && s.ValueKind == JsonValueKind.String)
+                wifiSsid = s.GetString() ?? wifiSsid;
+            if (root.TryGetProperty("password", out var pw) && pw.ValueKind == JsonValueKind.String)
+                wifiPassword = pw.GetString() ?? "";
+            if (wifiPreset is not ("MAGS-OLC" or "custom" or "none"))
+                wifiPreset = "custom";
+            if (wifiPreset == "MAGS-OLC")
+                wifiSsid = "MAGS-OLC";
+        }
+        catch (JSException) { /* ignore */ }
+        catch (JsonException) { /* ignore */ }
+    }
+
+    private async Task PersistWifiAsync()
+    {
+        try
+        {
+            var payload = JsonSerializer.Serialize(new
+            {
+                preset = wifiPreset,
+                ssid = wifiSsid,
+                password = wifiPassword
+            });
+            await Js.InvokeVoidAsync("sessionStorage.setItem", WifiStorageKey, payload);
+        }
+        catch (JSException) { /* ignore */ }
+    }
+
+    private async Task OnWifiPresetChanged()
+    {
+        if (wifiPreset == "MAGS-OLC")
+            wifiSsid = "MAGS-OLC";
+        else if (wifiPreset == "none")
+            wifiConfiguredOnBoard = null;
+        await PersistWifiAsync();
     }
 
     private async Task PrepareFlashAsync()
@@ -310,14 +406,29 @@ else
         awaitingConfirm = false;
         try
         {
+            await SendWifiConfigAsync();
             await Serial.WriteLineAsync("START");
-            message = "Test startet — følg boardet og bekræft visuelle trin her.";
+            var ssid = EffectiveWifiSsid;
+            message = string.IsNullOrEmpty(ssid)
+                ? "Test startet (WiFi springes over) — følg boardet og bekræft visuelle trin her."
+                : $"Test startet med WiFi «{ssid}» — følg boardet og bekræft visuelle trin her.";
         }
         catch (Exception ex)
         {
             running = false;
             error = ex.Message;
         }
+    }
+
+    private async Task SendWifiConfigAsync()
+    {
+        var ssid = EffectiveWifiSsid ?? "";
+        var password = wifiPreset == "none" ? "" : wifiPassword;
+        // Escape via JSON so passwords with quotes/newlines stay intact.
+        var line = JsonSerializer.Serialize(new { v = 1, cmd = "wifi", ssid, password });
+        await Serial.WriteLineAsync(line);
+        wifiConfiguredOnBoard = string.IsNullOrEmpty(ssid) ? null : ssid;
+        await PersistWifiAsync();
     }
 
     private async Task AbortAsync()
@@ -364,6 +475,17 @@ else
                         mac = root.TryGetProperty("mac", out var m) ? m.GetString() : null;
                         eccSerial = root.TryGetProperty("ecc_serial", out var e) ? e.GetString() : null;
                         await EnsureBoardRegisteredAsync();
+                        break;
+                    case "wifi":
+                        if (root.TryGetProperty("ok", out var wifiOk) && wifiOk.ValueKind == JsonValueKind.True)
+                        {
+                            wifiConfiguredOnBoard = root.TryGetProperty("ssid", out var configured)
+                                && configured.ValueKind == JsonValueKind.String
+                                    ? configured.GetString()
+                                    : EffectiveWifiSsid;
+                            if (root.TryGetProperty("cleared", out var cleared) && cleared.ValueKind == JsonValueKind.True)
+                                wifiConfiguredOnBoard = null;
+                        }
                         break;
                     case "step":
                         HandleStep(root);

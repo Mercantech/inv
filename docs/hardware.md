@@ -4,7 +4,7 @@ Inventarsystemet overtager modtagelse og visning af Oplà-testrapporter i .NET/P
 
 ## Brug
 
-Åbn `/hardware/run` efter login (Chrome eller Edge). **Installér firmware** uploader den host-styrede tester via Web Serial (ingen Arduino IDE/PlatformIO på PC'en). Derefter: Forbind board → Start test → bekræft visuelle trin (OLED, LED, relay) med OK/FEJL → rapporten gemmes. Firefox/Safari understøttes ikke. Se [hardwarevejledningen](../hardware/README.md).
+Åbn `/hardware/run` efter login (Chrome eller Edge). **Installér firmware** uploader den host-styrede tester via Web Serial (ingen Arduino IDE/PlatformIO på PC'en). Vælg WiFi (SSID + password) på siden — boardet får credentials over USB og tester forbindelsen. Derefter: Forbind board → Start test → bekræft visuelle trin (OLED, LED, relay) med OK/FEJL → rapporten gemmes. Firefox/Safari understøttes ikke. Se [hardwarevejledningen](../hardware/README.md).
 
 Åbn `/hardware` for oversigten over boards, seneste test og historik. Søgning gælder kort ID, navn, SAMD-chip-ID og udstyrsnavn. Boardets og det tilknyttede udstyrs korte ID kan søges som fx `123` eller `#123`. **Kun fejl i seneste test** udelukker boards, hvis seneste test er bestået eller som endnu ikke er testet.
 

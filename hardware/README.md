@@ -11,7 +11,8 @@ Firmwaren er **host-styret**: boardet venter på kommandoer over USB Serial (960
 
 1. Log ind på inventaret → **Kør test**
 2. Klik **Installér firmware** (første gang / ved opdatering): vælg port → vent → vælg bootloader-port
-3. Klik **Forbind board** → **Start test**
+3. Vælg **WiFi** (fx MAGS-OLC) og indtast password — eller «Spring WiFi over»
+4. Klik **Forbind board** → **Start test**
 
 Dobbelttryk Reset på boardet, hvis bootloader-porten ikke dukker op.
 
@@ -27,16 +28,19 @@ Firmwaren til browser-flash ligger i `src/Inv.Web/wwwroot/firmware/opla-hardware
 
 ## Serial-protokol
 
-Kommandoer (newline-termineret): `START`, `OK` / `FAIL`, `ABORT`, `STATUS` (gentag READY/IDS).
+Kommandoer (newline-termineret): `START`, `OK` / `FAIL`, `ABORT`, `STATUS` (gentag READY/IDS), samt JSON:
+
+- `{"v":1,"cmd":"wifi","ssid":"...","password":"..."}` — sætter WiFi til næste test (tom ssid rydder)
 
 Events er JSON-linjer, fx:
 
 - `{"v":1,"type":"ready"}`
 - `{"v":1,"type":"ids","samd_id":"...","mac":"...","ecc_serial":"..."}`
+- `{"v":1,"type":"wifi","ok":true,"ssid":"..."}`
 - `{"v":1,"type":"step","name":"OLED","phase":"begin|awaiting_confirm|result",...}`
 - `{"v":1,"type":"done","passed":8,"failed":0,"tests":[...]}`
 
-`ENABLE_SOUND_TEST` er som standard `false`. `ENABLE_API_REPORT` er `false` — browseren poster til API'et.
+WiFi-trinnet springes over (`skipped`) hvis der ikke er sat credentials. `ENABLE_SOUND_TEST` er som standard `false`. `ENABLE_API_REPORT` er `false` — browseren poster til API'et.
 
 ## Kompilering i Docker
 

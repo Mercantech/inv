@@ -56,6 +56,10 @@ void runAllTests(MKRIoTCarrier &carrier) {
 #else
   if (!isAbortRequested()) trackSkipped("Buzzer", "disabled_quiet_room", passed, failed);
 #endif
+  if (!isAbortRequested()) {
+    if (hasWifiCredentials()) track("WiFi", testWiFi, carrier, passed, failed);
+    else trackSkipped("WiFi", "no_credentials", passed, failed);
+  }
 
   g_testsPassed = passed;
   g_testsFailed = failed;

@@ -129,12 +129,14 @@ bool readHostCommand(char *buf, size_t bufLen, unsigned long timeoutMs) {
       if (c == '\n') {
         buf[len] = '\0';
         if (len == 0) continue;
-        // uppercase for command matching
-        for (size_t i = 0; i < len; i++) {
-          if (buf[i] >= 'a' && buf[i] <= 'z') buf[i] = (char)(buf[i] - 'a' + 'A');
-        }
-        if (strcmp(buf, "ABORT") == 0) {
-          g_abortRequested = true;
+        // JSON-linjer (fx wifi-config) bevarer case; korte kommandoer uppercases.
+        if (buf[0] != '{') {
+          for (size_t i = 0; i < len; i++) {
+            if (buf[i] >= 'a' && buf[i] <= 'z') buf[i] = (char)(buf[i] - 'a' + 'A');
+          }
+          if (strcmp(buf, "ABORT") == 0) {
+            g_abortRequested = true;
+          }
         }
         return true;
       }

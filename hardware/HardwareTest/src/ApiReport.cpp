@@ -13,17 +13,19 @@
 #endif
 
 static bool wifiConnect() {
-  if (WIFI_SSID[0] == '\0') {
-    Serial.println(F("API: Ingen WIFI_SSID i Secrets.h — springer over"));
+  const char *ssid = hasWifiCredentials() ? g_wifiSsid : WIFI_SSID;
+  const char *password = hasWifiCredentials() ? g_wifiPassword : WIFI_PASSWORD;
+  if (ssid[0] == '\0') {
+    Serial.println(F("API: Ingen WiFi-SSID (browser eller Secrets.h) — springer over"));
     return false;
   }
 
   Serial.print(F("API: Forbinder til WiFi "));
-  Serial.println(WIFI_SSID);
+  Serial.println(ssid);
 
   WiFi.disconnect();
   delay(200);
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  WiFi.begin(ssid, password);
 
   unsigned long start = millis();
   while (WiFi.status() != WL_CONNECTED && millis() - start < 20000) {

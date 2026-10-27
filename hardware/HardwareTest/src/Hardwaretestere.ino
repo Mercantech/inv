@@ -39,9 +39,19 @@ void setup() {
 }
 
 void loop() {
-  char cmd[24];
+  char cmd[200];
   if (!readHostCommand(cmd, sizeof(cmd), 0)) {
     delay(20);
+    return;
+  }
+
+  if (cmd[0] == '{') {
+    // {"v":1,"cmd":"wifi","ssid":"...","password":"..."}
+    if (strstr(cmd, "\"cmd\":\"wifi\"") != nullptr || strstr(cmd, "\"cmd\": \"wifi\"") != nullptr) {
+      applyWifiConfigJson(cmd);
+      return;
+    }
+    emitError("unknown json command");
     return;
   }
 

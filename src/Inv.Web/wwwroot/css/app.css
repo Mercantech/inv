@@ -125,6 +125,12 @@ footer, .app-footer { padding: 1.5rem 3rem; font-size: .75rem; color: #637368; }
 .hardware-serial-log { max-height: 16rem; overflow: auto; background: #172d2b; color: #d7e1d3; padding: 1rem; border-radius: .4rem; font-size: .75rem; white-space: pre-wrap; }
 .hardware-flash-hint { font-size: .9rem; max-width: 40rem; margin: 0 0 1rem; }
 .hardware-flash-progress { display: block; width: min(100%, 28rem); height: .85rem; margin: .5rem 0 1rem; }
+.hardware-wifi { margin: 1.25rem 0 1.5rem; max-width: 36rem; }
+.hardware-wifi h2 { font-size: 1.1rem; margin: 0 0 .35rem; }
+.hardware-wifi-fields { display: grid; gap: .75rem; margin-top: .75rem; }
+.hardware-wifi-fields label { display: grid; gap: .35rem; font-weight: 600; font-size: .9rem; }
+.hardware-wifi-fields select,
+.hardware-wifi-fields input { width: 100%; padding: .6rem; font: inherit; font-weight: 400; border: 1px solid #9baa9e; border-radius: .3rem; background: #fff; }
 .loan-note { white-space: pre-wrap; overflow-wrap: anywhere; }
 .loan-form fieldset { display: grid; gap: .65rem; max-width: 42rem; border: 1px solid #dce2d9; border-radius: .5rem; padding: 1.25rem; }
 .loan-form input, .loan-form select, .loan-form textarea { width: 100%; min-width: 0; padding: .6rem; font: inherit; border: 1px solid #9baa9e; border-radius: .3rem; background: #fff; }
