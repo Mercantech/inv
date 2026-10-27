@@ -7,56 +7,131 @@
 @inject EquipmentClient Equipment
 
 <PageTitle>Board og testhistorik · Udstyrsinventar</PageTitle>
-<section class="page-intro"><p class="eyebrow">Arduino Oplà</p><h1>Board og testhistorik</h1></section>
-@if (error is not null) { <p role="alert" class="hardware-error">@error</p> }
-@if (message is not null) { <p role="status">@message</p> }
-@if (loading) { <p role="status">Henter testhistorik…</p> }
-else if (device is null) { <p>Boardet blev ikke fundet.</p> }
+
+<a class="page-back" href="/hardware">← Hardwaretests</a>
+
+@if (error is not null) { <p class="page-alert" role="alert">@error</p> }
+@if (message is not null) { <p class="page-alert page-alert-ok" role="status">@message</p> }
+
+@if (loading)
+{
+    <p role="status">Henter testhistorik…</p>
+}
+else if (device is null)
+{
+    <div class="page-empty">
+        <strong>Boardet blev ikke fundet</strong>
+        <p><a class="button" href="/hardware">Til oversigt</a></p>
+    </div>
+}
 else
 {
-    <h2>@(device.Label ?? "Arduino Oplà")</h2>
-    <dl>
-        <dt>Kort ID</dt><dd>#@device.ShortId</dd>
-        <dt>SAMD-chip-ID</dt><dd><code class="hardware-chip">@device.SamdId</code></dd>
-        <dt>MAC-adresse</dt><dd>@(device.Mac ?? "Ukendt")</dd>
-        <dt>ECC-serienummer</dt><dd>@(device.EccSerial ?? "Ukendt")</dd>
-        <dt>Senest set (UTC)</dt><dd>@device.LastSeenAt.UtcDateTime.ToString("dd-MM-yyyy HH:mm:ss")</dd>
-        <dt>Udstyr</dt><dd>@if (device.EquipmentId.HasValue) { <a href="@($"/udstyr/{device.EquipmentId}")">@device.EquipmentName</a> } else { <span>Ikke tilknyttet</span> }</dd>
-    </dl>
-    <details class="hardware-section">
-        <summary>Knyt boardet til udstyr</summary>
-        <p>Vælg det udstyr, boardet tilhører, eller opret det med chip-ID som serienummer og ukendt tilstand. Testhistorikken følger boardet.</p>
-        <div class="hardware-filters">
-            <label>Eksisterende udstyr
-                <select @bind="selectedEquipment" disabled="@busy">
-                    <option value="">Ingen tilknytning</option>
-                    @foreach (var item in equipment) { <option value="@item.Id">#@item.ShortId · @item.Name · @item.SerialNumber</option> }
-                </select>
-            </label>
-            <button class="button" @onclick="SaveLinkAsync" disabled="@busy">Gem tilknytning</button>
-            @if (!device.EquipmentId.HasValue) { <button class="button" @onclick="CreateEquipmentAsync" disabled="@busy">Opret som udstyr</button> }
+    <header class="page-hero">
+        <div>
+            <p class="eyebrow">Arduino Oplà · #@device.ShortId</p>
+            <h1>@(device.Label ?? "Arduino Oplà")</h1>
+            <p>
+                @if (device.LatestTest is { } latest)
+                {
+                    @(latest.Passed ? "Seneste test bestået" : "Fejl i seneste test")
+                    @: · @latest.TestedAt.UtcDateTime.ToString("dd-MM-yyyy HH:mm") UTC
+                }
+                else
+                {
+                    @:Ikke testet endnu
+                }
+            </p>
         </div>
-    </details>
-    <section class="hardware-section">
+        <div class="page-hero-actions">
+            <a class="button" href="/hardware/run">Kør test</a>
+            @if (device.EquipmentId.HasValue)
+            {
+                <a class="button button-secondary" href="@($"/udstyr/{device.EquipmentId}")">Se udstyr</a>
+            }
+        </div>
+    </header>
+
+    <div class="page-grid-2">
+        <section class="page-panel">
+            <h2>Board</h2>
+            <dl class="page-facts">
+                <dt>Kort ID</dt><dd>#@device.ShortId</dd>
+                <dt>SAMD-chip-ID</dt><dd><code class="hardware-chip">@device.SamdId</code></dd>
+                <dt>MAC-adresse</dt><dd>@(device.Mac ?? "Ukendt")</dd>
+                <dt>ECC-serienummer</dt><dd>@(device.EccSerial ?? "Ukendt")</dd>
+                <dt>Senest set</dt><dd>@device.LastSeenAt.UtcDateTime.ToString("dd-MM-yyyy HH:mm:ss") UTC</dd>
+                <dt>Udstyr</dt>
+                <dd>
+                    @if (device.EquipmentId.HasValue)
+                    {
+                        <a href="@($"/udstyr/{device.EquipmentId}")">@device.EquipmentName</a>
+                    }
+                    else
+                    {
+                        <span>Ikke tilknyttet</span>
+                    }
+                </dd>
+            </dl>
+        </section>
+
+        <section class="page-panel">
+            <h2>Knyt til udstyr</h2>
+            <p>Vælg eksisterende udstyr, eller opret boardet som nyt udstyr med chip-ID som serienummer.</p>
+            <div class="hardware-filters">
+                <label>Eksisterende udstyr
+                    <select @bind="selectedEquipment" disabled="@busy">
+                        <option value="">Ingen tilknytning</option>
+                        @foreach (var item in equipment)
+                        {
+                            <option value="@item.Id">#@item.ShortId · @item.Name · @item.SerialNumber</option>
+                        }
+                    </select>
+                </label>
+                <button class="button" @onclick="SaveLinkAsync" disabled="@busy">Gem tilknytning</button>
+                @if (!device.EquipmentId.HasValue)
+                {
+                    <button class="button button-secondary" @onclick="CreateEquipmentAsync" disabled="@busy">Opret som udstyr</button>
+                }
+            </div>
+        </section>
+    </div>
+
+    <section class="page-panel">
         <h2>Seneste test</h2>
-        @if (device.LatestTest is { } latest) { <TestReportView Report="latest" /> }
-        else { <p>Ingen tests endnu.</p> }
-        <p>Ikke testede komponenter tælles hverken som beståede eller fejl. Testresultater ændrer ikke tilstand eller manuelle fejlrapporter.</p>
+        @if (device.LatestTest is { } latestReport)
+        {
+            <TestReportView Report="latestReport" />
+        }
+        else
+        {
+            <p>Ingen tests endnu.</p>
+        }
+        <p class="page-summary" style="margin-top:.75rem">Ikke testede komponenter tælles hverken som beståede eller fejl.</p>
     </section>
-    <section class="hardware-section">
+
+    <section class="page-panel">
         <h2>Testhistorik · @device.TestCount rapporter</h2>
-        <p>Nyeste først. Åbn en rapport for at se komponenterne.</p>
+        <p>Nyeste først. Åbn en rapport for komponenterne.</p>
         @foreach (var report in reports)
         {
             <details class="test-history" @key="report.Id">
-                <summary>@report.TestedAt.UtcDateTime.ToString("dd-MM-yyyy HH:mm:ss") UTC · @(report.Passed ? "Bestået" : "Fejl fundet") · @report.FailedCount fejl @(report.Imported ? "· importeret" : "")</summary>
+                <summary>
+                    @report.TestedAt.UtcDateTime.ToString("dd-MM-yyyy HH:mm:ss") UTC
+                    · @(report.Passed ? "Bestået" : "Fejl fundet")
+                    · @report.FailedCount fejl
+                    @(report.Imported ? "· importeret" : "")
+                </summary>
                 <TestReportView Report="report" />
             </details>
         }
-        @if (reports.Count < device.TestCount) { <button class="button" @onclick="LoadMoreAsync" disabled="@busy">Vis flere tests</button> }
+        @if (reports.Count < device.TestCount)
+        {
+            <div class="page-form-actions" style="margin-top:1rem">
+                <button class="button" @onclick="LoadMoreAsync" disabled="@busy">Vis flere tests</button>
+            </div>
+        }
     </section>
 }
-<p><a href="/hardware">Til hardwareoversigten</a></p>
 
 @code {
     [Parameter] public string SamdId { get; set; } = "";

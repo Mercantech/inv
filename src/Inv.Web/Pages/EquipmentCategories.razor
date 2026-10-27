@@ -6,11 +6,14 @@
 
 <PageTitle>Udstyrskategorier · Udstyrsinventar</PageTitle>
 
-<section class="page-intro">
-    <h1>Udstyrskategorier</h1>
-    <p>Se de kategorier, udstyret kan organiseres i.</p>
+<header class="page-hero">
+    <div>
+        <p class="eyebrow">Struktur</p>
+        <h1>Kategorier</h1>
+        <p>Organisér udstyr efter type.</p>
+    </div>
     <a class="button" href="kategorier/opret">Opret kategori</a>
-</section>
+</header>
 
 @if (loading)
 {
@@ -18,19 +21,29 @@
 }
 else if (error is not null)
 {
-    <p role="alert">@error</p>
-    <button class="button" @onclick="LoadAsync">Prøv igen</button>
+    <div class="page-state" role="alert">
+        <strong>Kunne ikke hente</strong>
+        <p>@error</p>
+        <button class="button" @onclick="LoadAsync">Prøv igen</button>
+    </div>
 }
 else if (categories.Count == 0)
 {
-    <p>Der er endnu ikke oprettet nogen kategorier.</p>
+    <div class="page-empty">
+        <strong>Ingen kategorier</strong>
+        <p>Opret den første kategori for at kunne registrere udstyr.</p>
+        <p><a class="button" href="kategorier/opret">Opret kategori</a></p>
+    </div>
 }
 else
 {
-    <ul>
+    <p class="page-summary"><strong>@categories.Count</strong> kategorier</p>
+    <ul class="page-list">
         @foreach (var category in categories)
         {
-            <li @key="category.Id">@category.Name</li>
+            <li class="page-item" @key="category.Id">
+                <strong>@category.Name</strong>
+            </li>
         }
     </ul>
 }
@@ -40,44 +53,24 @@ else
     private bool loading = true;
     private string? error;
 
-    protected override async Task OnInitializedAsync()
-    {
-        await LoadAsync();
-    }
+    protected override async Task OnInitializedAsync() => await LoadAsync();
 
     private async Task LoadAsync()
     {
         loading = true;
         error = null;
-
-        try
-        {
-            categories = await Categories.GetAllAsync();
-        }
+        try { categories = await Categories.GetAllAsync(); }
         catch (HttpRequestException exception)
         {
             error = exception.StatusCode switch
             {
-                System.Net.HttpStatusCode.Unauthorized =>
-                    "Dit login er udløbet. Log ind igen.",
-
-                System.Net.HttpStatusCode.Forbidden =>
-                    "Du har ikke adgang til at se kategorierne.",
-
-                _ => "Kategorierne kunne ikke hentes. Prøv igen."
+                System.Net.HttpStatusCode.Unauthorized => "Login er udløbet.",
+                System.Net.HttpStatusCode.Forbidden => "Du mangler adgang.",
+                _ => "Kategorier kunne ikke hentes."
             };
         }
-        catch (JSException)
-        {
-            error = "Kontrollér forbindelsen og dit login, og prøv igen.";
-        }
-        catch (JsonException)
-        {
-            error = "Svaret fra API'et kunne ikke læses.";
-        }
-        finally
-        {
-            loading = false;
-        }
+        catch (JSException) { error = "Tjek forbindelse og login."; }
+        catch (JsonException) { error = "Ugyldigt API-svar."; }
+        finally { loading = false; }
     }
 }

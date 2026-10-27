@@ -5,35 +5,34 @@
 
 <PageTitle>Opret kategori · Udstyrsinventar</PageTitle>
 
-<section class="page-intro">
-    <h1>Opret udstyrskategori</h1>
-    <p>Angiv et navn, eksempelvis Opladere eller Skærme.</p>
-</section>
+<a class="page-back" href="/kategorier">← Kategorier</a>
 
-<EditForm Model="@model" OnValidSubmit="CreateAsync">
+<header class="page-hero">
+    <div>
+        <p class="eyebrow">Struktur</p>
+        <h1>Opret kategori</h1>
+        <p>Fx Opladere, Skærme eller Arduino Oplà.</p>
+    </div>
+</header>
+
+<EditForm Model="@model" OnValidSubmit="CreateAsync" class="page-form">
     <DataAnnotationsValidator />
-
     <fieldset disabled="@saving">
-        <legend>Kategorioplysninger</legend>
-
-        <label for="category-name">Navn</label>
-        <InputText id="category-name"
-                   @bind-Value="model.Name"
-                   maxlength="150" />
+        <legend>Kategori</legend>
+        <label for="category-name">
+            Navn
+            <InputText id="category-name" @bind-Value="model.Name" maxlength="150" />
+        </label>
         <ValidationMessage For="@(() => model.Name)" />
-
-        <button type="submit" class="button">
-            @(saving ? "Opretter…" : "Opret kategori")
-        </button>
+        <div class="page-form-actions">
+            <button type="submit" class="button">@(saving ? "Opretter…" : "Opret")</button>
+            <a class="button button-secondary" href="/kategorier">Annuller</a>
+        </div>
     </fieldset>
 </EditForm>
 
-@if (!string.IsNullOrEmpty(error))
-{
-    <p role="alert">@error</p>
-}
-
-<p role="status">@success</p>
+@if (!string.IsNullOrEmpty(error)) { <p class="page-alert" role="alert">@error</p> }
+@if (!string.IsNullOrEmpty(success)) { <p class="page-alert page-alert-ok" role="status">@success</p> }
 
 @code {
     private CreateEquipmentCategoryModel model = new();
@@ -43,58 +42,27 @@
 
     private async Task CreateAsync()
     {
-        if (saving)
-        {
-            return;
-        }
-
+        if (saving) return;
         saving = true;
-        error = null;
-        success = null;
-
+        error = success = null;
         try
         {
             var response = await Categories.CreateAsync(model);
-
             switch (response.Status)
             {
                 case 201:
-                    success = $"Kategorien \"{model.Name.Trim()}\" er oprettet.";
+                    success = $"«{model.Name.Trim()}» er oprettet.";
                     model = new();
                     break;
-
-                case 400:
-                    error = "Angiv et navn på højst 150 tegn.";
-                    break;
-
-                case 401:
-                    error = "Dit login er udløbet. Log ind igen.";
-                    break;
-
-                case 403:
-                    error = "Du mangler rettigheden til at oprette kategorier.";
-                    break;
-
-                case 409:
-                    error = "Der findes allerede en kategori med det navn.";
-                    break;
-
-                default:
-                    error = "Kategorien kunne ikke oprettes. Prøv igen senere.";
-                    break;
+                case 400: error = "Angiv et navn på højst 150 tegn."; break;
+                case 401: error = "Login er udløbet."; break;
+                case 403: error = "Du mangler rettighed."; break;
+                case 409: error = "Kategorien findes allerede."; break;
+                default: error = "Kunne ikke oprette. Prøv igen."; break;
             }
         }
-        catch (JSException)
-        {
-            error = "Forespørgslen kunne ikke gennemføres. Kontrollér forbindelsen og dit login.";
-        }
-        catch (HttpRequestException)
-        {
-            error = "Der kunne ikke oprettes forbindelse til API'et.";
-        }
-        finally
-        {
-            saving = false;
-        }
+        catch (JSException) { error = "Tjek forbindelse og login."; }
+        catch (HttpRequestException) { error = "Ingen forbindelse til API."; }
+        finally { saving = false; }
     }
 }

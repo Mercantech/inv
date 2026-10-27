@@ -11,10 +11,15 @@
 
 <PageTitle>@(IsEditing ? "Rediger udstyr" : "Opret udstyr") · Udstyrsinventar</PageTitle>
 
-<section class="page-intro">
-    <h1>@(IsEditing ? "Rediger udstyr" : "Opret udstyr")</h1>
-    <p>Angiv udstyrets navn, serienummer, kategori og tilstand.</p>
-</section>
+<a class="page-back" href="@(IsEditing ? $"/udstyr/{Id}" : "/udstyr")">← @(IsEditing ? "Tilbage til udstyr" : "Udstyr")</a>
+
+<header class="page-hero">
+    <div>
+        <p class="eyebrow">Register</p>
+        <h1>@(IsEditing ? "Rediger udstyr" : "Opret udstyr")</h1>
+        <p>Angiv navn, serienummer, kategori og tilstand.</p>
+    </div>
+</header>
 
 @if (loading)
 {
@@ -22,74 +27,83 @@
 }
 else if (!loaded)
 {
-    <button class="button" @onclick="LoadAsync">Prøv igen</button>
+    <div class="page-state" role="alert">
+        <strong>Kunne ikke hente</strong>
+        @if (!string.IsNullOrWhiteSpace(error)) { <p>@error</p> }
+        <button class="button" @onclick="LoadAsync">Prøv igen</button>
+    </div>
 }
 else if (categories.Count == 0)
 {
-    <p>Der skal være oprettet en kategori, før du kan gemme udstyr.</p>
-    <a href="/kategorier/opret">Opret kategori</a>
+    <div class="page-empty">
+        <strong>Mangler kategori</strong>
+        <p>Der skal være oprettet en kategori, før du kan gemme udstyr.</p>
+        <p><a class="button" href="/kategorier/opret">Opret kategori</a></p>
+    </div>
 }
 else
 {
-    <EditForm Model="@model" OnValidSubmit="SaveAsync" @key="model">
+    <EditForm Model="@model" OnValidSubmit="SaveAsync" @key="model" class="page-form">
         <DataAnnotationsValidator />
 
         <fieldset disabled="@saving">
             <legend>Udstyrsoplysninger</legend>
 
-            <label for="equipment-name">Navn</label>
-            <InputText id="equipment-name"
-                       @bind-Value="model.Name"
-                       maxlength="200" />
+            <label for="equipment-name">
+                Navn
+                <InputText id="equipment-name" @bind-Value="model.Name" maxlength="200" />
+            </label>
             <ValidationMessage For="@(() => model.Name)" />
 
-            <label for="equipment-serial-number">Serienummer</label>
-            <InputText id="equipment-serial-number"
-                       @bind-Value="model.SerialNumber"
-                       maxlength="200" />
+            <label for="equipment-serial-number">
+                Serienummer
+                <InputText id="equipment-serial-number" @bind-Value="model.SerialNumber" maxlength="200" />
+            </label>
             <ValidationMessage For="@(() => model.SerialNumber)" />
 
-            <label for="equipment-category">Kategori</label>
-            <InputSelect id="equipment-category"
-                         TValue="Guid?"
-                         @bind-Value="model.EquipmentCategoryId">
-                <option value="">Vælg en kategori</option>
-                @foreach (var category in categories)
-                {
-                    <option value="@category.Id">@category.Name</option>
-                }
-            </InputSelect>
+            <label for="equipment-category">
+                Kategori
+                <InputSelect id="equipment-category" TValue="Guid?" @bind-Value="model.EquipmentCategoryId">
+                    <option value="">Vælg en kategori</option>
+                    @foreach (var category in categories)
+                    {
+                        <option value="@category.Id">@category.Name</option>
+                    }
+                </InputSelect>
+            </label>
             <ValidationMessage For="@(() => model.EquipmentCategoryId)" />
 
-            <label for="equipment-condition">Tilstand</label>
-            <InputSelect id="equipment-condition"
-                         TValue="int?"
-                         @bind-Value="model.Condition">
-                <option value="">Vælg en tilstand</option>
-                <option value="0">Ukendt</option>
-                <option value="1">God</option>
-                <option value="2">Slidt</option>
-                <option value="3">Beskadiget</option>
-                <option value="4">Ude af drift</option>
-            </InputSelect>
+            <label for="equipment-condition">
+                Tilstand
+                <InputSelect id="equipment-condition" TValue="int?" @bind-Value="model.Condition">
+                    <option value="">Vælg en tilstand</option>
+                    <option value="0">Ukendt</option>
+                    <option value="1">God</option>
+                    <option value="2">Slidt</option>
+                    <option value="3">Beskadiget</option>
+                    <option value="4">Ude af drift</option>
+                </InputSelect>
+            </label>
             <ValidationMessage For="@(() => model.Condition)" />
 
-            <button type="submit" class="button">
-                @(saving ? "Gemmer…" : IsEditing ? "Gem ændringer" : "Opret udstyr")
-            </button>
-            <button type="button" class="button" @onclick="Cancel">Annuller</button>
+            <div class="page-form-actions">
+                <button type="submit" class="button">
+                    @(saving ? "Gemmer…" : IsEditing ? "Gem ændringer" : "Opret udstyr")
+                </button>
+                <button type="button" class="button button-secondary" @onclick="Cancel">Annuller</button>
+            </div>
         </fieldset>
     </EditForm>
 }
 
-@if (!string.IsNullOrWhiteSpace(error))
+@if (!string.IsNullOrWhiteSpace(error) && loaded)
 {
-    <p role="alert">@error</p>
+    <p class="page-alert" role="alert">@error</p>
 }
 
 @if (validationErrors.Count > 0)
 {
-    <ul role="alert">
+    <ul class="page-alert" role="alert">
         @foreach (var message in validationErrors)
         {
             <li>@message</li>

@@ -2,22 +2,56 @@
 @inject Inv.Web.Services.MercantecAuthClient Auth
 
 <PageTitle>Min konto · Udstyrsinventar</PageTitle>
-<section class="page-intro">
-    <h1>Min konto</h1>
-    @if (signedIn)
-    {
-        <p>@name</p>
-        <p>Bruger-ID: @subject</p>
-        <p>Roller: @roles</p>
-        <button class="button" @onclick="CheckRoleAsync">Kontrollér administratoradgang</button>
-        <button class="button" @onclick="LogoutAsync">Log ud</button>
-    }
-    else { <a class="button" href="login">Log ind</a> }
-    <p role="status">@message</p>
-</section>
+
+<header class="page-hero">
+    <div>
+        <p class="eyebrow">Konto</p>
+        <h1>Min konto</h1>
+        <p>@(signedIn ? (name ?? "Logget ind") : "Ikke logget ind")</p>
+    </div>
+    <div class="page-hero-actions">
+        @if (signedIn)
+        {
+            <button class="button button-secondary" @onclick="LogoutAsync">Log ud</button>
+        }
+        else
+        {
+            <a class="button" href="login">Log ind</a>
+        }
+    </div>
+</header>
+
+@if (signedIn)
+{
+    <section class="page-panel">
+        <h2>Profil</h2>
+        <dl class="page-facts">
+            <dt>Navn</dt><dd>@(name ?? "—")</dd>
+            <dt>Bruger-ID</dt><dd><code>@(subject ?? "—")</code></dd>
+            <dt>Roller</dt><dd>@(string.IsNullOrWhiteSpace(roles) ? "Ingen" : roles)</dd>
+        </dl>
+        <div class="page-form-actions" style="margin-top:1.15rem">
+            <button class="button" @onclick="CheckRoleAsync">Tjek administratoradgang</button>
+        </div>
+    </section>
+}
+else
+{
+    <div class="page-empty">
+        <strong>Log ind for at se kontoen</strong>
+        <p><a class="button" href="login">Log ind</a></p>
+    </div>
+}
+
+@if (!string.IsNullOrWhiteSpace(message))
+{
+    <p class="page-alert @(message.Contains("administrator", StringComparison.OrdinalIgnoreCase) ? "page-alert-ok" : null)" role="status">@message</p>
+}
+
 @code {
     private bool signedIn;
     private string? name, subject, roles, message;
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (!firstRender) return;
@@ -34,24 +68,31 @@
                     subject = json.RootElement.GetProperty("subject").GetString();
                     roles = string.Join(", ", json.RootElement.GetProperty("roles").EnumerateArray().Select(r => r.GetString()));
                 }
-                else { message = "Sessionen kunne ikke valideres. Log ind igen."; signedIn = false; }
+                else { message = "Sessionen kunne ikke valideres."; signedIn = false; }
             }
         }
-        catch (JSException) { message = "Kontoen kunne ikke hentes. Prøv at logge ind igen."; signedIn = false; }
+        catch (JSException) { message = "Kontoen kunne ikke hentes."; signedIn = false; }
         StateHasChanged();
     }
+
     private async Task CheckRoleAsync()
     {
         try
         {
             var response = await Auth.GetAsync("manager-access");
-            message = response.Status switch { 200 => "Du har administratoradgang.", 403 => "Du mangler den nødvendige rolle.", _ => "Adgangen kunne ikke bekræftes." };
+            message = response.Status switch
+            {
+                200 => "Du har administratoradgang.",
+                403 => "Du mangler den nødvendige rolle.",
+                _ => "Adgangen kunne ikke bekræftes."
+            };
         }
-        catch (JSException) { message = "Adgangen kunne ikke bekræftes. Prøv at logge ind igen."; }
+        catch (JSException) { message = "Adgangen kunne ikke bekræftes."; }
     }
+
     private async Task LogoutAsync()
     {
         try { await Auth.LogoutAsync(); }
-        catch (JSException) { message = "Log ud kunne ikke gennemføres. Genindlæs siden og prøv igen."; }
+        catch (JSException) { message = "Log ud fejlede. Genindlæs siden."; }
     }
 }

@@ -4,10 +4,13 @@
 @inject NavigationManager Navigation
 
 <PageTitle>Gennemfører login · Udstyrsinventar</PageTitle>
-<section class="page-intro">
-    <h1>Gennemfører login</h1>
-    <p role="status">@message</p>
-    @if (failed) { <a class="button" href="login">Prøv igen</a> }
+<section class="login-card" style="max-width:28rem;margin:0 auto;grid-template-columns:1fr">
+    <div class="login-action">
+        <p class="eyebrow">Mercantec Auth</p>
+        <h2>Gennemfører login</h2>
+        <p role="status">@message</p>
+        @if (failed) { <a class="button login-button" href="login">Prøv igen <span aria-hidden="true">↗</span></a> }
+    </div>
 </section>
 @code {
     private string message = "Kontrollerer login…";
