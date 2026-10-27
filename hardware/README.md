@@ -23,7 +23,7 @@ pio run -e mkrwifi1010
 pio run -e mkrwifi1010 -t upload
 ```
 
-Docker-webimaget bygger selv `firmware.bin` og lægger den i `wwwroot/firmware/opla-hardwaretest.bin`.
+Firmwaren til browser-flash ligger i `src/Inv.Web/wwwroot/firmware/opla-hardwaretest.bin` (commits når firmwaren ændres). CI bygger stadig firmwaren via `hardware/Dockerfile`.
 
 ## Serial-protokol
 
