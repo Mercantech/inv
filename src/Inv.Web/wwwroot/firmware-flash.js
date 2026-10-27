@@ -9,6 +9,9 @@ const ARDUINO_FILTERS = [
     { usbVendorId: 0x03EB },
 ];
 
+/** Held between prepareFlash (1. klik) and completeFlash (2. klik). */
+let pendingBin = null;
+
 async function touch1200(port) {
     await port.open({ baudRate: 1200 });
     try {
@@ -22,6 +25,10 @@ async function touch1200(port) {
 
 function portError(err, step) {
     const msg = err?.message ?? String(err);
+    if (/user gesture|permission request/i.test(msg) || err?.name === 'SecurityError') {
+        return new Error(
+            'Browseren kræver et friskt klik for USB-dialogen. Tryk knappen igen (anden gang: «Vælg bootloader-port»).');
+    }
     if (/no port/i.test(msg) || err?.name === 'NotFoundError') {
         return new Error(
             step === 'bootloader'
@@ -33,7 +40,7 @@ function portError(err, step) {
 
 async function requestArduinoPort(step) {
     try {
-        // Bootloader-enumeration kan skifte VID — anden dialog uden filter, så porten altid vises.
+        // Bootloader-enumeration kan skifte VID — dialog uden filter, så porten altid vises.
         if (step === 'bootloader') {
             return await navigator.serial.requestPort();
         }
@@ -43,20 +50,30 @@ async function requestArduinoPort(step) {
     }
 }
 
-/**
- * Flash hosted firmware onto MKR WiFi 1010 via Web Serial + SAM-BA.
- * @param {any} dotnetHelper DotNetObjectReference with OnFlashLog / OnFlashProgress
- * @param {string} [firmwareUrl]
- */
-export async function flashFirmware(dotnetHelper, firmwareUrl = './firmware/opla-hardwaretest.bin') {
-    const log = async (message) => {
+function makeLog(dotnetHelper) {
+    return async (message) => {
         if (dotnetHelper) await dotnetHelper.invokeMethodAsync('OnFlashLog', message);
     };
-    const progress = async (done, total) => {
+}
+
+function makeProgress(dotnetHelper) {
+    return async (done, total) => {
         if (dotnetHelper) await dotnetHelper.invokeMethodAsync('OnFlashProgress', done, total);
     };
+}
 
-    await log('Henter firmware…');
+/**
+ * Trin 1 (skal kaldes direkte fra et klik): vælg app-port, 1200-baud reset, hent firmware.
+ * Browseren tillader kun requestPort inde i et user gesture — derfor er trin 2 et nyt klik.
+ * Vigtigt: requestPort før andre awaits (inkl. DotNet-log), ellers mister Chrome gesturen.
+ */
+export async function prepareFlash(dotnetHelper, firmwareUrl = './firmware/opla-hardwaretest.bin') {
+    const log = makeLog(dotnetHelper);
+    pendingBin = null;
+
+    const port = await requestArduinoPort('app');
+    await log('Port valgt. Henter firmware…');
+
     const response = await fetch(firmwareUrl, { cache: 'no-cache' });
     if (!response.ok) {
         throw new Error(`Firmware kunne ikke hentes (${response.status}). Genindlæs siden, eller tjek at deploy indeholder firmware-bin.`);
@@ -67,15 +84,30 @@ export async function flashFirmware(dotnetHelper, firmwareUrl = './firmware/opla
     }
     await log(`Firmware: ${bin.length} bytes (skrives ved 0x${FLASH_OFFSET.toString(16)}).`);
 
-    await log('Vælg Oplà / MKR WiFi 1010 i dialogboksen…');
-    let port = await requestArduinoPort('app');
-
     await log('Sender boardet i bootloader (1200 baud)…');
     await touch1200(port);
-    await sleep(1800);
+    await sleep(1500);
 
-    await log('Vælg boardet igen (bootloader-port — ofte ny COM)…');
-    port = await requestArduinoPort('bootloader');
+    pendingBin = bin;
+    await log('Boardet er i bootloader. Tryk «Vælg bootloader-port» (dobbelttryk Reset hvis porten mangler).');
+    return true;
+}
+
+/**
+ * Trin 2 (nyt klik): vælg bootloader-COM og skriv firmware.
+ * requestPort skal være første await — ingen DotNet-kald før dialogen.
+ */
+export async function completeFlash(dotnetHelper) {
+    const log = makeLog(dotnetHelper);
+    const progress = makeProgress(dotnetHelper);
+
+    if (!pendingBin) {
+        throw new Error('Ingen ventende firmware. Start med «Installér firmware» igen.');
+    }
+    const bin = pendingBin;
+
+    const port = await requestArduinoPort('bootloader');
+    await log('Bootloader-port valgt. Skriver firmware…');
 
     const flasher = new SAMBAFlasher({
         log: (m) => { void log(m); },
@@ -90,8 +122,23 @@ export async function flashFirmware(dotnetHelper, firmwareUrl = './firmware/opla
         await flasher.resetDevice();
         await log('Firmware installeret. Vent et øjeblik, og tryk derefter Forbind board.');
     } finally {
+        pendingBin = null;
         await flasher.close();
     }
+}
+
+export function cancelFlash() {
+    pendingBin = null;
+}
+
+export function hasPendingFlash() {
+    return pendingBin !== null;
+}
+
+/** @deprecated Brug prepareFlash + completeFlash (to klik pga. browser user-gesture). */
+export async function flashFirmware(dotnetHelper, firmwareUrl) {
+    await prepareFlash(dotnetHelper, firmwareUrl);
+    await completeFlash(dotnetHelper);
 }
 
 export function isSupported() {

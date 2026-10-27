@@ -20,20 +20,37 @@
 else
 {
     <div class="hardware-run-actions">
-        <button class="button" @onclick="FlashAsync" disabled="@(busy || running || flashing)">Installér firmware</button>
-        @if (!connected)
+        @if (!awaitingBootloaderPort)
         {
-            <button class="button button-secondary" @onclick="ConnectAsync" disabled="@(busy || flashing)">Forbind board</button>
+            <button class="button" @onclick="PrepareFlashAsync" disabled="@(busy || running || flashing)">Installér firmware</button>
         }
         else
         {
-            <button class="button" @onclick="StartAsync" disabled="@(busy || running || awaitingConfirm || flashing)">Start test</button>
+            <button class="button" @onclick="CompleteFlashAsync" disabled="@busy">Vælg bootloader-port</button>
+            <button class="button button-secondary" @onclick="CancelFlashAsync" disabled="@busy">Annuller flash</button>
+        }
+        @if (!connected)
+        {
+            <button class="button button-secondary" @onclick="ConnectAsync" disabled="@(busy || flashing || awaitingBootloaderPort)">Forbind board</button>
+        }
+        else
+        {
+            <button class="button" @onclick="StartAsync" disabled="@(busy || running || awaitingConfirm || flashing || awaitingBootloaderPort)">Start test</button>
             <button class="button button-secondary" @onclick="AbortAsync" disabled="@(!running && !awaitingConfirm)">Afbryd</button>
-            <button class="button button-secondary" @onclick="DisconnectAsync" disabled="@(busy || flashing)">Afbryd forbindelse</button>
+            <button class="button button-secondary" @onclick="DisconnectAsync" disabled="@(busy || flashing || awaitingBootloaderPort)">Afbryd forbindelse</button>
         }
     </div>
-    <p class="hardware-flash-hint">Installér firmware: vælg port → board går i bootloader → vælg port igen. Dobbelttryk Reset hvis dialogen ikke viser bootloader-porten.</p>
-    @if (flashing || flashPercent is not null)
+    <p class="hardware-flash-hint">
+        @if (awaitingBootloaderPort)
+        {
+            <text>Boardet er i bootloader. Tryk «Vælg bootloader-port» (browseren kræver et nyt klik). Dobbelttryk Reset hvis den rigtige COM mangler.</text>
+        }
+        else
+        {
+            <text>Installér firmware: 1) vælg port → board går i bootloader → 2) tryk «Vælg bootloader-port». To klik er nødvendigt pga. browser-sikkerhed.</text>
+        }
+    </p>
+    @if (flashing || flashPercent is not null || awaitingBootloaderPort)
     {
         <p role="status">Firmware: @(flashPercent?.ToString() ?? "…")%@if (!string.IsNullOrEmpty(flashStatus)) { <span> — @flashStatus</span> }</p>
         <progress class="hardware-flash-progress" max="100" value="@(flashPercent ?? 0)"></progress>
@@ -93,6 +110,7 @@ else
     private bool connected;
     private bool busy;
     private bool flashing;
+    private bool awaitingBootloaderPort;
     private int? flashPercent;
     private string? flashStatus;
     private bool running;
@@ -126,11 +144,14 @@ else
         Serial.FlashLog += OnFlashLog;
         Serial.FlashProgress += OnFlashProgress;
         supported = await Serial.IsSupportedAsync();
+        if (supported)
+            await Serial.WarmFlashModuleAsync();
     }
 
-    private async Task FlashAsync()
+    private async Task PrepareFlashAsync()
     {
         busy = flashing = true;
+        awaitingBootloaderPort = false;
         flashPercent = 0;
         flashStatus = "Starter…";
         error = message = null;
@@ -138,32 +159,77 @@ else
         log.Clear();
         try
         {
-            await Serial.FlashFirmwareAsync();
+            await Serial.PrepareFlashAsync();
+            awaitingBootloaderPort = true;
+            flashStatus = "Klar til bootloader-port";
+            message = "Tryk «Vælg bootloader-port» for at fortsætte (kræves af browseren).";
+        }
+        catch (JSException ex)
+        {
+            ApplyFlashError(ex.Message);
+            await Serial.CancelFlashAsync();
+        }
+        catch (Exception ex)
+        {
+            ApplyFlashError(ex.Message);
+            await Serial.CancelFlashAsync();
+        }
+        finally
+        {
+            busy = flashing = false;
+        }
+    }
+
+    private async Task CompleteFlashAsync()
+    {
+        busy = flashing = true;
+        error = message = null;
+        flashStatus = "Skriver firmware…";
+        try
+        {
+            await Serial.CompleteFlashAsync();
+            awaitingBootloaderPort = false;
             message = "Firmware installeret. Tryk Forbind board for at køre test.";
             flashStatus = "Færdig";
             flashPercent = 100;
         }
         catch (JSException ex)
         {
-            error = ex.Message.Contains("Ingen port", StringComparison.OrdinalIgnoreCase)
-                    || ex.Message.Contains("No port", StringComparison.OrdinalIgnoreCase)
-                ? ex.Message
-                : $"Firmware-installation fejlede: {ex.Message}";
-            flashStatus = string.IsNullOrWhiteSpace(flashStatus) || flashStatus == "Starter…"
-                ? "Fejl"
-                : $"Fejl — {flashStatus}";
+            ApplyFlashError(ex.Message);
+            // Behold awaitingBootloaderPort, så brugeren kan prøve knappen igen.
         }
         catch (Exception ex)
         {
-            error = $"Firmware-installation fejlede: {ex.Message}";
-            flashStatus = string.IsNullOrWhiteSpace(flashStatus) || flashStatus == "Starter…"
-                ? "Fejl"
-                : $"Fejl — {flashStatus}";
+            ApplyFlashError(ex.Message);
         }
         finally
         {
             busy = flashing = false;
         }
+    }
+
+    private async Task CancelFlashAsync()
+    {
+        await Serial.CancelFlashAsync();
+        awaitingBootloaderPort = false;
+        flashing = false;
+        flashStatus = null;
+        flashPercent = null;
+        message = "Firmware-installation annulleret.";
+        error = null;
+    }
+
+    private void ApplyFlashError(string raw)
+    {
+        error = raw.Contains("Ingen port", StringComparison.OrdinalIgnoreCase)
+                || raw.Contains("No port", StringComparison.OrdinalIgnoreCase)
+                || raw.Contains("friskt klik", StringComparison.OrdinalIgnoreCase)
+                || raw.Contains("user gesture", StringComparison.OrdinalIgnoreCase)
+            ? raw
+            : $"Firmware-installation fejlede: {raw}";
+        flashStatus = string.IsNullOrWhiteSpace(flashStatus) || flashStatus == "Starter…"
+            ? "Fejl"
+            : $"Fejl — {flashStatus}";
     }
 
     private void OnFlashLog(string text) =>

@@ -39,12 +39,36 @@ public sealed class WebSerialClient(IJSRuntime js) : IAsyncDisposable
         selfRef = null;
     }
 
-    public async Task FlashFirmwareAsync()
+    /// <summary>Forudindlæs flash-modul, så klik → requestPort ikke venter på import.</summary>
+    public async Task WarmFlashModuleAsync()
     {
-        await DisconnectAsync();
-        selfRef?.Dispose();
-        selfRef = DotNetObjectReference.Create(this);
-        await (await FlashModule).InvokeVoidAsync("flashFirmware", selfRef);
+        selfRef ??= DotNetObjectReference.Create(this);
+        _ = await FlashModule;
+    }
+
+    /// <summary>Trin 1: vælg app-port og send board i bootloader (skal kaldes fra et klik).</summary>
+    public async Task PrepareFlashAsync()
+    {
+        // Afbryd serial efter JS er i gang med port-dialog hvis muligt — men modul skal være varmt.
+        selfRef ??= DotNetObjectReference.Create(this);
+        var flash = await FlashModule;
+        try { await DisconnectAsync(); }
+        catch (JSException) { /* ingen aktiv port */ }
+        // requestPort er første handling i prepareFlash (ingen awaits før dialogen).
+        await flash.InvokeVoidAsync("prepareFlash", selfRef);
+    }
+
+    /// <summary>Trin 2: vælg bootloader-port og skriv firmware (nyt klik). Minimal C# før JS.</summary>
+    public async Task CompleteFlashAsync()
+    {
+        selfRef ??= DotNetObjectReference.Create(this);
+        await (await FlashModule).InvokeVoidAsync("completeFlash", selfRef);
+    }
+
+    public async Task CancelFlashAsync()
+    {
+        if (flashModule is null) return;
+        await (await FlashModule).InvokeVoidAsync("cancelFlash");
     }
 
     [JSInvokable]
@@ -79,6 +103,14 @@ public sealed class WebSerialClient(IJSRuntime js) : IAsyncDisposable
     {
         try { await DisconnectAsync(); }
         catch (JSDisconnectedException) { /* page unloading */ }
+        try
+        {
+            if (flashModule is not null)
+                await (await FlashModule).InvokeVoidAsync("cancelFlash");
+        }
+        catch (JSDisconnectedException) { }
+        catch (JSException) { }
+
         foreach (var holder in new[] { module, flashModule })
         {
             if (holder is null) continue;
