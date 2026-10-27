@@ -69,7 +69,17 @@ public sealed class AuthenticationTests
             Assert.Equal(subject, result.Principal!.FindFirst("sub")!.Value);
             var authorization = provider.GetRequiredService<IAuthorizationService>();
             Assert.True((await authorization.AuthorizeAsync(result.Principal, null, "EquipmentManager")).Succeeded);
-            var ordinaryUser = new ClaimsPrincipal(new ClaimsIdentity([new Claim("sub", subject)], "Bearer"));
+            var adminUser = new ClaimsPrincipal(new ClaimsIdentity(
+                [new Claim("sub", subject), new Claim("role", "Admin")],
+                authenticationType: "Bearer",
+                nameType: "name",
+                roleType: "role"));
+            Assert.True((await authorization.AuthorizeAsync(adminUser, null, "EquipmentManager")).Succeeded);
+            var ordinaryUser = new ClaimsPrincipal(new ClaimsIdentity(
+                [new Claim("sub", subject)],
+                authenticationType: "Bearer",
+                nameType: "name",
+                roleType: "role"));
             Assert.False((await authorization.AuthorizeAsync(ordinaryUser, null, "EquipmentManager")).Succeeded);
             await context.ForbidAsync(JwtBearerDefaults.AuthenticationScheme);
             Assert.Equal(StatusCodes.Status403Forbidden, context.Response.StatusCode);

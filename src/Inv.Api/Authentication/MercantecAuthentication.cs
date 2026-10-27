@@ -72,13 +72,35 @@ internal static class MercantecAuthentication
             };
         });
 
+        var managerRoles = SplitList(configuration["EQUIPMENT_MANAGER_ROLE"] ?? "EquipmentManager,Admin");
+        var managerSubjects = SplitList(configuration["EQUIPMENT_MANAGER_SUBJECTS"]);
+
         services.AddAuthorizationBuilder()
             .SetFallbackPolicy(new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build())
-            .AddPolicy("EquipmentManager", policy => policy.RequireRole(
-                configuration["EQUIPMENT_MANAGER_ROLE"] ?? "EquipmentManager"));
+            .AddPolicy("EquipmentManager", policy => policy.RequireAssertion(context =>
+            {
+                if (managerRoles.Any(role => context.User.IsInRole(role)))
+                {
+                    return true;
+                }
+
+                if (managerSubjects.Count == 0)
+                {
+                    return false;
+                }
+
+                var subject = context.User.FindFirst("sub")?.Value;
+                return !string.IsNullOrWhiteSpace(subject)
+                    && managerSubjects.Contains(subject, StringComparer.OrdinalIgnoreCase);
+            }));
 
         return services;
     }
+
+    private static IReadOnlyList<string> SplitList(string? value) =>
+        string.IsNullOrWhiteSpace(value)
+            ? []
+            : value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
     private static string RequiredHttpsAddress(IConfiguration configuration, string key)
     {

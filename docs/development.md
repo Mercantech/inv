@@ -11,7 +11,8 @@ Konfiguration læses fra miljøet. Runtime-forbindelsen vælges i rækkefølgen 
 | `AUTH_ISSUER` | `https://auth.mercantec.tech` |
 | `AUTH_AUDIENCE` | `mercantec-apps` |
 | `JWKS_URI` | `https://auth.mercantec.tech/.well-known/jwks.json` |
-| `EQUIPMENT_MANAGER_ROLE` | Mercantec-rolle for den kommende administration; standard `EquipmentManager` |
+| `EQUIPMENT_MANAGER_ROLE` | Kommaseparerede Auth-roller til administration; standard `EquipmentManager,Admin` |
+| `EQUIPMENT_MANAGER_SUBJECTS` | Valgfri kommaseparerede Auth-`sub` GUID'er med manageradgang uden rolleclaim |
 | `CORS_ORIGINS` | Kommaseparerede, eksakte frontend-origins; tom giver ingen adgang fra andre origins |
 | `ASPNETCORE_ENVIRONMENT` | `Development` lokalt; `Production` i drift |
 | `COMPOSE_PROJECT_NAME` | Adskiller containere, image og database-volume pr. miljø |
