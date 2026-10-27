@@ -84,13 +84,9 @@ public static class HardwareEndpoints
         {
             var samd = HardwareContracts.NormalizeSamd(samdId);
             HardwareContracts.ValidateSubmission(request);
-            if (request.Report is { } payload && payload.TryGetProperty("samd_id", out var bodySamd)
-                && (bodySamd.ValueKind != System.Text.Json.JsonValueKind.String
-                    || HardwareContracts.NormalizeSamd(bodySamd.GetString()) != samd))
-                throw new ArgumentException("Rapportens SAMD-ID svarer ikke til boardet i adressen.");
+            HardwareContracts.EnsureReportSamdMatches(samd, request.Report);
             await using var transaction = await store.BeginWriteAsync(ct);
-            var device = await db.HardwareDevices.FindAsync([samd], ct);
-            if (device is null) return Results.NotFound(new { Message = "Registrér boardet før testen sendes." });
+            var device = await store.EnsureRegisteredFromReportAsync(samd, request.Report, ct);
             var report = new HardwareTestReport
             {
                 Device = device, SamdId = samd, Passed = request.Passed!.Value,
@@ -120,13 +116,9 @@ public static class HardwareEndpoints
         {
             var samd = HardwareContracts.NormalizeSamd(samdId);
             HardwareContracts.ValidateSubmission(request);
-            if (request.Report is { } payload && payload.TryGetProperty("samd_id", out var bodySamd)
-                && (bodySamd.ValueKind != System.Text.Json.JsonValueKind.String
-                    || HardwareContracts.NormalizeSamd(bodySamd.GetString()) != samd))
-                throw new ArgumentException("Rapportens SAMD-ID svarer ikke til boardet i adressen.");
+            HardwareContracts.EnsureReportSamdMatches(samd, request.Report);
             await using var transaction = await store.BeginWriteAsync(ct);
-            var device = await db.HardwareDevices.FindAsync([samd], ct);
-            if (device is null) return Results.NotFound(new { Message = "Registrér boardet før testen sendes." });
+            var device = await store.EnsureRegisteredFromReportAsync(samd, request.Report, ct);
             var report = new HardwareTestReport
             {
                 Device = device, SamdId = samd, Passed = request.Passed!.Value,

@@ -20,8 +20,8 @@ Boards og udstyr får automatisk hver sit faste, unikke korte ID fra en fælles 
 
 | Metode | Endpoint | Adgang / funktion |
 | --- | --- | --- |
-| POST | `/api/hardware/devices` | Mercantec-login; registrér/opdatér board (web-tester) |
-| POST | `/api/hardware/devices/{samdId}/tests` | Mercantec-login; gem ny test (web-tester) |
+| POST | `/api/hardware/devices` | Mercantec-login; registrér/opdatér board (web-tester; upsert på SAMD-ID) |
+| POST | `/api/hardware/devices/{samdId}/tests` | Mercantec-login; gem ny test (opretter board automatisk hvis SAMD-ID er nyt) |
 | POST | `/api/devices` | Åben; legacy/board-WiFi registrering |
 | POST | `/api/devices/{samdId}/tests` | Åben; legacy/board-WiFi testrapport |
 | GET | `/api/hardware/devices?equipmentId={uuid}` | Mercantec-login; boards med seneste test; valgfrit udstyrsfilter |

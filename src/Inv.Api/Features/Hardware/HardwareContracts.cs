@@ -103,6 +103,15 @@ internal static partial class HardwareContracts
             throw new ArgumentException("Komponentresultaterne skal være entydige og stemme med rapportens opsummering. Ikke testede komponenter tælles ikke med.");
     }
 
+    public static void EnsureReportSamdMatches(string samd, JsonElement? report)
+    {
+        if (report is not { } payload || !payload.TryGetProperty("samd_id", out var bodySamd))
+            return;
+        if (bodySamd.ValueKind != JsonValueKind.String
+            || NormalizeSamd(bodySamd.GetString()) != samd)
+            throw new ArgumentException("Rapportens SAMD-ID svarer ikke til boardet i adressen.");
+    }
+
     public static JsonElement? ParseReport(string? reportJson, string? details)
     {
         var json = reportJson ?? details;

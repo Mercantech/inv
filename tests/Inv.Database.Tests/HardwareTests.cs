@@ -131,6 +131,38 @@ public sealed class HardwareTests(PostgresFixture postgres) : IClassFixture<Post
     }
 
     [Fact]
+    public async Task Test_submit_auto_registers_unknown_board_by_samd_id()
+    {
+        await using var app = await StartAsync();
+        using var client = app.GetTestClient();
+        client.DefaultRequestHeaders.Add("X-Test-User", "yes");
+        var samd = NewSamd();
+        await using (var check = postgres.CreateContext())
+            Assert.False(await check.HardwareDevices.AnyAsync(d => d.SamdId == samd));
+        var report = new
+        {
+            firmware = "HardwareTest-webserial",
+            samd_id = samd,
+            mac = "11:22:33:44:55:66",
+            ecc_serial = "ECC123",
+            label = "Arduino Oplà",
+            tests = new object[]
+            {
+                new { name = "OLED", ok = true, skipped = false, note = "" },
+                new { name = "Buzzer", ok = true, skipped = true, note = "quiet" }
+            }
+        };
+        var body = new { passed = true, passed_count = 1, failed_count = 0, report };
+        Assert.Equal(HttpStatusCode.Created, (await client.PostAsJsonAsync($"/api/hardware/devices/{samd}/tests", body)).StatusCode);
+        await using var db = postgres.CreateContext();
+        var device = await db.HardwareDevices.SingleAsync(d => d.SamdId == samd);
+        Assert.Equal("11:22:33:44:55:66", device.Mac);
+        Assert.Equal("ECC123", device.EccSerial);
+        Assert.Equal("Arduino Oplà", device.Label);
+        Assert.Equal(1, await db.HardwareTestReports.CountAsync(r => r.SamdId == samd));
+    }
+
+    [Fact]
     public async Task Short_ids_are_unique_stable_and_searchable()
     {
         await using var app = await StartAsync();

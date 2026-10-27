@@ -37,6 +37,29 @@ public sealed class HardwareStore(InventoryDbContext database)
         return device;
     }
 
+    /// <summary>
+    /// Finder board på SAMD-ID, eller opretter det ud fra rapportens ids (mac/ecc/label).
+    /// </summary>
+    internal Task<HardwareDevice> EnsureRegisteredFromReportAsync(
+        string samd,
+        System.Text.Json.JsonElement? report,
+        CancellationToken cancellationToken)
+    {
+        string? mac = null, ecc = null, label = null;
+        if (report is { ValueKind: System.Text.Json.JsonValueKind.Object } root)
+        {
+            if (root.TryGetProperty("mac", out var macEl) && macEl.ValueKind == System.Text.Json.JsonValueKind.String)
+                mac = macEl.GetString();
+            if (root.TryGetProperty("ecc_serial", out var eccEl) && eccEl.ValueKind == System.Text.Json.JsonValueKind.String)
+                ecc = eccEl.GetString();
+            if (root.TryGetProperty("label", out var labelEl) && labelEl.ValueKind == System.Text.Json.JsonValueKind.String)
+                label = labelEl.GetString();
+        }
+
+        return RegisterAsync(new DeviceRegistration(samd, mac, string.IsNullOrWhiteSpace(ecc) || ecc == "-" ? null : ecc,
+            string.IsNullOrWhiteSpace(label) ? "Arduino Oplà" : label), cancellationToken);
+    }
+
     public async Task<ImportResult> ImportAsync(List<LegacyDevice> devices, CancellationToken cancellationToken)
     {
         if (devices.Count > 10000) throw new ArgumentException("Importen indeholder for mange boards.");

@@ -10,7 +10,7 @@
 <section class="page-intro">
     <p class="eyebrow">Arduino Oplà</p>
     <h1>Kør hardwaretest</h1>
-    <p>Forbind boardet via USB (Chrome eller Edge). Første gang: installér firmwaren herfra — derefter styrer browseren testene og gemmer resultatet. Ingen Arduino IDE eller PlatformIO på PC'en.</p>
+    <p>Forbind boardet via USB (Chrome eller Edge). Første gang: installér firmwaren herfra — derefter styrer browseren testene. Når testen er færdig, registreres boardet automatisk på SAMD-ID (hvis det er nyt) og rapporten gemmes i API. Ingen Arduino IDE eller PlatformIO på PC'en.</p>
 </section>
 
 @if (!supported)
@@ -363,6 +363,7 @@ else
                         samdId = root.GetProperty("samd_id").GetString();
                         mac = root.TryGetProperty("mac", out var m) ? m.GetString() : null;
                         eccSerial = root.TryGetProperty("ecc_serial", out var e) ? e.GetString() : null;
+                        await EnsureBoardRegisteredAsync();
                         break;
                     case "step":
                         HandleStep(root);
@@ -420,6 +421,25 @@ else
         }
     }
 
+    private async Task EnsureBoardRegisteredAsync()
+    {
+        if (string.IsNullOrWhiteSpace(samdId)) return;
+        try
+        {
+            await Hardware.RegisterDeviceAsync(
+                samdId,
+                mac,
+                string.IsNullOrWhiteSpace(eccSerial) || eccSerial == "-" ? null : eccSerial,
+                "Arduino Oplà");
+            message = $"Board {samdId} er registreret (eller fandtes allerede).";
+        }
+        catch (HttpRequestException ex)
+        {
+            // Testen kan stadig gemmes senere — API opretter board ved behov.
+            message = $"Board identificeret ({samdId}). Registrering afventer: {ex.Message}";
+        }
+    }
+
     private async Task SaveReportAsync(JsonElement done)
     {
         if (string.IsNullOrWhiteSpace(samdId))
@@ -445,6 +465,11 @@ else
                     });
                 }
             }
+            if (tests.Count == 0)
+            {
+                error = "Rapporten indeholder ingen komponentresultater — intet gemt.";
+                return;
+            }
             var report = new
             {
                 firmware = "HardwareTest-webserial",
@@ -452,12 +477,16 @@ else
                 samd_id = samdId,
                 mac,
                 ecc_serial = eccSerial,
+                label = "Arduino Oplà",
                 tests
             };
+            // Upsert board (SAMD-ID) + gem test. API opretter også boardet, hvis registrering mangler.
             await Hardware.RegisterDeviceAsync(samdId, mac, string.IsNullOrWhiteSpace(eccSerial) || eccSerial == "-" ? null : eccSerial, "Arduino Oplà");
             await Hardware.SubmitTestAsync(samdId, failed == 0, passed, failed, report);
             savedSamdId = samdId;
-            message = failed == 0 ? "Alle tests bestået — rapport gemt." : "Test færdig med fejl — rapport gemt.";
+            message = failed == 0
+                ? "Alle tests bestået — board registreret og rapport gemt i API."
+                : "Test færdig med fejl — board registreret og rapport gemt i API.";
         }
         catch (HttpRequestException ex) { error = ex.Message; }
         catch (Exception ex) { error = $"Kunne ikke gemme rapport: {ex.Message}"; }
