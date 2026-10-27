@@ -4,6 +4,8 @@ let readAbort = null;
 let dotnetRef = null;
 let readLoopPromise = null;
 
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 export function isSupported() {
     return typeof navigator !== 'undefined' && 'serial' in navigator;
 }
@@ -15,6 +17,14 @@ export async function connect(dotnetHelper) {
     await disconnect();
     port = await navigator.serial.requestPort();
     await port.open({ baudRate: 9600 });
+    // Mange Arduino-boards resetter når DTR toggles — så vi får et frisk READY.
+    try {
+        await port.setSignals({ dataTerminalReady: false, requestToSend: false });
+        await sleep(120);
+        await port.setSignals({ dataTerminalReady: true, requestToSend: true });
+    } catch {
+        /* nogle porte understøtter ikke signals */
+    }
     dotnetRef = dotnetHelper;
     readAbort = new AbortController();
     readLoopPromise = readLoop(readAbort.signal);
@@ -31,9 +41,10 @@ async function readLoop(signal) {
                     const { value, done } = await reader.read();
                     if (done) break;
                     buffer += decoder.decode(value, { stream: true });
+                    buffer = buffer.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
                     let newline;
                     while ((newline = buffer.indexOf('\n')) >= 0) {
-                        const line = buffer.slice(0, newline).replace(/\r$/, '');
+                        const line = buffer.slice(0, newline);
                         buffer = buffer.slice(newline + 1);
                         if (line && dotnetRef) {
                             await dotnetRef.invokeMethodAsync('OnSerialLine', line);

@@ -10,7 +10,7 @@
 <section class="page-intro">
     <p class="eyebrow">Arduino Oplà</p>
     <h1>Kør hardwaretest</h1>
-    <p>Forbind boardet via USB (Chrome eller Edge). Browseren styrer testene og gemmer resultatet i inventaret.</p>
+    <p>Forbind boardet via USB (Chrome eller Edge). Første gang: installér firmwaren herfra — derefter styrer browseren testene og gemmer resultatet. Ingen Arduino IDE eller PlatformIO på PC'en.</p>
 </section>
 
 @if (!supported)
@@ -20,17 +20,24 @@
 else
 {
     <div class="hardware-run-actions">
+        <button class="button" @onclick="FlashAsync" disabled="@(busy || running || flashing)">Installér firmware</button>
         @if (!connected)
         {
-            <button class="button" @onclick="ConnectAsync" disabled="@busy">Forbind board</button>
+            <button class="button button-secondary" @onclick="ConnectAsync" disabled="@(busy || flashing)">Forbind board</button>
         }
         else
         {
-            <button class="button" @onclick="StartAsync" disabled="@(busy || running || awaitingConfirm)">Start test</button>
+            <button class="button" @onclick="StartAsync" disabled="@(busy || running || awaitingConfirm || flashing)">Start test</button>
             <button class="button button-secondary" @onclick="AbortAsync" disabled="@(!running && !awaitingConfirm)">Afbryd</button>
-            <button class="button button-secondary" @onclick="DisconnectAsync" disabled="@busy">Afbryd forbindelse</button>
+            <button class="button button-secondary" @onclick="DisconnectAsync" disabled="@(busy || flashing)">Afbryd forbindelse</button>
         }
     </div>
+    <p class="hardware-flash-hint">Installér firmware: vælg port → board går i bootloader → vælg port igen. Dobbelttryk Reset hvis dialogen ikke viser bootloader-porten.</p>
+    @if (flashing || flashPercent is not null)
+    {
+        <p role="status">Firmware: @(flashPercent?.ToString() ?? "…")%@if (!string.IsNullOrEmpty(flashStatus)) { <span> — @flashStatus</span> }</p>
+        <progress class="hardware-flash-progress" max="100" value="@(flashPercent ?? 0)"></progress>
+    }
 
     @if (!string.IsNullOrEmpty(samdId))
     {
@@ -75,9 +82,9 @@ else
         <p role="status">Rapport gemt. <a href="@($"/hardware/{savedSamdId}")">Se boardhistorik</a></p>
     }
 
-    <details class="hardware-section">
+    <details class="hardware-section" open>
         <summary>Serial-log</summary>
-        <pre class="hardware-serial-log">@string.Join('\n', log.TakeLast(80))</pre>
+        <pre class="hardware-serial-log">@(log.Count == 0 ? "(tom — boardet har ikke sendt noget endnu)" : string.Join('\n', log.TakeLast(80)))</pre>
     </details>
 }
 
@@ -85,6 +92,9 @@ else
     private bool supported = true;
     private bool connected;
     private bool busy;
+    private bool flashing;
+    private int? flashPercent;
+    private string? flashStatus;
     private bool running;
     private bool awaitingConfirm;
     private string? confirmStep;
@@ -113,18 +123,87 @@ else
     {
         Serial.LineReceived += OnLine;
         Serial.ErrorReceived += OnError;
+        Serial.FlashLog += OnFlashLog;
+        Serial.FlashProgress += OnFlashProgress;
         supported = await Serial.IsSupportedAsync();
     }
+
+    private async Task FlashAsync()
+    {
+        busy = flashing = true;
+        flashPercent = 0;
+        flashStatus = "Starter…";
+        error = message = null;
+        connected = running = awaitingConfirm = false;
+        log.Clear();
+        try
+        {
+            await Serial.FlashFirmwareAsync();
+            message = "Firmware installeret. Tryk Forbind board for at køre test.";
+            flashStatus = "Færdig";
+            flashPercent = 100;
+        }
+        catch (JSException ex)
+        {
+            error = ex.Message.Contains("No port", StringComparison.OrdinalIgnoreCase)
+                ? "Ingen port valgt."
+                : $"Firmware-installation fejlede: {ex.Message}";
+            flashStatus = "Fejl";
+        }
+        catch (Exception ex)
+        {
+            error = $"Firmware-installation fejlede: {ex.Message}";
+            flashStatus = "Fejl";
+        }
+        finally
+        {
+            busy = flashing = false;
+        }
+    }
+
+    private void OnFlashLog(string text) =>
+        _ = InvokeAsync(() =>
+        {
+            log.Add(text);
+            flashStatus = text;
+            StateHasChanged();
+        });
+
+    private void OnFlashProgress(int done, int total) =>
+        _ = InvokeAsync(() =>
+        {
+            flashPercent = total <= 0 ? 0 : (int)Math.Round(100.0 * done / total);
+            StateHasChanged();
+        });
 
     private async Task ConnectAsync()
     {
         busy = true;
         error = message = savedSamdId = null;
+        samdId = mac = eccSerial = null;
+        log.Clear();
         try
         {
             await Serial.ConnectAsync();
             connected = true;
-            message = "Forbundet. Vent på READY fra boardet, og tryk Start test.";
+            message = "Forbundet. Venter på READY fra boardet…";
+            StateHasChanged();
+            // Board resetter typisk ved connect; giv det tid, bed så om STATUS.
+            await Task.Delay(1500);
+            if (string.IsNullOrEmpty(samdId))
+            {
+                try { await Serial.WriteLineAsync("STATUS"); }
+                catch { /* ignore */ }
+                await Task.Delay(1500);
+            }
+            if (string.IsNullOrEmpty(samdId))
+            {
+                message = "Ingen READY endnu. Flash den nye host-styrede firmware, tryk Reset på boardet, eller vælg den rigtige COM-port.";
+            }
+            else
+            {
+                message = "Boardet er klar. Tryk Start test.";
+            }
         }
         catch (JSException ex) { error = ex.Message.Contains("No port", StringComparison.OrdinalIgnoreCase) ? "Ingen port valgt." : "Kunne ikke forbinde. Tillad USB-adgang i browseren."; }
         catch (Exception ex) { error = ex.Message; }
@@ -336,6 +415,8 @@ else
     {
         Serial.LineReceived -= OnLine;
         Serial.ErrorReceived -= OnError;
+        Serial.FlashLog -= OnFlashLog;
+        Serial.FlashProgress -= OnFlashProgress;
         try { await Serial.DisconnectAsync(); }
         catch (JSDisconnectedException) { }
     }

@@ -1,0 +1,9 @@
+{
+  "name": "opla-hardwaretest",
+  "board": "mkrwifi1010",
+  "file": "opla-hardwaretest.bin",
+  "offset": "0x2000",
+  "protocol": "sam-ba",
+  "baudTouch": 1200,
+  "notes": "Host-styret Oplà-hardwaretester. Flash via /hardware/run i Chrome/Edge."
+}

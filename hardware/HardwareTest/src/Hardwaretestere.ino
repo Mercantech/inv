@@ -6,7 +6,7 @@ MKRIoTCarrier carrier;
 void setup() {
   Serial.begin(9600);
   unsigned long serialWait = millis();
-  while (!Serial && (millis() - serialWait < 5000)) {
+  while (!Serial && (millis() - serialWait < 3000)) {
     ;
   }
 
@@ -21,6 +21,11 @@ void setup() {
 
   initOLEDScreen(carrier);
   loadDeviceIds();
+
+  // Send READY before OLED delay so Web Serial ikke misser handshake.
+  emitReady();
+  emitIds();
+
   showDeviceIds(carrier);
 
   clearDisplay(carrier);
@@ -28,6 +33,7 @@ void setup() {
   drawCenteredF(carrier, F("Forbind browser"), OLED_CY + 8, 1, ST77XX_WHITE);
   drawCenteredF(carrier, F("og send START"), OLED_CY + 28, 1, ST77XX_WHITE);
 
+  // Gentag efter display, hvis første READY kom før browseren lyttede.
   emitReady();
   emitIds();
 }
@@ -50,14 +56,18 @@ void loop() {
     return;
   }
 
+  if (strcmp(cmd, "STATUS") == 0 || strcmp(cmd, "HELLO") == 0 || strcmp(cmd, "PING") == 0) {
+    emitReady();
+    emitIds();
+    return;
+  }
+
   if (strcmp(cmd, "ABORT") == 0) {
-    // Already flagged inside readHostCommand; ignore when idle
     return;
   }
 
   if (strcmp(cmd, "OK") == 0 || strcmp(cmd, "FAIL") == 0 || strcmp(cmd, "FEJL") == 0
       || strcmp(cmd, "Y") == 0 || strcmp(cmd, "N") == 0) {
-    // Confirmations are only consumed inside confirmPhysical
     return;
   }
 

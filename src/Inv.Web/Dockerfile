@@ -1,9 +1,20 @@
+FROM python:3.12-slim AS firmware
+RUN pip install --no-cache-dir platformio==6.1.18
+WORKDIR /firmware
+COPY hardware/HardwareTest/ ./
+RUN pio run -e mkrwifi1010 \
+ && mkdir -p /out \
+ && cp .pio/build/mkrwifi1010/firmware.bin /out/opla-hardwaretest.bin \
+ && printf '%s\n' '{"name":"opla-hardwaretest","board":"mkrwifi1010","file":"opla-hardwaretest.bin","offset":"0x2000","protocol":"sam-ba"}' > /out/manifest.json
+
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /source
 COPY global.json Directory.Build.props Directory.Packages.props ./
 COPY src/Inv.Web/Inv.Web.csproj src/Inv.Web/
 RUN dotnet restore src/Inv.Web/Inv.Web.csproj
 COPY src/Inv.Web/ src/Inv.Web/
+COPY --from=firmware /out/opla-hardwaretest.bin src/Inv.Web/wwwroot/firmware/opla-hardwaretest.bin
+COPY --from=firmware /out/manifest.json src/Inv.Web/wwwroot/firmware/manifest.json
 RUN dotnet publish src/Inv.Web/Inv.Web.csproj --configuration Release --no-restore --output /app/publish
 
 FROM nginxinc/nginx-unprivileged:stable-alpine AS runtime

@@ -2,11 +2,20 @@
 
 Hardwaretesteren er portet fra [Mercantech/Arduino-Opla](https://github.com/Mercantech/Arduino-Opla/tree/2633e373230a5bbc9196a57348d93c0343566d8e/Hardwaretestere/HardwareTest), commit `2633e373230a5bbc9196a57348d93c0343566d8e`.
 
-Firmwaren er **host-styret**: boardet venter på kommandoer over USB Serial (9600 baud). Inventarsystemets side `/hardware/run` (Chrome/Edge + Web Serial) starter testen, viser visuelle bekræftelser og gemmer rapporten. WiFi/`Secrets.h` er ikke nødvendigt til den normale web-flow.
+Firmwaren er **host-styret**: boardet venter på kommandoer over USB Serial (9600 baud). Inventarsystemets side `/hardware/run` (Chrome/Edge + Web Serial) kan:
 
-## Flash (én gang pr. board)
+1. **Installér firmware** direkte i browseren (SAM-BA/bossac over Web Serial — ingen Arduino IDE/PlatformIO på PC'en)
+2. Starte testen, vise visuelle bekræftelser og gemme rapporten
 
-Med PlatformIO:
+## Brug for operatører
+
+1. Log ind på inventaret → **Kør test**
+2. Klik **Installér firmware** (første gang / ved opdatering): vælg port → vent → vælg bootloader-port
+3. Klik **Forbind board** → **Start test**
+
+Dobbelttryk Reset på boardet, hvis bootloader-porten ikke dukker op.
+
+## Flash lokalt (udviklere)
 
 ```powershell
 cd hardware/HardwareTest
@@ -14,11 +23,11 @@ pio run -e mkrwifi1010
 pio run -e mkrwifi1010 -t upload
 ```
 
-Derefter: log ind på inventaret → **Kør test** → Forbind board → Start test.
+Docker-webimaget bygger selv `firmware.bin` og lægger den i `wwwroot/firmware/opla-hardwaretest.bin`.
 
 ## Serial-protokol
 
-Kommandoer (newline-termineret): `START`, `OK` / `FAIL`, `ABORT`.
+Kommandoer (newline-termineret): `START`, `OK` / `FAIL`, `ABORT`, `STATUS` (gentag READY/IDS).
 
 Events er JSON-linjer, fx:
 
@@ -27,14 +36,10 @@ Events er JSON-linjer, fx:
 - `{"v":1,"type":"step","name":"OLED","phase":"begin|awaiting_confirm|result",...}`
 - `{"v":1,"type":"done","passed":8,"failed":0,"tests":[...]}`
 
-`ENABLE_SOUND_TEST` er som standard `false` (buzzer = ikke testet). `ENABLE_API_REPORT` er `false` — browseren poster til API'et. Sæt `ENABLE_API_REPORT true` og udfyld WiFi i `Secrets.h` kun hvis boardet selv skal sende via HTTPS.
+`ENABLE_SOUND_TEST` er som standard `false`. `ENABLE_API_REPORT` er `false` — browseren poster til API'et.
 
 ## Kompilering i Docker
-
-Fra repoets rod:
 
 ```powershell
 docker build -f hardware/Dockerfile -t inv-hardware:local .
 ```
-
-Buildet kompilerer firmwaren uden lokal secrets og uden fysisk hardware. Flash kræver et tilsluttet MKR WiFi 1010 + MKR IoT Carrier.
