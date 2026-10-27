@@ -21,11 +21,20 @@ public sealed class WebSerialClient(IJSRuntime js) : IAsyncDisposable
 
     public async Task<bool> IsSupportedAsync() => await (await Module).InvokeAsync<bool>("isSupported");
 
-    public async Task ConnectAsync()
+    public async Task ConnectAsync(bool forcePicker = false)
     {
         selfRef?.Dispose();
         selfRef = DotNetObjectReference.Create(this);
-        await (await Module).InvokeVoidAsync("connect", selfRef);
+        await (await Module).InvokeVoidAsync("connect", selfRef, new { forcePicker });
+    }
+
+    /// <summary>Åbn tidligere godkendt Oplà-port uden USB-dialog. False hvis ingen port er husket.</summary>
+    public async Task<bool> TryReconnectAsync()
+    {
+        selfRef?.Dispose();
+        selfRef = DotNetObjectReference.Create(this);
+        var result = await (await Module).InvokeAsync<string>("tryReconnect", selfRef);
+        return result == "connected";
     }
 
     public async Task WriteLineAsync(string text) =>

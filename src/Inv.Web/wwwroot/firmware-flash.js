@@ -1,13 +1,7 @@
 import { SAMBAFlasher, FLASH_OFFSET } from './samba-flasher.js';
+import { ARDUINO_FILTERS, findGrantedArduinoPort } from './webserial.js';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-
-/** Arduino / Official / Atmel SAM-BA bootloader */
-const ARDUINO_FILTERS = [
-    { usbVendorId: 0x2341 },
-    { usbVendorId: 0x2A03 },
-    { usbVendorId: 0x03EB },
-];
 
 /** Held between prepareFlash (1. klik) and completeFlash (2. klik). */
 let pendingBin = null;
@@ -40,6 +34,10 @@ function portError(err, step) {
 
 async function requestArduinoPort(step) {
     try {
+        // Genbrug tidligere godkendt port når muligt — undgår USB-dialog.
+        const granted = await findGrantedArduinoPort({ preferBootloader: step === 'bootloader' });
+        if (granted) return granted;
+
         // Bootloader-enumeration kan skifte VID — dialog uden filter, så porten altid vises.
         if (step === 'bootloader') {
             return await navigator.serial.requestPort();

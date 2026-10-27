@@ -78,7 +78,8 @@
                         }
                         @if (!connected)
                         {
-                            <button class="button button-secondary" @onclick="ConnectAsync" disabled="@(busy || flashing || awaitingBootloaderPort)">Forbind</button>
+                            <button class="button button-secondary" @onclick="ConnectRememberedAsync" disabled="@(busy || flashing || awaitingBootloaderPort)">Forbind</button>
+                            <button class="button button-secondary" @onclick="ConnectPickPortAsync" disabled="@(busy || flashing || awaitingBootloaderPort)">Vælg port…</button>
                         }
                         else
                         {
@@ -265,8 +266,39 @@
         Serial.FlashProgress += OnFlashProgress;
         supported = await Serial.IsSupportedAsync();
         if (supported)
+        {
             await Serial.WarmFlashModuleAsync();
+            await TryAutoConnectAsync();
+        }
         await LoadWifiAsync();
+    }
+
+    private async Task TryAutoConnectAsync()
+    {
+        try
+        {
+            if (!await Serial.TryReconnectAsync()) return;
+            connected = true;
+            message = "Genforbundet automatisk.";
+            StateHasChanged();
+            await Task.Delay(1200);
+            if (string.IsNullOrEmpty(samdId))
+            {
+                try { await Serial.WriteLineAsync("STATUS"); }
+                catch { /* ignore */ }
+                await Task.Delay(1200);
+            }
+            if (!string.IsNullOrEmpty(samdId))
+                message = "Klar — tryk Start.";
+        }
+        catch (JSException)
+        {
+            connected = false;
+        }
+        catch
+        {
+            connected = false;
+        }
     }
 
     private async Task LoadWifiAsync()
@@ -415,7 +447,10 @@
             StateHasChanged();
         });
 
-    private async Task ConnectAsync()
+    private Task ConnectRememberedAsync() => ConnectAsync(forcePicker: false);
+    private Task ConnectPickPortAsync() => ConnectAsync(forcePicker: true);
+
+    private async Task ConnectAsync(bool forcePicker = false)
     {
         busy = true;
         error = message = savedSamdId = null;
@@ -423,9 +458,9 @@
         log.Clear();
         try
         {
-            await Serial.ConnectAsync();
+            await Serial.ConnectAsync(forcePicker);
             connected = true;
-            message = "Forbundet — venter på board…";
+            message = forcePicker ? "Forbundet — venter på board…" : "Forbundet (husket port)…";
             StateHasChanged();
             await Task.Delay(1500);
             if (string.IsNullOrEmpty(samdId))
@@ -436,7 +471,7 @@
             }
             if (string.IsNullOrEmpty(samdId))
             {
-                message = "Ingen READY. Flash firmware, tryk Reset, eller vælg anden COM.";
+                message = "Ingen READY. Prøv «Vælg port…», Reset, eller flash firmware.";
             }
             else
             {
