@@ -152,15 +152,30 @@
     padding: 1.15rem 1.25rem;
 }
 
+.hr-card-focus {
+    border-color: #9baa9e;
+    box-shadow: 0 12px 32px #143e3612;
+}
+
 .hr-card h2 {
-    font-size: 1rem;
+    font-size: 1.15rem;
     margin: 0 0 .35rem;
     letter-spacing: -.01em;
 }
 
 .hr-card > p {
-    font-size: .88rem;
+    font-size: .9rem;
     margin-bottom: .85rem;
+    color: #52645e;
+}
+
+.hr-step-label {
+    margin: 0 0 .35rem !important;
+    font-size: .72rem !important;
+    font-weight: 700;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: #76561c !important;
 }
 
 .hr-actions {
@@ -169,7 +184,44 @@
     gap: .55rem;
 }
 
+.hr-actions-stack {
+    flex-direction: column;
+    align-items: stretch;
+}
+
+.hr-actions-stack .button {
+    width: 100%;
+    justify-content: center;
+    text-align: center;
+    font-size: 1rem;
+    padding: .85rem 1rem;
+}
+
 .hr-actions .button { font-size: .85rem; padding: .65rem 1rem; }
+
+.hr-more {
+    margin-top: 1rem;
+    padding-top: .85rem;
+    border-top: 1px solid #dce2d9;
+}
+
+.hr-more summary {
+    cursor: pointer;
+    font-size: .85rem;
+    font-weight: 600;
+    color: #52645e;
+    list-style: none;
+}
+
+.hr-more summary::-webkit-details-marker { display: none; }
+
+.hr-more[open] summary { margin-bottom: .65rem; }
+
+.hr-more p {
+    font-size: .85rem;
+    margin: 0 0 .65rem;
+    color: #65746a;
+}
 
 .hr-guide {
     border-radius: 1rem;

@@ -10,7 +10,7 @@
 
 <PageTitle>Kør hardwaretest · Udstyrsinventar</PageTitle>
 <HeadContent>
-    <link rel="stylesheet" href="css/hardware-run.css?v=3" />
+    <link rel="stylesheet" href="css/hardware-run.css?v=4" />
 </HeadContent>
 
 <div class="hr-page">
@@ -52,6 +52,7 @@
             </section>
 
             <aside class="hr-side">
+                @* —— Bekræftelse (OLED / LED / relay) —— *@
                 @if (awaitingConfirm)
                 {
                     <div class="hr-guide" role="alertdialog" aria-labelledby="confirm-title">
@@ -63,99 +64,120 @@
                         </div>
                     </div>
                 }
-
-                <div class="hr-card">
-                    <h2>Forbindelse</h2>
-                    <div class="hr-actions">
-                        @if (!awaitingBootloaderPort)
-                        {
-                            <button class="button" @onclick="PrepareFlashAsync" disabled="@(busy || running || flashing)">Installér firmware</button>
-                        }
-                        else
-                        {
-                            <button class="button" @onclick="CompleteFlashAsync" disabled="@busy">Vælg bootloader-port</button>
-                            <button class="button button-secondary" @onclick="CancelFlashAsync" disabled="@busy">Annuller</button>
-                        }
-                        @if (!connected)
-                        {
-                            <button class="button button-secondary" @onclick="ConnectRememberedAsync" disabled="@(busy || flashing || awaitingBootloaderPort)">Forbind</button>
-                            <button class="button button-secondary" @onclick="ConnectPickPortAsync" disabled="@(busy || flashing || awaitingBootloaderPort)">Vælg port…</button>
-                        }
-                        else
-                        {
-                            <button class="button" @onclick="StartAsync" disabled="@(busy || running || awaitingConfirm || flashing || awaitingBootloaderPort)">Start</button>
-                            <button class="button button-secondary" @onclick="AbortAsync" disabled="@(!running && !awaitingConfirm)">Afbryd</button>
-                            <button class="button button-secondary" @onclick="DisconnectAsync" disabled="@(busy || flashing || awaitingBootloaderPort)">USB fra</button>
-                        }
-                    </div>
-                    @if (awaitingBootloaderPort)
-                    {
-                        <p class="hardware-flash-hint" style="margin:.75rem 0 0;max-width:none">Vælg bootloader-port nu. Dobbelttryk Reset hvis COM mangler.</p>
-                    }
-                    @if (flashing || flashPercent is not null || awaitingBootloaderPort)
-                    {
-                        <div class="hr-flash" role="status">
-                            <span>Firmware @(flashPercent?.ToString() ?? "…")%@if (!string.IsNullOrEmpty(flashStatus)) { <text> — @flashStatus</text> }</span>
-                            <progress max="100" value="@(flashPercent ?? 0)"></progress>
-                        </div>
-                    }
-                </div>
-
-                <div class="hr-card">
-                    <h2>WiFi</h2>
-                    <div class="hr-wifi-fields">
-                        <label>
-                            Netværk
-                            <select @bind="wifiPreset" @bind:after="OnWifiPresetChanged" disabled="@(busy || running || flashing)">
-                                <option value="MAGS-OLC">MAGS-OLC</option>
-                                <option value="custom">Andet…</option>
-                                <option value="none">Spring WiFi over</option>
-                            </select>
-                        </label>
-                        @if (wifiPreset == "custom")
-                        {
-                            <label>
-                                SSID
-                                <input type="text" maxlength="32" @bind="wifiSsid" @bind:event="oninput" @bind:after="PersistWifiAsync"
-                                       disabled="@(busy || running || flashing)" autocomplete="off" />
-                            </label>
-                        }
-                        @if (wifiPreset != "none")
-                        {
-                            <label>
-                                Password
-                                <input type="password" maxlength="63" @bind="wifiPassword" @bind:event="oninput" @bind:after="PersistWifiAsync"
-                                       disabled="@(busy || running || flashing)" autocomplete="off" />
-                            </label>
-                        }
-                    </div>
-                    @if (wifiConfiguredOnBoard is not null)
-                    {
-                        <p class="hr-ids" style="margin-top:.75rem" role="status">Board WiFi: <code>@wifiConfiguredOnBoard</code></p>
-                    }
-                </div>
-
-                @if (!string.IsNullOrEmpty(samdId) || steps.Count > 0)
+                @* —— Firmware-installation —— *@
+                else if (awaitingBootloaderPort || flashing)
                 {
-                    <div class="hr-card">
-                        @if (!string.IsNullOrEmpty(samdId))
+                    <div class="hr-card hr-card-focus">
+                        <p class="hr-step-label">Trin @(awaitingBootloaderPort ? "2" : "1") af 2</p>
+                        <h2>@(awaitingBootloaderPort ? "Vælg bootloader-port" : "Installerer firmware…")</h2>
+                        @if (awaitingBootloaderPort)
                         {
-                            <h2>Board</h2>
-                            <p class="hr-ids"><code>@samdId</code>@if (!string.IsNullOrEmpty(mac)) { <text> · MAC @mac</text> }</p>
-                        }
-                        @if (steps.Count > 0)
-                        {
-                            <h2 style="@(string.IsNullOrEmpty(samdId) ? null : "margin-top:1rem")">Testtrin</h2>
-                            <div class="hr-steps" aria-label="Testtrin">
-                                @foreach (var step in steps)
-                                {
-                                    <div class="hr-step @StepTileClass(step)" title="@StepLabel(step)">
-                                        @ShortStepName(step.Name)
-                                        <small>@StepLabel(step)</small>
-                                    </div>
-                                }
+                            <p>Boardet er i bootloader. Tryk knappen — dobbelttryk Reset hvis COM mangler.</p>
+                            <div class="hr-actions hr-actions-stack">
+                                <button class="button" @onclick="CompleteFlashAsync" disabled="@busy">Vælg bootloader-port</button>
+                                <button class="button button-secondary" @onclick="CancelFlashAsync" disabled="@busy">Annuller</button>
                             </div>
                         }
+                        @if (flashing || flashPercent is not null)
+                        {
+                            <div class="hr-flash" role="status">
+                                <span>@(flashPercent?.ToString() ?? "…")%@if (!string.IsNullOrEmpty(flashStatus)) { <text> — @flashStatus</text> }</span>
+                                <progress max="100" value="@(flashPercent ?? 0)"></progress>
+                            </div>
+                        }
+                    </div>
+                }
+                @* —— Test kører —— *@
+                else if (running)
+                {
+                    <div class="hr-card hr-card-focus">
+                        <h2>Test kører</h2>
+                        <p>Følg boardet og banneret. Afbryd kun hvis noget går galt.</p>
+                        <div class="hr-actions hr-actions-stack">
+                            <button class="button button-danger" @onclick="AbortAsync" disabled="@busy">Afbryd test</button>
+                        </div>
+                    </div>
+                }
+                @* —— Klar til start —— *@
+                else if (connected)
+                {
+                    <div class="hr-card hr-card-focus">
+                        <h2>Klar</h2>
+                        @if (!string.IsNullOrEmpty(samdId))
+                        {
+                            <p class="hr-ids"><code>@samdId</code>@if (!string.IsNullOrEmpty(mac)) { <text> · @mac</text> }</p>
+                        }
+                        <div class="hr-wifi-fields" style="margin:1rem 0">
+                            <label>
+                                WiFi
+                                <select @bind="wifiPreset" @bind:after="OnWifiPresetChanged" disabled="@busy">
+                                    <option value="MAGS-OLC">MAGS-OLC</option>
+                                    <option value="custom">Andet…</option>
+                                    <option value="none">Spring over</option>
+                                </select>
+                            </label>
+                            @if (wifiPreset == "custom")
+                            {
+                                <label>
+                                    SSID
+                                    <input type="text" maxlength="32" @bind="wifiSsid" @bind:event="oninput" @bind:after="PersistWifiAsync"
+                                           disabled="@busy" autocomplete="off" />
+                                </label>
+                            }
+                            @if (wifiPreset != "none")
+                            {
+                                <label>
+                                    Password
+                                    <input type="password" maxlength="63" @bind="wifiPassword" @bind:event="oninput" @bind:after="PersistWifiAsync"
+                                           disabled="@busy" autocomplete="off" />
+                                </label>
+                            }
+                        </div>
+                        <div class="hr-actions hr-actions-stack">
+                            <button class="button" @onclick="StartAsync" disabled="@busy">Start test</button>
+                        </div>
+                        <details class="hr-more">
+                            <summary>Mere</summary>
+                            <div class="hr-actions">
+                                <button class="button button-secondary" @onclick="DisconnectAsync" disabled="@busy">USB fra</button>
+                                <button class="button button-secondary" @onclick="PrepareFlashAsync" disabled="@busy">Opdatér firmware</button>
+                            </div>
+                        </details>
+                    </div>
+                }
+                @* —— Ikke forbundet —— *@
+                else
+                {
+                    <div class="hr-card hr-card-focus">
+                        <h2>Forbind board</h2>
+                        <p>Sæt Oplà i USB, og tryk Forbind.</p>
+                        <div class="hr-actions hr-actions-stack">
+                            <button class="button" @onclick="ConnectRememberedAsync" disabled="@busy">Forbind</button>
+                            <button class="button button-secondary" @onclick="ConnectPickPortAsync" disabled="@busy">Vælg port…</button>
+                        </div>
+                        <details class="hr-more">
+                            <summary>Første gang? Installér firmware</summary>
+                            <p>Kun nødvendigt første gang eller ved opdatering.</p>
+                            <div class="hr-actions">
+                                <button class="button button-secondary" @onclick="PrepareFlashAsync" disabled="@busy">Installér firmware</button>
+                            </div>
+                        </details>
+                    </div>
+                }
+
+                @if (steps.Count > 0 && !awaitingBootloaderPort && !flashing)
+                {
+                    <div class="hr-card">
+                        <h2>Testtrin</h2>
+                        <div class="hr-steps" aria-label="Testtrin">
+                            @foreach (var step in steps)
+                            {
+                                <div class="hr-step @StepTileClass(step)" title="@StepLabel(step)">
+                                    @ShortStepName(step.Name)
+                                    <small>@StepLabel(step)</small>
+                                </div>
+                            }
+                        </div>
                     </div>
                 }
 
