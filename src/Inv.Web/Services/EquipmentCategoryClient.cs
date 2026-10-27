@@ -11,7 +11,6 @@ public sealed class EquipmentCategoryClient(MercantecAuthClient auth)
     public async Task<List<EquipmentcategoryResponse>> GetAllAsync()
     {
         var response = await auth.GetAsync("equipment-categories/");
-
         if (response.Status != 200)
         {
             throw new HttpRequestException(
@@ -25,9 +24,12 @@ public sealed class EquipmentCategoryClient(MercantecAuthClient auth)
             JsonOptions) ?? throw new JsonException("API'et returnerede en ugyldig kategoriliste.");
     }
 
-    public async Task<AuthResponse> CreateAsync(
-        CreateEquipmentCategoryModel categoryModel)
-    {
-        return await auth.PostAsync("equipment-categories", categoryModel);
-    }
+    public Task<AuthResponse> CreateAsync(CreateEquipmentCategoryModel categoryModel) =>
+        auth.PostAsync("equipment-categories", categoryModel);
+
+    public Task<AuthResponse> UpdateAsync(Guid id, CreateEquipmentCategoryModel categoryModel) =>
+        auth.PutAsync($"equipment-categories/{id}", categoryModel);
+
+    public Task<AuthResponse> DeleteAsync(Guid id) =>
+        auth.DeleteAsync($"equipment-categories/{id}");
 }

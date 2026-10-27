@@ -7,6 +7,7 @@ using Npgsql;
 namespace Inv.Api.Features.Loans;
 
 public sealed record CreateLoanRequest(Guid? BorrowerSubject, string? Note);
+public sealed record ReturnLoanRequest(string? ReturnNote);
 public sealed record LoanResponse(Guid Id, Guid EquipmentId, Guid BorrowerSubject,
     Guid ApprovedBySubject, DateTimeOffset LoanedAt, string? Note);
 
@@ -14,8 +15,8 @@ public static class LoanEndpoints
 {
     public static IEndpointRouteBuilder MapLoanEndpoints(this IEndpointRouteBuilder endpoints)
     {
-        // Samme midlertidige adgangsmodel som oprettelse/redigering af udstyr.
         var group = endpoints.MapGroup("/api").RequireAuthorization().WithTags("Loans");
+
         group.MapGet("/borrowers", async (string? search, IBorrowerDirectory directory, CancellationToken ct) =>
         {
             try
@@ -28,7 +29,8 @@ public static class LoanEndpoints
                     || b.Subject.ToString().Equals(term, StringComparison.OrdinalIgnoreCase)));
             }
             catch (DirectoryUnavailableException) { return DirectoryUnavailable(); }
-        });
+        }).RequireAuthorization("EquipmentManager");
+
         group.MapGet("/equipment/{id:guid}/loan", async (Guid id, InventoryDbContext db, CancellationToken ct) =>
         {
             if (!await db.Equipment.AnyAsync(e => e.Id == id, ct)) return Results.NotFound();
@@ -37,7 +39,9 @@ public static class LoanEndpoints
                 .SingleOrDefaultAsync(ct);
             return loan is null ? Results.NoContent() : Results.Ok(loan);
         });
-        group.MapPost("/equipment/{id:guid}/loans", CreateAsync);
+
+        group.MapPost("/equipment/{id:guid}/loans", CreateAsync).RequireAuthorization("EquipmentManager");
+        group.MapPost("/equipment/{id:guid}/loans/return", ReturnAsync).RequireAuthorization("EquipmentManager");
         return endpoints;
     }
 
@@ -78,7 +82,6 @@ public static class LoanEndpoints
         catch (DbUpdateException exception) when (exception.InnerException is PostgresException
             { SqlState: PostgresErrorCodes.UniqueViolation, ConstraintName: "UX_Loans_ActiveEquipment" })
         {
-            // Indekset afgør også løbet mellem to samtidige oprettelser.
             return AlreadyLoaned();
         }
         catch (DbUpdateException exception) when (exception.InnerException is PostgresException
@@ -88,6 +91,39 @@ public static class LoanEndpoints
         }
         return Results.Created($"/api/equipment/{id}/loan", new LoanResponse(loan.Id, id,
             loan.BorrowerSubject, loan.ApprovedBySubject, loan.LoanedAt, loan.Note));
+    }
+
+    private static async Task<IResult> ReturnAsync(
+        Guid id,
+        ReturnLoanRequest request,
+        ClaimsPrincipal user,
+        InventoryDbContext db,
+        CancellationToken ct)
+    {
+        if (!Guid.TryParse(user.FindFirst("sub")?.Value, out var actor) || actor == Guid.Empty)
+            return Results.Unauthorized();
+
+        var note = request.ReturnNote?.Trim();
+        if (note?.Length > 4000)
+        {
+            return Results.ValidationProblem(new Dictionary<string, string[]>
+            {
+                ["ReturnNote"] = ["Noten må højst indeholde 4000 tegn."]
+            });
+        }
+
+        if (!await db.Equipment.AnyAsync(e => e.Id == id, ct))
+            return Results.NotFound(new { Message = "Udstyret blev ikke fundet." });
+
+        var loan = await db.Loans.SingleOrDefaultAsync(l => l.EquipmentId == id && l.ReturnedAt == null, ct);
+        if (loan is null)
+            return Results.Conflict(new { Message = "Udstyret er ikke udlånt." });
+
+        loan.ReturnedAt = DateTimeOffset.UtcNow;
+        loan.ReturnedBySubject = actor;
+        loan.ReturnNote = string.IsNullOrWhiteSpace(note) ? null : note;
+        await db.SaveChangesAsync(ct);
+        return Results.NoContent();
     }
 
     private static IResult AlreadyLoaned() => Results.Conflict(new { Message = "Udstyret er allerede udlånt. Opdatér siden for at se det aktuelle udlån." });

@@ -8,6 +8,7 @@
 @inject EquipmentCategoryClient Categories
 @inject EquipmentClient Equipment
 @inject NavigationManager Navigation
+@inject AdminAccess Admin
 
 <PageTitle>@(IsEditing ? "Rediger udstyr" : "Opret udstyr") · Udstyrsinventar</PageTitle>
 
@@ -128,7 +129,16 @@ else
     private bool saving;
     private string? error;
 
-    protected override Task OnParametersSetAsync() => LoadAsync();
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!await Admin.IsAdminAsync())
+        {
+            Navigation.NavigateTo(IsEditing ? $"/udstyr/{Id}" : "/udstyr");
+            return;
+        }
+
+        await LoadAsync();
+    }
 
     private void Cancel() => Navigation.NavigateTo(IsEditing ? $"/udstyr/{Id}" : "/udstyr");
 

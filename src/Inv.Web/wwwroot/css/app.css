@@ -197,6 +197,11 @@ footer, .app-footer { padding: 1.25rem 2rem; font-size: .75rem; color: #637368; 
 }
 .page-item strong { color: var(--ink); font-size: 1.02rem; }
 .page-item span { color: var(--muted); font-size: .88rem; }
+.page-item-actions { display: flex; flex-wrap: wrap; gap: .45rem; }
+.page-inline-input {
+    flex: 1 1 12rem; min-width: 0; padding: .55rem .7rem; font: inherit;
+    border: 1px solid #9baa9e; border-radius: .4rem; background: #fff; color: var(--ink);
+}
 
 .page-facts {
     display: grid;

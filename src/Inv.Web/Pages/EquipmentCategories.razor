@@ -1,8 +1,11 @@
 @page "/kategorier"
+@using System.Net
 @using System.Text.Json
 @using Inv.Web.Models
 @using Inv.Web.Services
 @inject EquipmentCategoryClient Categories
+@inject IssueCategoryClient IssueCategories
+@inject AdminAccess Admin
 
 <PageTitle>Udstyrskategorier · Udstyrsinventar</PageTitle>
 
@@ -10,10 +13,16 @@
     <div>
         <p class="eyebrow">Struktur</p>
         <h1>Kategorier</h1>
-        <p>Organisér udstyr efter type.</p>
+        <p>Organisér udstyr og fejlrapporter.</p>
     </div>
-    <a class="button" href="kategorier/opret">Opret kategori</a>
+    @if (isAdmin)
+    {
+        <a class="button" href="kategorier/opret">Opret kategori</a>
+    }
 </header>
+
+@if (!string.IsNullOrWhiteSpace(actionError)) { <p class="page-alert" role="alert">@actionError</p> }
+@if (!string.IsNullOrWhiteSpace(actionOk)) { <p class="page-alert page-alert-ok" role="status">@actionOk</p> }
 
 @if (loading)
 {
@@ -27,50 +36,254 @@ else if (error is not null)
         <button class="button" @onclick="LoadAsync">Prøv igen</button>
     </div>
 }
-else if (categories.Count == 0)
-{
-    <div class="page-empty">
-        <strong>Ingen kategorier</strong>
-        <p>Opret den første kategori for at kunne registrere udstyr.</p>
-        <p><a class="button" href="kategorier/opret">Opret kategori</a></p>
-    </div>
-}
 else
 {
-    <p class="page-summary"><strong>@categories.Count</strong> kategorier</p>
-    <ul class="page-list">
-        @foreach (var category in categories)
+    <h2 class="page-summary" style="margin-bottom:.75rem">Udstyrskategorier · <strong>@categories.Count</strong></h2>
+    @if (categories.Count == 0)
+    {
+        <div class="page-empty">
+            <strong>Ingen kategorier</strong>
+            <p>Opret den første kategori for at kunne registrere udstyr.</p>
+            @if (isAdmin) { <p><a class="button" href="kategorier/opret">Opret kategori</a></p> }
+        </div>
+    }
+    else
+    {
+        <ul class="page-list">
+            @foreach (var category in categories)
+            {
+                <li class="page-item" @key="category.Id">
+                    @if (editingId == category.Id)
+                    {
+                        <input class="page-inline-input" @bind="editName" maxlength="150" />
+                        <div class="page-item-actions">
+                            <button class="button" type="button" @onclick="SaveEditAsync" disabled="@busy">Gem</button>
+                            <button class="button button-secondary" type="button" @onclick="CancelEdit">Annuller</button>
+                        </div>
+                    }
+                    else
+                    {
+                        <strong>@category.Name</strong>
+                        @if (isAdmin)
+                        {
+                            <div class="page-item-actions">
+                                <button class="button button-secondary" type="button" @onclick="() => StartEdit(category)">Rediger</button>
+                                <button class="button button-danger" type="button" @onclick="() => DeleteCategoryAsync(category)" disabled="@busy">Slet</button>
+                            </div>
+                        }
+                    }
+                </li>
+            }
+        </ul>
+    }
+
+    <section class="page-panel" style="margin-top:1.5rem">
+        <h2>Fejlkategorier · @issueCategories.Count</h2>
+        @if (isAdmin)
         {
-            <li class="page-item" @key="category.Id">
-                <strong>@category.Name</strong>
-            </li>
+            <EditForm Model="@issueModel" OnValidSubmit="CreateIssueCategoryAsync" class="page-form" style="margin-bottom:1rem">
+                <fieldset disabled="@busy">
+                    <legend>Ny fejlkategori</legend>
+                    <label>
+                        Navn
+                        <InputText @bind-Value="issueModel.Name" maxlength="150" />
+                    </label>
+                    <label>
+                        Udstyrskategori (valgfri)
+                        <InputSelect TValue="Guid?" @bind-Value="issueModel.EquipmentCategoryId">
+                            <option value="">Alle typer</option>
+                            @foreach (var category in categories)
+                            {
+                                <option value="@category.Id">@category.Name</option>
+                            }
+                        </InputSelect>
+                    </label>
+                    <div class="page-form-actions">
+                        <button type="submit" class="button">Opret fejlkategori</button>
+                    </div>
+                </fieldset>
+            </EditForm>
         }
-    </ul>
+
+        @if (issueCategories.Count == 0)
+        {
+            <p class="page-summary">Ingen fejlkategorier endnu.</p>
+        }
+        else
+        {
+            <ul class="page-list">
+                @foreach (var category in issueCategories)
+                {
+                    <li class="page-item" @key="category.Id">
+                        <span>
+                            <strong>@category.Name</strong>
+                            <span>@(category.EquipmentCategoryId is Guid id
+                                ? categories.FirstOrDefault(c => c.Id == id)?.Name ?? "Udstyrskategori"
+                                : "Alle typer")</span>
+                        </span>
+                        @if (isAdmin)
+                        {
+                            <button class="button button-danger" type="button" @onclick="() => DeleteIssueCategoryAsync(category)" disabled="@busy">Slet</button>
+                        }
+                    </li>
+                }
+            </ul>
+        }
+    </section>
 }
 
 @code {
     private List<EquipmentcategoryResponse> categories = [];
-    private bool loading = true;
-    private string? error;
+    private List<IssueCategoryResponse> issueCategories = [];
+    private IssueCategoryFormModel issueModel = new();
+    private bool loading = true, busy, isAdmin;
+    private string? error, actionError, actionOk;
+    private Guid? editingId;
+    private string editName = "";
 
-    protected override async Task OnInitializedAsync() => await LoadAsync();
+    protected override async Task OnInitializedAsync()
+    {
+        isAdmin = await Admin.IsAdminAsync();
+        await LoadAsync();
+    }
 
     private async Task LoadAsync()
     {
         loading = true;
         error = null;
-        try { categories = await Categories.GetAllAsync(); }
+        try
+        {
+            categories = await Categories.GetAllAsync();
+            issueCategories = await IssueCategories.GetAllAsync();
+        }
         catch (HttpRequestException exception)
         {
             error = exception.StatusCode switch
             {
-                System.Net.HttpStatusCode.Unauthorized => "Login er udløbet.",
-                System.Net.HttpStatusCode.Forbidden => "Du mangler adgang.",
+                HttpStatusCode.Unauthorized => "Login er udløbet.",
+                HttpStatusCode.Forbidden => "Du mangler adgang.",
                 _ => "Kategorier kunne ikke hentes."
             };
         }
         catch (JSException) { error = "Tjek forbindelse og login."; }
         catch (JsonException) { error = "Ugyldigt API-svar."; }
         finally { loading = false; }
+    }
+
+    private void StartEdit(EquipmentcategoryResponse category)
+    {
+        editingId = category.Id;
+        editName = category.Name;
+        actionError = actionOk = null;
+    }
+
+    private void CancelEdit() => editingId = null;
+
+    private async Task SaveEditAsync()
+    {
+        if (editingId is not Guid id || busy) return;
+        busy = true;
+        actionError = actionOk = null;
+        try
+        {
+            var response = await Categories.UpdateAsync(id, new CreateEquipmentCategoryModel { Name = editName });
+            switch (response.Status)
+            {
+                case 200:
+                    actionOk = "Kategorien er opdateret.";
+                    editingId = null;
+                    await LoadAsync();
+                    break;
+                case 403: actionError = "Du mangler rettighed."; break;
+                case 409: actionError = "Navnet er allerede i brug."; break;
+                case 404: actionError = "Kategorien findes ikke længere."; break;
+                default: actionError = "Kunne ikke gemme."; break;
+            }
+        }
+        catch (JSException) { actionError = "Tjek forbindelse og login."; }
+        finally { busy = false; }
+    }
+
+    private async Task DeleteCategoryAsync(EquipmentcategoryResponse category)
+    {
+        if (busy) return;
+        busy = true;
+        actionError = actionOk = null;
+        try
+        {
+            var response = await Categories.DeleteAsync(category.Id);
+            switch (response.Status)
+            {
+                case 204:
+                    actionOk = $"«{category.Name}» er slettet.";
+                    await LoadAsync();
+                    break;
+                case 403: actionError = "Du mangler rettighed."; break;
+                case 409: actionError = MessageFromBody(response.Body) ?? "Kategorien er i brug og kan ikke slettes."; break;
+                default: actionError = "Kunne ikke slette."; break;
+            }
+        }
+        catch (JSException) { actionError = "Tjek forbindelse og login."; }
+        finally { busy = false; }
+    }
+
+    private async Task CreateIssueCategoryAsync()
+    {
+        if (busy) return;
+        busy = true;
+        actionError = actionOk = null;
+        try
+        {
+            var response = await IssueCategories.CreateAsync(issueModel);
+            switch (response.Status)
+            {
+                case 201:
+                    actionOk = "Fejlkategorien er oprettet.";
+                    issueModel = new();
+                    await LoadAsync();
+                    break;
+                case 403: actionError = "Du mangler rettighed."; break;
+                case 409: actionError = "Fejlkategorien findes allerede."; break;
+                case 400: actionError = "Angiv et gyldigt navn."; break;
+                default: actionError = "Kunne ikke oprette fejlkategori."; break;
+            }
+        }
+        catch (JSException) { actionError = "Tjek forbindelse og login."; }
+        finally { busy = false; }
+    }
+
+    private async Task DeleteIssueCategoryAsync(IssueCategoryResponse category)
+    {
+        if (busy) return;
+        busy = true;
+        actionError = actionOk = null;
+        try
+        {
+            var response = await IssueCategories.DeleteAsync(category.Id);
+            switch (response.Status)
+            {
+                case 204:
+                    actionOk = $"«{category.Name}» er slettet.";
+                    await LoadAsync();
+                    break;
+                case 403: actionError = "Du mangler rettighed."; break;
+                case 409: actionError = MessageFromBody(response.Body) ?? "Fejlkategorien er i brug."; break;
+                default: actionError = "Kunne ikke slette."; break;
+            }
+        }
+        catch (JSException) { actionError = "Tjek forbindelse og login."; }
+        finally { busy = false; }
+    }
+
+    private static string? MessageFromBody(string body)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(body);
+            if (doc.RootElement.TryGetProperty("Message", out var message))
+                return message.GetString();
+        }
+        catch (JsonException) { }
+        return null;
     }
 }

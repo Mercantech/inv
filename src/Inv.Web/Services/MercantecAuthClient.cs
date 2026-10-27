@@ -48,6 +48,12 @@ public sealed class MercantecAuthClient(IJSRuntime js, AuthConfiguration configu
             new Uri(new Uri(configuration.ApiBaseUrl), relativePath).AbsoluteUri,
             "PUT", body);
 
+    public async Task<AuthResponse> DeleteAsync(string relativePath) =>
+        await (await Module).InvokeAsync<AuthResponse>(
+            "request", configuration,
+            new Uri(new Uri(configuration.ApiBaseUrl), relativePath).AbsoluteUri,
+            "DELETE");
+
     public async ValueTask DisposeAsync()
     {
         if (module is not null) await (await module).DisposeAsync();

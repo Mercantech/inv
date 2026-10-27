@@ -48,10 +48,13 @@ builder.Services.AddSingleton(new AuthConfiguration(authority, builder.Configura
 
 
 builder.Services.AddScoped<MercantecAuthClient>();
+builder.Services.AddScoped<AdminAccess>();
 builder.Services.AddScoped<EquipmentCategoryClient>();
 builder.Services.AddScoped<EquipmentClient>();
 builder.Services.AddScoped<HardwareClient>();
 builder.Services.AddScoped<WebSerialClient>();
 builder.Services.AddScoped<LoanClient>();
+builder.Services.AddScoped<IssueCategoryClient>();
+builder.Services.AddScoped<IssueClient>();
 
 await builder.Build().RunAsync();

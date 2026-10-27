@@ -42,6 +42,23 @@ public sealed class HardwareClient(MercantecAuthClient auth)
             report
         }));
 
+    public Task UpdateDeviceAsync(string samdId, string? label, string? mac, string? eccSerial) =>
+        EnsureSuccessAsync(auth.PutAsync($"hardware/devices/{Uri.EscapeDataString(samdId)}", new
+        {
+            label,
+            mac,
+            eccSerial
+        }));
+
+    public Task DeleteDeviceAsync(string samdId) =>
+        EnsureSuccessAsync(auth.DeleteAsync($"hardware/devices/{Uri.EscapeDataString(samdId)}"));
+
+    public Task DeleteTestAsync(string samdId, Guid reportId) =>
+        EnsureSuccessAsync(auth.DeleteAsync($"hardware/devices/{Uri.EscapeDataString(samdId)}/tests/{reportId}"));
+
+    private static async Task EnsureSuccessAsync(Task<AuthResponse> responseTask) =>
+        EnsureSuccess(await responseTask);
+
     private static Task<T> ReadAsync<T>(AuthResponse response)
     {
         EnsureSuccess(response);

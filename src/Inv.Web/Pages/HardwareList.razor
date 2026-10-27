@@ -3,6 +3,7 @@
 @using Inv.Web.Models
 @using Inv.Web.Services
 @inject HardwareClient Hardware
+@inject AdminAccess Admin
 
 <PageTitle>Hardwaretests · Udstyrsinventar</PageTitle>
 
@@ -99,18 +100,22 @@ else
     }
 }
 
-<details class="page-panel hardware-section">
-    <summary>Importér eksisterende Oplà-historik</summary>
-    <p>Importér et JSON-eksport fra Oplà-systemets <code>/api/devices</code>. Gentaget import springer eksisterende rapporter over.</p>
-    <label>JSON-fil (maks. 10 MB)
-        <InputFile OnChange="ImportFileAsync" accept=".json,application/json" disabled="@busy" />
-    </label>
-</details>
+@if (isAdmin)
+{
+    <details class="page-panel hardware-section">
+        <summary>Importér eksisterende Oplà-historik</summary>
+        <p>Importér et JSON-eksport fra Oplà-systemets <code>/api/devices</code>. Gentaget import springer eksisterende rapporter over.</p>
+        <label>JSON-fil (maks. 10 MB)
+            <InputFile OnChange="ImportFileAsync" accept=".json,application/json" disabled="@busy" />
+        </label>
+    </details>
+}
 
 @code {
     private List<DeviceResult> devices = [];
     private bool loading = true;
     private bool busy;
+    private bool isAdmin;
     private string search = "";
     private bool onlyFailures;
     private string? error;
@@ -124,7 +129,12 @@ else
             || (device.Label?.Contains(search.Trim(), StringComparison.OrdinalIgnoreCase) ?? false)
             || (device.EquipmentName?.Contains(search.Trim(), StringComparison.OrdinalIgnoreCase) ?? false)));
 
-    protected override Task OnInitializedAsync() => LoadAsync();
+    protected override async Task OnInitializedAsync()
+    {
+        isAdmin = await Admin.IsAdminAsync();
+        await LoadAsync();
+    }
+
     private async Task LoadAsync()
     {
         loading = true;

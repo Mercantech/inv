@@ -1,0 +1,211 @@
+@using System.Net
+@using System.Text.Json
+@using Inv.Web.Models
+@using Inv.Web.Services
+@inject IssueClient Issues
+@inject IssueCategoryClient IssueCategories
+@inject AdminAccess Admin
+
+<section class="eq-panel" aria-label="Fejlrapporter">
+    <h2>Fejlrapporter</h2>
+
+    @if (loading)
+    {
+        <p role="status">Henter fejl…</p>
+    }
+    else if (loadError is not null)
+    {
+        <p role="alert">@loadError</p>
+        <button type="button" class="button button-secondary" @onclick="LoadAsync">Prøv igen</button>
+    }
+    else
+    {
+        @if (isAdmin)
+        {
+            <EditForm Model="@createModel" OnValidSubmit="CreateAsync" class="loan-form" style="margin-bottom:1rem">
+                <fieldset disabled="@busy">
+                    <legend>Ny fejl</legend>
+                    <label>
+                        Kategori
+                        <InputSelect TValue="Guid?" @bind-Value="createModel.IssueCategoryId">
+                            <option value="">Vælg</option>
+                            @foreach (var category in categories)
+                            {
+                                <option value="@category.Id">@category.Name</option>
+                            }
+                        </InputSelect>
+                    </label>
+                    <label>
+                        Beskrivelse
+                        <InputTextArea @bind-Value="createModel.Description" maxlength="4000" rows="3" />
+                    </label>
+                    <button type="submit" class="button">Opret</button>
+                </fieldset>
+            </EditForm>
+            @if (categories.Count == 0)
+            {
+                <p class="page-summary">Opret en fejlkategori under Kategorier først.</p>
+            }
+        }
+
+        @if (issues.Count == 0)
+        {
+            <p class="page-summary">Ingen fejlrapporter.</p>
+        }
+        else
+        {
+            <ul class="page-list">
+                @foreach (var issue in issues)
+                {
+                    <li class="page-item" @key="issue.Id" style="align-items:flex-start;flex-direction:column">
+                        <div style="display:flex;justify-content:space-between;gap:1rem;width:100%;flex-wrap:wrap">
+                            <strong>@issue.CategoryName · @StatusLabel(issue.Status)</strong>
+                            <small>@issue.ReportedAt.UtcDateTime.ToString("dd-MM-yyyy HH:mm") UTC</small>
+                        </div>
+                        <p style="margin:0;color:inherit">@issue.Description</p>
+                        @if (!string.IsNullOrWhiteSpace(issue.ResolutionNote))
+                        {
+                            <p class="page-summary" style="margin:0">Løsning: @issue.ResolutionNote</p>
+                        }
+                        @if (isAdmin)
+                        {
+                            <div class="page-form-actions">
+                                @if (issue.Status != "Resolved")
+                                {
+                                    <button type="button" class="button" @onclick="() => ResolveAsync(issue)" disabled="@busy">Løs</button>
+                                    <button type="button" class="button button-secondary" @onclick="() => MarkInProgressAsync(issue)" disabled="@busy">I gang</button>
+                                }
+                                <button type="button" class="button button-danger" @onclick="() => DeleteAsync(issue)" disabled="@busy">Slet</button>
+                            </div>
+                        }
+                    </li>
+                }
+            </ul>
+        }
+        @if (saveError is not null) { <p role="alert">@saveError</p> }
+    }
+</section>
+
+@code {
+    [Parameter] public Guid EquipmentId { get; set; }
+
+    private List<EquipmentIssueResponse> issues = [];
+    private List<IssueCategoryResponse> categories = [];
+    private CreateIssueFormModel createModel = new();
+    private bool loading = true, busy, isAdmin;
+    private string? loadError, saveError;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        isAdmin = await Admin.IsAdminAsync();
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        loading = true;
+        loadError = null;
+        try
+        {
+            issues = await Issues.GetForEquipmentAsync(EquipmentId);
+            if (isAdmin) categories = await IssueCategories.GetAllAsync();
+        }
+        catch (Exception e) when (e is HttpRequestException or JSException or JsonException)
+        {
+            loadError = "Fejlrapporter kunne ikke hentes.";
+        }
+        finally { loading = false; }
+    }
+
+    private async Task CreateAsync()
+    {
+        if (busy) return;
+        busy = true;
+        saveError = null;
+        try
+        {
+            var response = await Issues.CreateAsync(EquipmentId, createModel);
+            if (response.Status == 201)
+            {
+                createModel = new();
+                await LoadAsync();
+            }
+            else
+                saveError = response.Status switch
+                {
+                    403 => "Du mangler rettighed.",
+                    400 => "Udfyld kategori og beskrivelse.",
+                    _ => "Fejlen kunne ikke oprettes."
+                };
+        }
+        catch (JSException) { saveError = "Tjek forbindelse og login."; }
+        finally { busy = false; }
+    }
+
+    private async Task ResolveAsync(EquipmentIssueResponse issue)
+    {
+        if (busy) return;
+        busy = true;
+        saveError = null;
+        try
+        {
+            var response = await Issues.UpdateAsync(EquipmentId, issue.Id, new UpdateIssueFormModel
+            {
+                IssueCategoryId = issue.IssueCategoryId,
+                Description = issue.Description,
+                Status = "Resolved",
+                ResolutionNote = "Løst"
+            });
+            if (response.Status == 200) await LoadAsync();
+            else saveError = response.Status == 403 ? "Du mangler rettighed." : "Kunne ikke lukke fejlrapporten.";
+        }
+        catch (JSException) { saveError = "Tjek forbindelse og login."; }
+        finally { busy = false; }
+    }
+
+    private Task MarkInProgressAsync(EquipmentIssueResponse issue) => SetStatusAsync(issue, "InProgress");
+
+    private async Task SetStatusAsync(EquipmentIssueResponse issue, string status)
+    {
+        if (busy) return;
+        busy = true;
+        saveError = null;
+        try
+        {
+            var response = await Issues.UpdateAsync(EquipmentId, issue.Id, new UpdateIssueFormModel
+            {
+                IssueCategoryId = issue.IssueCategoryId,
+                Description = issue.Description,
+                Status = status,
+                ResolutionNote = issue.ResolutionNote
+            });
+            if (response.Status == 200) await LoadAsync();
+            else saveError = "Status kunne ikke opdateres.";
+        }
+        catch (JSException) { saveError = "Tjek forbindelse og login."; }
+        finally { busy = false; }
+    }
+
+    private async Task DeleteAsync(EquipmentIssueResponse issue)
+    {
+        if (busy) return;
+        busy = true;
+        saveError = null;
+        try
+        {
+            var response = await Issues.DeleteAsync(EquipmentId, issue.Id);
+            if (response.Status == 204) await LoadAsync();
+            else saveError = response.Status == 403 ? "Du mangler rettighed." : "Kunne ikke slette.";
+        }
+        catch (JSException) { saveError = "Tjek forbindelse og login."; }
+        finally { busy = false; }
+    }
+
+    private static string StatusLabel(string status) => status switch
+    {
+        "Open" => "Åben",
+        "InProgress" => "I gang",
+        "Resolved" => "Løst",
+        _ => status
+    };
+}

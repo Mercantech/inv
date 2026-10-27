@@ -3,6 +3,7 @@
 @using Inv.Web.Models
 @using Inv.Web.Services
 @inject LoanClient Loans
+@inject AdminAccess Admin
 
 <div class="hardware-section" aria-label="Udlånsstatus">
     @if (loading)
@@ -23,38 +24,59 @@
             <dt>Godkendt af</dt><dd><code>@loan.ApprovedBySubject</code></dd>
             @if (loan.Note is not null) { <dt>Note</dt><dd class="loan-note">@loan.Note</dd> }
         </dl>
+        @if (isAdmin)
+        {
+            <div class="page-form-actions" style="margin-top:1rem">
+                @if (!showReturn)
+                {
+                    <button type="button" class="button" @onclick="() => showReturn = true">Registrér returnering</button>
+                }
+                else
+                {
+                    <label style="flex:1 1 100%">
+                        Returnote (valgfri)
+                        <textarea @bind="returnNote" maxlength="4000" rows="2"></textarea>
+                    </label>
+                    <button type="button" class="button" @onclick="ReturnAsync" disabled="@saving">@(saving ? "Gemmer…" : "Bekræft returnering")</button>
+                    <button type="button" class="button button-secondary" @onclick="() => showReturn = false">Annuller</button>
+                }
+            </div>
+        }
     }
     else
     {
         <p role="status"><span class="eq-chip eq-chip-loan-free">Ledigt</span></p>
-        @if (!showForm)
+        @if (isAdmin)
         {
-            <p style="margin-top:1rem"><button type="button" class="button" @onclick="OpenFormAsync">Udlån</button></p>
-        }
-        else
-        {
-            <form class="loan-form" style="margin-top:1rem" @onsubmit="SaveAsync" @onsubmit:preventDefault>
-                <fieldset disabled="@(saving || directoryLoading)">
-                    <legend>Registrér udlån</legend>
-                    <label for="borrower-search">Søg låner</label>
-                    <input id="borrower-search" type="search" @bind="search" @bind:event="oninput" />
-                    <label for="borrower">Låner</label>
-                    <select id="borrower" @bind="borrowerSubject" required>
-                        <option value="">Vælg låner</option>
-                        @foreach (var borrower in VisibleBorrowers)
-                        {
-                            <option value="@borrower.Subject" disabled="@borrower.IsDisabled">
-                                @borrower.Name · @(borrower.Email ?? borrower.Subject.ToString())@(borrower.IsDisabled ? " (deaktiveret)" : "")
-                            </option>
-                        }
-                    </select>
-                    @if (borrowers.Count > 0 && !VisibleBorrowers.Any()) { <p>Ingen matcher søgningen.</p> }
-                    <label for="loan-note">Note (valgfri)</label>
-                    <textarea id="loan-note" @bind="note" maxlength="4000" rows="3"></textarea>
-                    <button type="submit" class="button" disabled="@(borrowers.Count == 0 || directoryError is not null)">@(saving ? "Gemmer…" : "Registrér")</button>
-                    <button type="button" class="button button-secondary" @onclick="CloseForm">Annuller</button>
-                </fieldset>
-            </form>
+            @if (!showForm)
+            {
+                <p style="margin-top:1rem"><button type="button" class="button" @onclick="OpenFormAsync">Udlån</button></p>
+            }
+            else
+            {
+                <form class="loan-form" style="margin-top:1rem" @onsubmit="SaveAsync" @onsubmit:preventDefault>
+                    <fieldset disabled="@(saving || directoryLoading)">
+                        <legend>Registrér udlån</legend>
+                        <label for="borrower-search">Søg låner</label>
+                        <input id="borrower-search" type="search" @bind="search" @bind:event="oninput" />
+                        <label for="borrower">Låner</label>
+                        <select id="borrower" @bind="borrowerSubject" required>
+                            <option value="">Vælg låner</option>
+                            @foreach (var borrower in VisibleBorrowers)
+                            {
+                                <option value="@borrower.Subject" disabled="@borrower.IsDisabled">
+                                    @borrower.Name · @(borrower.Email ?? borrower.Subject.ToString())@(borrower.IsDisabled ? " (deaktiveret)" : "")
+                                </option>
+                            }
+                        </select>
+                        @if (borrowers.Count > 0 && !VisibleBorrowers.Any()) { <p>Ingen matcher søgningen.</p> }
+                        <label for="loan-note">Note (valgfri)</label>
+                        <textarea id="loan-note" @bind="note" maxlength="4000" rows="3"></textarea>
+                        <button type="submit" class="button" disabled="@(borrowers.Count == 0 || directoryError is not null)">@(saving ? "Gemmer…" : "Registrér")</button>
+                        <button type="button" class="button button-secondary" @onclick="CloseForm">Annuller</button>
+                    </fieldset>
+                </form>
+            }
         }
     }
     @if (directoryLoading) { <p role="status">Henter lånere…</p> }
@@ -71,8 +93,8 @@
     private LoanResponse? loan;
     private List<BorrowerResponse> borrowers = [];
     private Guid? borrowerSubject;
-    private string search = "", note = "";
-    private bool loading, directoryLoading, showForm, saving;
+    private string search = "", note = "", returnNote = "";
+    private bool loading, directoryLoading, showForm, showReturn, saving, isAdmin;
     private string? loadError, directoryError, saveError;
     private IEnumerable<BorrowerResponse> VisibleBorrowers => borrowers.Where(b =>
         b.Subject == borrowerSubject || string.IsNullOrWhiteSpace(search)
@@ -89,10 +111,13 @@
     protected override async Task OnParametersSetAsync()
     {
         CloseForm();
+        showReturn = false;
+        returnNote = "";
         borrowers = [];
         directoryError = null;
+        isAdmin = await Admin.IsAdminAsync();
         await LoadAsync();
-        if (loan is not null) await LoadBorrowersAsync();
+        if (loan is not null && isAdmin) await LoadBorrowersAsync();
     }
 
     private async Task LoadAsync()
@@ -121,7 +146,7 @@
         try { borrowers = await Loans.GetBorrowersAsync(); }
         catch (Exception e) when (e is HttpRequestException or JSException or JsonException)
         {
-            directoryError = "Lånerregistret kunne ikke hentes fra Mercantec Auth. Prøv igen, eller kontakt administratoren.";
+            directoryError = "Lånerregistret kunne ikke hentes. Du mangler måske administratoradgang.";
         }
         finally { directoryLoading = false; }
     }
@@ -168,6 +193,33 @@
         catch (Exception e) when (e is HttpRequestException or JSException or JsonException)
         {
             saveError = "Svaret kunne ikke hentes. Opdatér siden for at kontrollere, om udlånet blev gemt, før du prøver igen.";
+        }
+        finally { saving = false; }
+    }
+
+    private async Task ReturnAsync()
+    {
+        if (saving) return;
+        saving = true;
+        saveError = null;
+        try
+        {
+            var response = await Loans.ReturnAsync(EquipmentId, returnNote);
+            switch (response.Status)
+            {
+                case 204:
+                    showReturn = false;
+                    returnNote = "";
+                    await LoadAsync();
+                    break;
+                case 403: saveError = "Du mangler rettighed."; break;
+                case 409: saveError = "Udstyret er ikke udlånt."; await LoadAsync(); break;
+                default: saveError = "Returneringen kunne ikke registreres."; break;
+            }
+        }
+        catch (Exception e) when (e is HttpRequestException or JSException or JsonException)
+        {
+            saveError = "Returneringen fejlede. Prøv igen.";
         }
         finally { saving = false; }
     }

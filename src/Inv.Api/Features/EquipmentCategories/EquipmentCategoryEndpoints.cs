@@ -1,7 +1,6 @@
 using Inv.Domain.Entities;
 using Inv.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Storage;
 using Npgsql;
 
 namespace Inv.Api.Features.EquipmentCategories;
@@ -13,32 +12,96 @@ public static class EquipmentCategoryEndpoints
         var group = endpoints.MapGroup("/api/equipment-categories").WithTags("EquipmentCategories")
             .RequireAuthorization();
 
-        // Indloggede brugere kan hente kategorier til valg og filtrering.
-        group.MapGet("/", async (InventoryDbContext Database, CancellationToken CancellationToken) =>
+        group.MapGet("/", async (InventoryDbContext database, CancellationToken cancellationToken) =>
         {
-            var categories = await Database.EquipmentCategories
+            var categories = await database.EquipmentCategories
                 .AsNoTracking()
                 .OrderBy(category => category.Name)
-                .Select(category => new EquipmentCategoryResponse(
-                    category.Id,
-                    category.Name))
-                .ToListAsync(CancellationToken);
+                .Select(category => new EquipmentCategoryResponse(category.Id, category.Name))
+                .ToListAsync(cancellationToken);
             return Results.Ok(categories);
         });
 
-        // Kun udstyrsansvarlige må oprette kategorier.
-
-        //group.MapPost("/", CreateAsync).RequireAuthorization("EquipmentManager");
-        group.MapPost("/", CreateAsync);
+        group.MapPost("/", CreateAsync).RequireAuthorization("EquipmentManager");
+        group.MapPut("/{id:guid}", UpdateAsync).RequireAuthorization("EquipmentManager");
+        group.MapDelete("/{id:guid}", DeleteAsync).RequireAuthorization("EquipmentManager");
 
         return endpoints;
     }
 
-    public static async Task<IResult> CreateAsync(CreateEquipmentCategoryRequest request, InventoryDbContext database,
-        CancellationToken CancellationToken)
+    private static async Task<IResult> CreateAsync(
+        CreateEquipmentCategoryRequest request,
+        InventoryDbContext database,
+        CancellationToken cancellationToken)
     {
-        var name = request.Name?.Trim();
+        var name = ValidateName(request.Name);
+        if (name is IResult error) return error;
 
+        var category = new EquipmentCategory { Name = (string)name };
+        database.EquipmentCategories.Add(category);
+
+        try
+        {
+            await database.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException exception) when (IsUniqueName(exception))
+        {
+            return Results.Conflict(new { Message = "Der findes allerede en kategori med det navn." });
+        }
+
+        return Results.Created($"/api/equipment-categories/{category.Id}",
+            new EquipmentCategoryResponse(category.Id, category.Name));
+    }
+
+    private static async Task<IResult> UpdateAsync(
+        Guid id,
+        CreateEquipmentCategoryRequest request,
+        InventoryDbContext database,
+        CancellationToken cancellationToken)
+    {
+        var name = ValidateName(request.Name);
+        if (name is IResult error) return error;
+
+        var category = await database.EquipmentCategories.SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
+        if (category is null)
+            return Results.NotFound(new { Message = "Kategorien blev ikke fundet." });
+
+        category.Name = (string)name;
+        try
+        {
+            await database.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException exception) when (IsUniqueName(exception))
+        {
+            return Results.Conflict(new { Message = "Der findes allerede en kategori med det navn." });
+        }
+
+        return Results.Ok(new EquipmentCategoryResponse(category.Id, category.Name));
+    }
+
+    private static async Task<IResult> DeleteAsync(
+        Guid id,
+        InventoryDbContext database,
+        CancellationToken cancellationToken)
+    {
+        var category = await database.EquipmentCategories.SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
+        if (category is null)
+            return Results.NotFound(new { Message = "Kategorien blev ikke fundet." });
+
+        if (await database.Equipment.AnyAsync(item => item.EquipmentCategoryId == id, cancellationToken))
+            return Results.Conflict(new { Message = "Kategorien kan ikke slettes, mens der stadig er udstyr i den." });
+
+        if (await database.IssueCategories.AnyAsync(item => item.EquipmentCategoryId == id, cancellationToken))
+            return Results.Conflict(new { Message = "Kategorien kan ikke slettes, mens der stadig er fejlkategorier knyttet til den." });
+
+        database.EquipmentCategories.Remove(category);
+        await database.SaveChangesAsync(cancellationToken);
+        return Results.NoContent();
+    }
+
+    private static object ValidateName(string? value)
+    {
+        var name = value?.Trim();
         if (string.IsNullOrWhiteSpace(name))
         {
             return Results.ValidationProblem(new Dictionary<string, string[]>
@@ -55,32 +118,13 @@ public static class EquipmentCategoryEndpoints
             });
         }
 
-        var category = new EquipmentCategory
-        {
-            Name = name
-        };
-
-        database.EquipmentCategories.Add(category);
-
-        try
-        {
-            await database.SaveChangesAsync(CancellationToken);
-        }
-        catch (DbUpdateException exception) when (
-            exception.InnerException is PostgresException
-            {
-                SqlState: PostgresErrorCodes.UniqueViolation,
-                ConstraintName: "IX_EquipmentCategories_NormalizedName"
-            })
-        {
-            // Databasen afviser også dubletter ved samtidige oprettelser.
-            return Results.Conflict(new
-            {
-                Message = "Der findes allerede en kategori med det navn."
-            });
-        }
-
-        return Results.Created($"/api/equipment-categories/{category.Id}",
-            new EquipmentCategoryResponse(category.Id, category.Name));
+        return name;
     }
+
+    private static bool IsUniqueName(DbUpdateException exception) =>
+        exception.InnerException is PostgresException
+        {
+            SqlState: PostgresErrorCodes.UniqueViolation,
+            ConstraintName: "IX_EquipmentCategories_NormalizedName"
+        };
 }

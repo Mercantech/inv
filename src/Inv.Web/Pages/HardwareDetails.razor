@@ -5,6 +5,8 @@
 @using Inv.Web.Services
 @inject HardwareClient Hardware
 @inject EquipmentClient Equipment
+@inject AdminAccess Admin
+@inject NavigationManager Navigation
 
 <PageTitle>Board og testhistorik · Udstyrsinventar</PageTitle>
 
@@ -48,52 +50,94 @@ else
             {
                 <a class="button button-secondary" href="@($"/udstyr/{device.EquipmentId}")">Se udstyr</a>
             }
+            @if (isAdmin)
+            {
+                <button type="button" class="button button-danger" @onclick="DeleteDeviceAsync" disabled="@busy">Slet board</button>
+            }
         </div>
     </header>
 
     <div class="page-grid-2">
         <section class="page-panel">
             <h2>Board</h2>
-            <dl class="page-facts">
-                <dt>Kort ID</dt><dd>#@device.ShortId</dd>
-                <dt>SAMD-chip-ID</dt><dd><code class="hardware-chip">@device.SamdId</code></dd>
-                <dt>MAC-adresse</dt><dd>@(device.Mac ?? "Ukendt")</dd>
-                <dt>ECC-serienummer</dt><dd>@(device.EccSerial ?? "Ukendt")</dd>
-                <dt>Senest set</dt><dd>@device.LastSeenAt.UtcDateTime.ToString("dd-MM-yyyy HH:mm:ss") UTC</dd>
-                <dt>Udstyr</dt>
-                <dd>
-                    @if (device.EquipmentId.HasValue)
-                    {
-                        <a href="@($"/udstyr/{device.EquipmentId}")">@device.EquipmentName</a>
-                    }
-                    else
-                    {
-                        <span>Ikke tilknyttet</span>
-                    }
-                </dd>
-            </dl>
+            @if (isAdmin && editing)
+            {
+                <div class="page-form">
+                    <label>Label <input @bind="editLabel" maxlength="128" /></label>
+                    <label>MAC <input @bind="editMac" maxlength="32" /></label>
+                    <label>ECC <input @bind="editEcc" maxlength="64" /></label>
+                    <div class="page-form-actions">
+                        <button class="button" type="button" @onclick="SaveDeviceAsync" disabled="@busy">Gem</button>
+                        <button class="button button-secondary" type="button" @onclick="() => editing = false">Annuller</button>
+                    </div>
+                </div>
+            }
+            else
+            {
+                <dl class="page-facts">
+                    <dt>Kort ID</dt><dd>#@device.ShortId</dd>
+                    <dt>SAMD-chip-ID</dt><dd><code class="hardware-chip">@device.SamdId</code></dd>
+                    <dt>MAC-adresse</dt><dd>@(device.Mac ?? "Ukendt")</dd>
+                    <dt>ECC-serienummer</dt><dd>@(device.EccSerial ?? "Ukendt")</dd>
+                    <dt>Senest set</dt><dd>@device.LastSeenAt.UtcDateTime.ToString("dd-MM-yyyy HH:mm:ss") UTC</dd>
+                    <dt>Udstyr</dt>
+                    <dd>
+                        @if (device.EquipmentId.HasValue)
+                        {
+                            <a href="@($"/udstyr/{device.EquipmentId}")">@device.EquipmentName</a>
+                        }
+                        else
+                        {
+                            <span>Ikke tilknyttet</span>
+                        }
+                    </dd>
+                </dl>
+                @if (isAdmin)
+                {
+                    <div class="page-form-actions" style="margin-top:1rem">
+                        <button class="button button-secondary" type="button" @onclick="StartEdit">Rediger</button>
+                    </div>
+                }
+            }
         </section>
 
-        <section class="page-panel">
-            <h2>Knyt til udstyr</h2>
-            <p>Vælg eksisterende udstyr, eller opret boardet som nyt udstyr med chip-ID som serienummer.</p>
-            <div class="hardware-filters">
-                <label>Eksisterende udstyr
-                    <select @bind="selectedEquipment" disabled="@busy">
-                        <option value="">Ingen tilknytning</option>
-                        @foreach (var item in equipment)
-                        {
-                            <option value="@item.Id">#@item.ShortId · @item.Name · @item.SerialNumber</option>
-                        }
-                    </select>
-                </label>
-                <button class="button" @onclick="SaveLinkAsync" disabled="@busy">Gem tilknytning</button>
-                @if (!device.EquipmentId.HasValue)
+        @if (isAdmin)
+        {
+            <section class="page-panel">
+                <h2>Knyt til udstyr</h2>
+                <p>Vælg eksisterende udstyr, eller opret boardet som nyt udstyr med chip-ID som serienummer.</p>
+                <div class="hardware-filters">
+                    <label>Eksisterende udstyr
+                        <select @bind="selectedEquipment" disabled="@busy">
+                            <option value="">Ingen tilknytning</option>
+                            @foreach (var item in equipment)
+                            {
+                                <option value="@item.Id">#@item.ShortId · @item.Name · @item.SerialNumber</option>
+                            }
+                        </select>
+                    </label>
+                    <button class="button" @onclick="SaveLinkAsync" disabled="@busy">Gem tilknytning</button>
+                    @if (!device.EquipmentId.HasValue)
+                    {
+                        <button class="button button-secondary" @onclick="CreateEquipmentAsync" disabled="@busy">Opret som udstyr</button>
+                    }
+                </div>
+            </section>
+        }
+        else
+        {
+            <section class="page-panel">
+                <h2>Udstyr</h2>
+                @if (device.EquipmentId.HasValue)
                 {
-                    <button class="button button-secondary" @onclick="CreateEquipmentAsync" disabled="@busy">Opret som udstyr</button>
+                    <p><a href="@($"/udstyr/{device.EquipmentId}")">@device.EquipmentName</a></p>
                 }
-            </div>
-        </section>
+                else
+                {
+                    <p>Ikke tilknyttet. Kun administratorer kan knytte boards manuelt.</p>
+                }
+            </section>
+        }
     </div>
 
     <section class="page-panel">
@@ -122,6 +166,12 @@ else
                     @(report.Imported ? "· importeret" : "")
                 </summary>
                 <TestReportView Report="report" />
+                @if (isAdmin)
+                {
+                    <div class="page-form-actions" style="margin:.75rem 0">
+                        <button class="button button-danger" type="button" @onclick="() => DeleteTestAsync(report.Id)" disabled="@busy">Slet rapport</button>
+                    </div>
+                }
             </details>
         }
         @if (reports.Count < device.TestCount)
@@ -139,10 +189,9 @@ else
     private List<TestResult> reports = [];
     private List<EquipmentResponse> equipment = [];
     private string selectedEquipment = "";
-    private bool loading = true;
-    private bool busy;
-    private string? error;
-    private string? message;
+    private bool loading = true, busy, isAdmin, editing;
+    private string? error, message;
+    private string editLabel = "", editMac = "", editEcc = "";
 
     protected override async Task OnParametersSetAsync()
     {
@@ -150,15 +199,29 @@ else
         error = message = null;
         device = null;
         reports = [];
+        editing = false;
+        isAdmin = await Admin.IsAdminAsync();
         await RunAsync(async () =>
         {
             device = (await Hardware.GetDevicesAsync()).SingleOrDefault(item => item.SamdId.Equals(SamdId, StringComparison.OrdinalIgnoreCase));
             if (device is null) return;
             reports = await Hardware.GetTestsAsync(device.SamdId);
-            equipment = await Equipment.GetAllAsync();
-            selectedEquipment = device.EquipmentId?.ToString() ?? "";
+            if (isAdmin)
+            {
+                equipment = await Equipment.GetAllAsync();
+                selectedEquipment = device.EquipmentId?.ToString() ?? "";
+            }
         });
         loading = false;
+    }
+
+    private void StartEdit()
+    {
+        if (device is null) return;
+        editLabel = device.Label ?? "";
+        editMac = device.Mac ?? "";
+        editEcc = device.EccSerial ?? "";
+        editing = true;
     }
 
     private async Task RefreshDeviceAsync()
@@ -166,6 +229,28 @@ else
         device = (await Hardware.GetDevicesAsync()).Single(item => item.SamdId.Equals(SamdId, StringComparison.OrdinalIgnoreCase));
         selectedEquipment = device.EquipmentId?.ToString() ?? "";
     }
+
+    private Task SaveDeviceAsync() => RunAsync(async () =>
+    {
+        await Hardware.UpdateDeviceAsync(SamdId, editLabel, editMac, editEcc);
+        await RefreshDeviceAsync();
+        editing = false;
+        message = "Boardet er opdateret.";
+    });
+
+    private Task DeleteDeviceAsync() => RunAsync(async () =>
+    {
+        await Hardware.DeleteDeviceAsync(SamdId);
+        Navigation.NavigateTo("/hardware");
+    });
+
+    private Task DeleteTestAsync(Guid reportId) => RunAsync(async () =>
+    {
+        await Hardware.DeleteTestAsync(SamdId, reportId);
+        reports = await Hardware.GetTestsAsync(SamdId);
+        await RefreshDeviceAsync();
+        message = "Rapporten er slettet.";
+    });
 
     private Task SaveLinkAsync() => RunAsync(async () =>
     {

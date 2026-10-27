@@ -5,6 +5,8 @@
 @using Inv.Web.Services
 @using Inv.Web.Components
 @inject EquipmentClient Equipment
+@inject AdminAccess Admin
+@inject NavigationManager Navigation
 
 <PageTitle>@(equipment?.Name ?? "Udstyr") · Udstyrsinventar</PageTitle>
 <HeadContent>
@@ -55,10 +57,19 @@
                     </span>
                 </div>
             </div>
-            <div class="eq-detail-actions">
-                <a class="button" href="@($"/udstyr/{Id}/rediger")">Rediger</a>
-            </div>
+            @if (isAdmin)
+            {
+                <div class="eq-detail-actions">
+                    <a class="button" href="@($"/udstyr/{Id}/rediger")">Rediger</a>
+                    <button type="button" class="button button-danger" @onclick="DeleteAsync" disabled="@busy">Slet</button>
+                </div>
+            }
         </header>
+
+        @if (!string.IsNullOrWhiteSpace(actionError))
+        {
+            <p class="eq-alert" role="alert">@actionError</p>
+        }
 
         <div class="eq-detail-grid">
             <div class="eq-stack">
@@ -84,6 +95,8 @@
                     <h2>Udlån</h2>
                     <EquipmentLoan EquipmentId="Id" @key="Id" />
                 </section>
+
+                <EquipmentIssues EquipmentId="Id" @key="@($"issues-{Id}")" />
             </div>
 
             <section class="eq-panel" aria-label="Hardwaretest">
@@ -99,14 +112,16 @@
     public Guid Id { get; set; }
 
     private EquipmentResponse? equipment;
-    private bool loading;
-    private string? error;
+    private bool loading, isAdmin, busy;
+    private string? error, actionError;
 
     protected override async Task OnParametersSetAsync()
     {
         loading = true;
         error = null;
+        actionError = null;
         equipment = null;
+        isAdmin = await Admin.IsAdminAsync();
 
         try
         {
@@ -133,6 +148,49 @@
         {
             loading = false;
         }
+    }
+
+    private async Task DeleteAsync()
+    {
+        if (busy || equipment is null) return;
+        busy = true;
+        actionError = null;
+        try
+        {
+            var response = await Equipment.DeleteAsync(Id);
+            switch (response.Status)
+            {
+                case 204:
+                    Navigation.NavigateTo("/udstyr");
+                    break;
+                case 403:
+                    actionError = "Du mangler rettighed.";
+                    break;
+                case 409:
+                    actionError = TryMessage(response.Body) ?? "Udstyret kan ikke slettes i den nuværende tilstand.";
+                    break;
+                default:
+                    actionError = "Udstyret kunne ikke slettes.";
+                    break;
+            }
+        }
+        catch (JSException)
+        {
+            actionError = "Sletning fejlede. Tjek forbindelse og login.";
+        }
+        finally { busy = false; }
+    }
+
+    private static string? TryMessage(string body)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(body);
+            if (doc.RootElement.TryGetProperty("Message", out var message))
+                return message.GetString();
+        }
+        catch (JsonException) { }
+        return null;
     }
 
     private static int ConditionClass(int condition) => condition is >= 0 and <= 4 ? condition : 0;

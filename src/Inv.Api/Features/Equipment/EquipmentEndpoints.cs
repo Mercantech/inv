@@ -102,11 +102,35 @@ public static class EquipmentEndpoints
                 : Results.Ok(equipment);
         });
 
-        // Midlertidigt kan alle indloggede brugere oprette og redigere udstyr.
-        group.MapPost("/", CreateAsync);
-        group.MapPut("/{id:guid}", UpdateAsync);
+        group.MapPost("/", CreateAsync).RequireAuthorization("EquipmentManager");
+        group.MapPut("/{id:guid}", UpdateAsync).RequireAuthorization("EquipmentManager");
+        group.MapDelete("/{id:guid}", DeleteAsync).RequireAuthorization("EquipmentManager");
 
         return endpoints;
+    }
+
+    private static async Task<IResult> DeleteAsync(
+        Guid id,
+        InventoryDbContext database,
+        CancellationToken cancellationToken)
+    {
+        var equipment = await database.Equipment.SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
+        if (equipment is null)
+            return Results.NotFound(new { Message = "Udstyret blev ikke fundet." });
+
+        if (await database.Loans.AnyAsync(loan => loan.EquipmentId == id && loan.ReturnedAt == null, cancellationToken))
+            return Results.Conflict(new { Message = "Udstyret kan ikke slettes, mens det er udlånt. Registrér returnering først." });
+
+        if (await database.EquipmentIssues.AnyAsync(issue => issue.EquipmentId == id, cancellationToken))
+            return Results.Conflict(new { Message = "Udstyret kan ikke slettes, mens der findes fejlrapporter. Slet eller flyt fejlene først." });
+
+        var linked = await database.HardwareDevices.Where(device => device.EquipmentId == id).ToListAsync(cancellationToken);
+        foreach (var device in linked)
+            device.EquipmentId = null;
+
+        database.Equipment.Remove(equipment);
+        await database.SaveChangesAsync(cancellationToken);
+        return Results.NoContent();
     }
 
     private static async Task<IResult> CreateAsync(

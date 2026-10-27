@@ -2,6 +2,8 @@
 @using Inv.Web.Models
 @using Inv.Web.Services
 @inject EquipmentCategoryClient Categories
+@inject AdminAccess Admin
+@inject NavigationManager Navigation
 
 <PageTitle>Opret kategori · Udstyrsinventar</PageTitle>
 
@@ -39,6 +41,12 @@
     private bool saving;
     private string? error;
     private string? success;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!await Admin.IsAdminAsync())
+            Navigation.NavigateTo("/kategorier");
+    }
 
     private async Task CreateAsync()
     {

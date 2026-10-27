@@ -5,6 +5,7 @@
 @using Inv.Web.Services
 @inject EquipmentClient Equipment
 @inject EquipmentCategoryClient Categories
+@inject AdminAccess Admin
 
 <PageTitle>Udstyr · Udstyrsinventar</PageTitle>
 <HeadContent>
@@ -25,7 +26,10 @@
                 </p>
             }
         </div>
-        <a href="/udstyr/opret" class="button">Opret udstyr</a>
+        @if (isAdmin)
+        {
+            <a href="/udstyr/opret" class="button">Opret udstyr</a>
+        }
     </header>
 
     <form class="eq-toolbar" @onsubmit="LoadAsync" @onsubmit:preventDefault aria-label="Søgning og filtrering">
@@ -154,6 +158,7 @@
     private int? condition;
     private bool loading = true;
     private bool hasAppliedFilters;
+    private bool isAdmin;
     private string? error;
     private string? categoryError;
     private CancellationTokenSource? filterCts;
@@ -163,6 +168,7 @@
 
     protected override async Task OnInitializedAsync()
     {
+        isAdmin = await Admin.IsAdminAsync();
         try
         {
             categories = await Categories.GetAllAsync();

@@ -6,6 +6,8 @@ using Npgsql;
 
 namespace Inv.Api.Features.Hardware;
 
+public sealed record UpdateDeviceRequest(string? Label, string? Mac, string? EccSerial);
+
 public static class HardwareEndpoints
 {
     public static IEndpointRouteBuilder MapHardwareEndpoints(this IEndpointRouteBuilder endpoints)
@@ -24,6 +26,11 @@ public static class HardwareEndpoints
                 .Skip(skip ?? 0).Take(take ?? 20).ToListAsync(ct);
             return Results.Ok(reports.Select(HardwareContracts.Result));
         });
+
+        group.MapPut("/devices/{samdId}", UpdateDeviceAsync).RequireAuthorization("EquipmentManager");
+        group.MapDelete("/devices/{samdId}", DeleteDeviceAsync).RequireAuthorization("EquipmentManager");
+        group.MapDelete("/devices/{samdId}/tests/{reportId:guid}", DeleteTestAsync).RequireAuthorization("EquipmentManager");
+
         group.MapPost("/devices/{samdId}/equipment", async (string samdId, LinkEquipmentRequest request, HardwareStore store,
             InventoryDbContext db, CancellationToken ct) =>
         {
@@ -42,7 +49,8 @@ public static class HardwareEndpoints
             await db.SaveChangesAsync(ct);
             await transaction.CommitAsync(ct);
             return Results.NoContent();
-        });
+        }).RequireAuthorization("EquipmentManager");
+
         group.MapPost("/devices/{samdId}/create-equipment", async (string samdId, HardwareStore store, InventoryDbContext db, CancellationToken ct) =>
         {
             var samd = HardwareContracts.NormalizeSamd(samdId);
@@ -69,9 +77,13 @@ public static class HardwareEndpoints
             await db.SaveChangesAsync(ct);
             await transaction.CommitAsync(ct);
             return Results.Ok(new { device.EquipmentId });
-        });
+        }).RequireAuthorization("EquipmentManager");
+
         group.MapPost("/import", (List<LegacyDevice> devices, HardwareStore store, CancellationToken ct) => store.ImportAsync(devices, ct))
-            .WithMetadata(new RequestSizeLimitAttribute(10 * 1024 * 1024));
+            .WithMetadata(new RequestSizeLimitAttribute(10 * 1024 * 1024))
+            .RequireAuthorization("EquipmentManager");
+
+        // Hardwarelab: alle indloggede må registrere board og indsende tests.
         group.MapPost("/devices", async (DeviceRegistration request, HardwareStore store, InventoryDbContext db, CancellationToken ct) =>
         {
             await using var transaction = await store.BeginWriteAsync(ct);
@@ -100,7 +112,6 @@ public static class HardwareEndpoints
             return Results.Created($"/api/hardware/devices/{samd}/tests", HardwareContracts.Result(report));
         });
 
-        // Open ingestion for Oplà boards; human access still uses Mercantec Auth.
         var ingestion = endpoints.MapGroup("/api/devices").WithTags("Hardware ingestion").AllowAnonymous()
             .RequireRateLimiting("hardware-ingestion").WithMetadata(new RequestSizeLimitAttribute(65536));
         ingestion.AddEndpointFilter<HardwareValidationFilter>();
@@ -132,6 +143,84 @@ public static class HardwareEndpoints
             return Results.Created($"/api/hardware/devices/{samd}/tests", HardwareContracts.Result(report));
         });
         return endpoints;
+    }
+
+    private static async Task<IResult> UpdateDeviceAsync(
+        string samdId,
+        UpdateDeviceRequest request,
+        HardwareStore store,
+        InventoryDbContext db,
+        CancellationToken ct)
+    {
+        var samd = HardwareContracts.NormalizeSamd(samdId);
+        await using var transaction = await store.BeginWriteAsync(ct);
+        var device = await db.HardwareDevices.FindAsync([samd], ct);
+        if (device is null) return Results.NotFound();
+
+        if (request.Label is not null)
+        {
+            var label = request.Label.Trim();
+            if (label.Length > 128)
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["Label"] = ["Navnet må højst indeholde 128 tegn."] });
+            device.Label = string.IsNullOrWhiteSpace(label) ? null : label;
+        }
+
+        if (request.Mac is not null)
+        {
+            var mac = request.Mac.Trim();
+            if (mac.Length > 32)
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["Mac"] = ["MAC-adressen er for lang."] });
+            device.Mac = string.IsNullOrWhiteSpace(mac) ? null : mac;
+        }
+
+        if (request.EccSerial is not null)
+        {
+            var ecc = request.EccSerial.Trim();
+            if (ecc.Length > 64)
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["EccSerial"] = ["ECC-serienummeret er for langt."] });
+            device.EccSerial = string.IsNullOrWhiteSpace(ecc) || ecc == "-" ? null : ecc;
+        }
+
+        await db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
+        return Results.NoContent();
+    }
+
+    private static async Task<IResult> DeleteDeviceAsync(
+        string samdId,
+        HardwareStore store,
+        InventoryDbContext db,
+        CancellationToken ct)
+    {
+        var samd = HardwareContracts.NormalizeSamd(samdId);
+        await using var transaction = await store.BeginWriteAsync(ct);
+        var device = await db.HardwareDevices.FindAsync([samd], ct);
+        if (device is null) return Results.NotFound();
+
+        var reports = await db.HardwareTestReports.Where(report => report.SamdId == samd).ToListAsync(ct);
+        db.HardwareTestReports.RemoveRange(reports);
+        db.HardwareDevices.Remove(device);
+        await db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
+        return Results.NoContent();
+    }
+
+    private static async Task<IResult> DeleteTestAsync(
+        string samdId,
+        Guid reportId,
+        HardwareStore store,
+        InventoryDbContext db,
+        CancellationToken ct)
+    {
+        var samd = HardwareContracts.NormalizeSamd(samdId);
+        await using var transaction = await store.BeginWriteAsync(ct);
+        var report = await db.HardwareTestReports.SingleOrDefaultAsync(
+            item => item.Id == reportId && item.SamdId == samd, ct);
+        if (report is null) return Results.NotFound();
+        db.HardwareTestReports.Remove(report);
+        await db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
+        return Results.NoContent();
     }
 }
 

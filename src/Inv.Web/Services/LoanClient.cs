@@ -28,6 +28,9 @@ public sealed class LoanClient(MercantecAuthClient auth)
     public Task<AuthResponse> CreateAsync(Guid equipmentId, Guid borrowerSubject, string? note) =>
         auth.PostAsync($"equipment/{equipmentId}/loans", new { BorrowerSubject = borrowerSubject, Note = note });
 
+    public Task<AuthResponse> ReturnAsync(Guid equipmentId, string? returnNote) =>
+        auth.PostAsync($"equipment/{equipmentId}/loans/return", new { ReturnNote = returnNote });
+
     private static void EnsureSuccess(AuthResponse response)
     {
         if (response.Status != 200)

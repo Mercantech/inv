@@ -6,6 +6,7 @@ using Inv.Infrastructure.Configuration;
 using Inv.Api.Features.EquipmentCategories;
 using Inv.Api.Features.Hardware;
 using Inv.Api.Features.Loans;
+using Inv.Api.Features.Issues;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.EntityFrameworkCore;
@@ -115,6 +116,7 @@ app.MapEquipmentCategoryEndpoints();
 app.MapEquipmentEndpoints();
 app.MapLoanEndpoints();
 app.MapHardwareEndpoints();
+app.MapIssueEndpoints();
 
 await app.RunAsync();
 

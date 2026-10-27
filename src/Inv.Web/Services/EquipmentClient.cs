@@ -86,4 +86,7 @@ public sealed class EquipmentClient(MercantecAuthClient auth)
     {
         return await auth.PostAsync("equipment/", equipmentModel);
     }
+
+    public Task<AuthResponse> DeleteAsync(Guid id) =>
+        auth.DeleteAsync($"equipment/{id}");
 }
