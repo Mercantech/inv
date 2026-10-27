@@ -7,108 +7,144 @@
 @inject EquipmentCategoryClient Categories
 
 <PageTitle>Udstyr · Udstyrsinventar</PageTitle>
+<HeadContent>
+    <link rel="stylesheet" href="css/equipment.css?v=1" />
+</HeadContent>
 
-<section class="page-intro">
-    <h1>Udstyr</h1>
-    <p>Søg efter udstyr, og filtrér på kategori og tilstand.</p>
-    <a href="/udstyr/opret" class="button">Opret udstyr</a>
-</section>
-
-<form @onsubmit="LoadAsync" @onsubmit:preventDefault>
-    <fieldset disabled="@loading">
-        <legend>Søgning og filtrering</legend>
-
-        <label for="equipment-search">Kort ID, navn eller serienummer</label>
-        <input id="equipment-search"
-               type="search"
-               @bind="search"
-               @bind:event="oninput" />
-
-        <label for="equipment-category-filter">Kategori</label>
-        <InputSelect id="equipment-category-filter"
-                     TValue="Guid?"
-                     @bind-Value="categoryId">
-            <option value="">Alle kategorier</option>
-            @foreach (var category in categories)
+<div class="eq-page">
+    <header class="eq-hero">
+        <div>
+            <p class="eyebrow">Register</p>
+            <h1>Udstyr</h1>
+            @if (!loading && string.IsNullOrWhiteSpace(error))
             {
-                <option value="@category.Id">@category.Name</option>
+                <p class="eq-hero-meta">
+                    @equipment.Count @(equipment.Count == 1 ? "emne" : "emner")
+                    · @AvailableCount ledige
+                    · @LoanedCount udlånt
+                </p>
             }
-        </InputSelect>
+        </div>
+        <a href="/udstyr/opret" class="button">Opret udstyr</a>
+    </header>
 
-        <label for="equipment-condition-filter">Tilstand</label>
-        <InputSelect id="equipment-condition-filter"
-                     TValue="int?"
-                     @bind-Value="condition">
-            <option value="">Alle tilstande</option>
-            <option value="0">Ukendt</option>
-            <option value="1">God</option>
-            <option value="2">Slidt</option>
-            <option value="3">Beskadiget</option>
-            <option value="4">Ude af drift</option>
-        </InputSelect>
+    <form class="eq-toolbar" @onsubmit="LoadAsync" @onsubmit:preventDefault aria-label="Søgning og filtrering">
+        <label for="equipment-search">
+            Søg
+            <input id="equipment-search"
+                   type="search"
+                   placeholder="ID, navn eller serienummer"
+                   @bind="search"
+                   @bind:event="oninput"
+                   @bind:after="OnFilterChangedAsync"
+                   disabled="@loading" />
+        </label>
 
-        <button type="submit" class="button">Søg</button>
-        <button type="button" @onclick="ResetAsync">Nulstil</button>
-    </fieldset>
-</form>
+        <label for="equipment-category-filter">
+            Kategori
+            <InputSelect id="equipment-category-filter"
+                         TValue="Guid?"
+                         @bind-Value="categoryId"
+                         @bind-Value:after="OnFilterChangedAsync"
+                         disabled="@loading">
+                <option value="">Alle</option>
+                @foreach (var category in categories)
+                {
+                    <option value="@category.Id">@category.Name</option>
+                }
+            </InputSelect>
+        </label>
 
-@if (!string.IsNullOrWhiteSpace(categoryError))
-{
-    <p role="alert">@categoryError</p>
-}
+        <label for="equipment-condition-filter">
+            Tilstand
+            <InputSelect id="equipment-condition-filter"
+                         TValue="int?"
+                         @bind-Value="condition"
+                         @bind-Value:after="OnFilterChangedAsync"
+                         disabled="@loading">
+                <option value="">Alle</option>
+                <option value="0">Ukendt</option>
+                <option value="1">God</option>
+                <option value="2">Slidt</option>
+                <option value="3">Beskadiget</option>
+                <option value="4">Ude af drift</option>
+            </InputSelect>
+        </label>
 
-@if (loading)
-{
-    <p role="status">Henter udstyr…</p>
-}
-else if (!string.IsNullOrWhiteSpace(error))
-{
-    <p role="alert">@error</p>
-    <button type="button" class="button" @onclick="LoadAsync">
-        Prøv igen
-    </button>
-}
-else if (equipment.Count == 0)
-{
-    <p role="status">
-        @(hasAppliedFilters
-            ? "Ingen udstyr matcher din søgning og de valgte filtre."
-            : "Der er endnu ikke registreret udstyr.")
-    </p>
-}
-else
-{
-    <p role="status">Antal fundne udstyr: @equipment.Count</p>
+        <div class="eq-toolbar-actions">
+            <button type="submit" class="button" disabled="@loading">Søg</button>
+            <button type="button" class="button button-secondary" @onclick="ResetAsync" disabled="@loading">Nulstil</button>
+        </div>
+    </form>
 
-    <table>
-        <caption>Registreret udstyr</caption>
-        <thead>
-            <tr>
-                <th scope="col">ID</th>
-                <th scope="col">Navn</th>
-                <th scope="col">Serienummer</th>
-                <th scope="col">Kategori</th>
-                <th scope="col">Tilstand</th>
-                <th scope="col">Udlånsstatus</th>
-            </tr>
-        </thead>
-        <tbody>
+    @if (!string.IsNullOrWhiteSpace(categoryError))
+    {
+        <p role="status" class="eq-alert eq-alert-soft">@categoryError</p>
+    }
+
+    @if (loading)
+    {
+        <div class="eq-loading" role="status" aria-label="Henter udstyr">
+            <div class="eq-skeleton"></div>
+            <div class="eq-skeleton"></div>
+            <div class="eq-skeleton"></div>
+        </div>
+    }
+    else if (!string.IsNullOrWhiteSpace(error))
+    {
+        <div class="eq-state" role="alert">
+            <strong>Kunne ikke hente udstyr</strong>
+            <p>@error</p>
+            <button type="button" class="button" @onclick="LoadAsync">Prøv igen</button>
+        </div>
+    }
+    else if (equipment.Count == 0)
+    {
+        <div class="eq-empty" role="status">
+            <strong>@(hasAppliedFilters ? "Ingen match" : "Tomt register")</strong>
+            <p>
+                @(hasAppliedFilters
+                    ? "Prøv en anden søgning eller nulstil filtrene."
+                    : "Opret det første udstyr for at komme i gang.")
+            </p>
+            @if (!hasAppliedFilters)
+            {
+                <p><a class="button" href="/udstyr/opret">Opret udstyr</a></p>
+            }
+        </div>
+    }
+    else
+    {
+        <p class="eq-summary" role="status">
+            <strong>@equipment.Count</strong> fundet
+            @if (hasAppliedFilters) { <span>· filtreret</span> }
+        </p>
+
+        <ul class="eq-list">
             @foreach (var item in equipment)
             {
-                <tr @key="item.Id">
-                    <td>#@item.ShortId</td>
-                    <td>
-                        <a href="@($"/udstyr/{item.Id}")">@item.Name</a>
-                    </td>
-                    <td>@item.SerialNumber</td>
-                    <td>@item.CategoryName</td>
-                    <td>@GetConditionName(item.Condition)</td>
-                    <td>@(item.IsLoaned ? "Udlånt" : "Ledigt")</td>
-                </tr>
+                <li @key="item.Id">
+                    <a class="eq-item" href="@($"/udstyr/{item.Id}")">
+                        <span class="eq-id">#@item.ShortId</span>
+                        <div class="eq-body">
+                            <p class="eq-name">@item.Name</p>
+                            <p class="eq-meta">
+                                <span>@item.CategoryName</span>
+                                <span>@item.SerialNumber</span>
+                            </p>
+                        </div>
+                        <div class="eq-badges">
+                            <span class="eq-chip eq-chip-cond-@ConditionClass(item.Condition)">@GetConditionName(item.Condition)</span>
+                            <span class="eq-chip @(item.IsLoaned ? "eq-chip-loan-out" : "eq-chip-loan-free")">
+                                @(item.IsLoaned ? "Udlånt" : "Ledigt")
+                            </span>
+                        </div>
+                    </a>
+                </li>
             }
-        </tbody>
-    </table>
-}
+        </ul>
+    }
+</div>
 
 @code {
     private List<EquipmentResponse> equipment = [];
@@ -120,6 +156,10 @@ else
     private bool hasAppliedFilters;
     private string? error;
     private string? categoryError;
+    private CancellationTokenSource? filterCts;
+
+    private int LoanedCount => equipment.Count(e => e.IsLoaned);
+    private int AvailableCount => equipment.Count - LoanedCount;
 
     protected override async Task OnInitializedAsync()
     {
@@ -129,23 +169,38 @@ else
         }
         catch (HttpRequestException)
         {
-            categoryError = "Kategorierne kunne ikke hentes. Du kan stadig søge på navn, serienummer og tilstand.";
+            categoryError = "Kategorier kunne ikke hentes — søgning på navn og tilstand virker stadig.";
         }
         catch (JSException)
         {
-            categoryError = "Kategorierne kunne ikke hentes. Kontrollér forbindelsen og dit login.";
+            categoryError = "Kategorier kunne ikke hentes. Tjek login og forbindelse.";
         }
         catch (JsonException)
         {
-            categoryError = "API'et returnerede ugyldige kategorioplysninger.";
+            categoryError = "Ugyldigt kategorisvar fra API.";
         }
 
         await LoadAsync();
     }
 
-    private async Task LoadAsync()
+    private async Task OnFilterChangedAsync()
     {
-        loading = true;
+        filterCts?.Cancel();
+        filterCts = new CancellationTokenSource();
+        var token = filterCts.Token;
+        try
+        {
+            await Task.Delay(280, token);
+            await LoadAsync(showSkeleton: false);
+        }
+        catch (TaskCanceledException) { /* ny tast */ }
+    }
+
+    private Task LoadAsync() => LoadAsync(showSkeleton: true);
+
+    private async Task LoadAsync(bool showSkeleton)
+    {
+        if (showSkeleton) loading = true;
         error = null;
 
         var appliedSearch = search.Trim();
@@ -168,22 +223,19 @@ else
         {
             error = exception.StatusCode switch
             {
-                HttpStatusCode.BadRequest =>
-                    "Søgningen indeholder ugyldige filtre.",
-                HttpStatusCode.Unauthorized =>
-                    "Dit login er udløbet. Log ind igen.",
-                HttpStatusCode.Forbidden =>
-                    "Du mangler rettigheden til at se udstyret.",
-                _ => "Udstyret kunne ikke hentes. Prøv igen senere."
+                HttpStatusCode.BadRequest => "Ugyldige filtre.",
+                HttpStatusCode.Unauthorized => "Login er udløbet. Log ind igen.",
+                HttpStatusCode.Forbidden => "Du mangler rettighed til at se udstyr.",
+                _ => "Udstyret kunne ikke hentes. Prøv igen."
             };
         }
         catch (JSException)
         {
-            error = "Forespørgslen kunne ikke gennemføres. Kontrollér forbindelsen og dit login.";
+            error = "Forespørgslen fejlede. Tjek forbindelse og login.";
         }
         catch (JsonException)
         {
-            error = "API'et returnerede en ugyldig udstyrsliste.";
+            error = "Ugyldigt svar fra API.";
         }
         finally
         {
@@ -196,8 +248,10 @@ else
         search = string.Empty;
         categoryId = null;
         condition = null;
-        await LoadAsync();
+        await LoadAsync(showSkeleton: false);
     }
+
+    private static int ConditionClass(int condition) => condition is >= 0 and <= 4 ? condition : 0;
 
     private static string GetConditionName(int condition) => condition switch
     {
