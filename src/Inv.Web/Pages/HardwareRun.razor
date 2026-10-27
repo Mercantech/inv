@@ -1,5 +1,6 @@
 @page "/hardware/run"
 @using System.Text.Json
+@using Inv.Web.Components
 @using Inv.Web.Services
 @implements IAsyncDisposable
 @inject WebSerialClient Serial
@@ -8,138 +9,178 @@
 @inject IJSRuntime Js
 
 <PageTitle>Kør hardwaretest · Udstyrsinventar</PageTitle>
-<section class="page-intro">
-    <p class="eyebrow">Arduino Oplà</p>
-    <h1>Kør hardwaretest</h1>
-    <p>Forbind boardet via USB (Chrome eller Edge). Første gang: installér firmwaren herfra — derefter styrer browseren testene. Vælg WiFi herunder, så boardet tester netværket. Når testen er færdig, registreres boardet automatisk på SAMD-ID (hvis det er nyt) og rapporten gemmes i API.</p>
-</section>
+<HeadContent>
+    <link rel="stylesheet" href="css/hardware-run.css?v=1" />
+</HeadContent>
 
-@if (!supported)
-{
-    <p role="alert" class="hardware-error">Web Serial understøttes ikke i denne browser. Brug Chrome eller Edge på en computer med USB.</p>
-}
-else
-{
-    <div class="hardware-run-actions">
-        @if (!awaitingBootloaderPort)
-        {
-            <button class="button" @onclick="PrepareFlashAsync" disabled="@(busy || running || flashing)">Installér firmware</button>
-        }
-        else
-        {
-            <button class="button" @onclick="CompleteFlashAsync" disabled="@busy">Vælg bootloader-port</button>
-            <button class="button button-secondary" @onclick="CancelFlashAsync" disabled="@busy">Annuller flash</button>
-        }
-        @if (!connected)
-        {
-            <button class="button button-secondary" @onclick="ConnectAsync" disabled="@(busy || flashing || awaitingBootloaderPort)">Forbind board</button>
-        }
-        else
-        {
-            <button class="button" @onclick="StartAsync" disabled="@(busy || running || awaitingConfirm || flashing || awaitingBootloaderPort)">Start test</button>
-            <button class="button button-secondary" @onclick="AbortAsync" disabled="@(!running && !awaitingConfirm)">Afbryd</button>
-            <button class="button button-secondary" @onclick="DisconnectAsync" disabled="@(busy || flashing || awaitingBootloaderPort)">Afbryd forbindelse</button>
-        }
-    </div>
-    <p class="hardware-flash-hint">
-        @if (awaitingBootloaderPort)
-        {
-            <text>Boardet er i bootloader. Tryk «Vælg bootloader-port» (browseren kræver et nyt klik). Dobbelttryk Reset hvis den rigtige COM mangler.</text>
-        }
-        else
-        {
-            <text>Installér firmware: 1) vælg port → board går i bootloader → 2) tryk «Vælg bootloader-port». To klik er nødvendigt pga. browser-sikkerhed. Opdatér firmwaren hvis WiFi-trinnet mangler.</text>
-        }
-    </p>
-    @if (flashing || flashPercent is not null || awaitingBootloaderPort)
-    {
-        <p role="status">Firmware: @(flashPercent?.ToString() ?? "…")%@if (!string.IsNullOrEmpty(flashStatus)) { <span> — @flashStatus</span> }</p>
-        <progress class="hardware-flash-progress" max="100" value="@(flashPercent ?? 0)"></progress>
-    }
-
-    <section class="hardware-wifi" aria-label="WiFi til test">
-        <h2>WiFi til test</h2>
-        <p class="hardware-flash-hint">Vælges før «Start test». Uden SSID springes WiFi-trinnet over. Gemmes kun i denne browsersession.</p>
-        <div class="hardware-wifi-fields">
-            <label>
-                Netværk
-                <select @bind="wifiPreset" @bind:after="OnWifiPresetChanged" disabled="@(busy || running || flashing)">
-                    <option value="MAGS-OLC">MAGS-OLC</option>
-                    <option value="custom">Andet…</option>
-                    <option value="none">Spring WiFi over</option>
-                </select>
-            </label>
-            @if (wifiPreset == "custom")
-            {
-                <label>
-                    SSID
-                    <input type="text" maxlength="32" @bind="wifiSsid" @bind:event="oninput" @bind:after="PersistWifiAsync"
-                           disabled="@(busy || running || flashing)" autocomplete="off" />
-                </label>
-            }
-            @if (wifiPreset != "none")
-            {
-                <label>
-                    Password
-                    <input type="password" maxlength="63" @bind="wifiPassword" @bind:event="oninput" @bind:after="PersistWifiAsync"
-                           disabled="@(busy || running || flashing)" autocomplete="off" />
-                </label>
-            }
+<div class="hr-page">
+    <header class="hr-hero">
+        <div class="hr-hero-copy">
+            <p class="eyebrow">Arduino Oplà</p>
+            <h1>Hardwarelab</h1>
+            <p>Se boardet her, mens testen kører på det fysiske Oplà. Bekræft visuelle trin, og rapporten lander automatisk i inventaret.</p>
         </div>
-        @if (wifiConfiguredOnBoard is not null)
-        {
-            <p role="status" class="hardware-run-ids">Board: WiFi sat til <code>@wifiConfiguredOnBoard</code></p>
-        }
-    </section>
+    </header>
 
-    @if (!string.IsNullOrEmpty(samdId))
+    @if (!supported)
     {
-        <p class="hardware-run-ids">Board: <code>@samdId</code>@if (!string.IsNullOrEmpty(mac)) { <span> · MAC @mac</span> }</p>
+        <p role="alert" class="hardware-error hr-msg">Web Serial understøttes ikke i denne browser. Brug Chrome eller Edge på en computer med USB.</p>
     }
-
-    @if (awaitingConfirm)
+    else
     {
-        <div class="hardware-confirm" role="alertdialog" aria-labelledby="confirm-title">
-            <h2 id="confirm-title">@(confirmStep ?? "Bekræft")</h2>
-            <p>@(confirmPrompt ?? "Ser resultatet korrekt ud?")</p>
-            <div class="hardware-run-actions">
-                <button class="button" @onclick='() => ReplyAsync("OK")' disabled="@busy">OK — virker</button>
-                <button class="button button-danger" @onclick='() => ReplyAsync("FAIL")' disabled="@busy">FEJL — virker ikke</button>
-            </div>
-        </div>
-    }
-
-    @if (steps.Count > 0)
-    {
-        <section class="hardware-section" aria-label="Testtrin">
-            <h2>Testtrin</h2>
-            <ol class="hardware-step-list">
-                @foreach (var step in steps)
+        <div class="hr-stage">
+            <section class="hr-board-panel" aria-label="Visuel Oplà">
+                <span class="@StatusPillClass">@StatusPillLabel</span>
+                @if (steps.Count > 0)
                 {
-                    <li class="@StepClass(step)">
-                        <strong>@step.Name</strong>
-                        <span>@StepLabel(step)</span>
-                        @if (!string.IsNullOrEmpty(step.Note)) { <small>@step.Note</small> }
-                        @if (!string.IsNullOrEmpty(step.Prompt) && step.Phase == "awaiting_confirm") { <small>@step.Prompt</small> }
-                        @if (step.Phase == "begin" && step.Name == "Knapper") { <small>Tryk alle 5 touch-knapper på boardet</small> }
-                    </li>
+                    <span class="hr-progress">@CompletedCount / @steps.Count</span>
                 }
-            </ol>
-        </section>
-    }
 
-    @if (error is not null) { <p role="alert" class="hardware-error">@error</p> }
-    @if (message is not null) { <p role="status">@message</p> }
-    @if (savedSamdId is not null)
-    {
-        <p role="status">Rapport gemt. <a href="@($"/hardware/{savedSamdId}")">Se boardhistorik</a></p>
-    }
+                <OplaBoardVisual ActiveStep="@ActiveStepName"
+                                 Phase="@(awaitingConfirm ? "awaiting_confirm" : running ? "running" : connected ? "ready" : "idle")"
+                                 Connected="connected"
+                                 Running="running"
+                                 AwaitingConfirm="awaitingConfirm" />
 
-    <details class="hardware-section" open>
-        <summary>Serial-log</summary>
-        <pre class="hardware-serial-log">@(log.Count == 0 ? "(tom — boardet har ikke sendt noget endnu)" : string.Join('\n', log.TakeLast(80)))</pre>
-    </details>
-}
+                @if (running || awaitingConfirm)
+                {
+                    <div class="hr-active-banner" aria-live="polite">
+                        <strong>@(awaitingConfirm ? $"Bekræft: {confirmStep}" : ActiveStepName ?? "Starter…")</strong>
+                        <span>@ActiveGuide</span>
+                    </div>
+                }
+            </section>
+
+            <aside class="hr-side">
+                @if (awaitingConfirm)
+                {
+                    <div class="hr-guide" role="alertdialog" aria-labelledby="confirm-title">
+                        <h2 id="confirm-title">Ser det rigtigt ud?</h2>
+                        <p>@(confirmPrompt ?? OplaBoardVisual.StepCaption(confirmStep))</p>
+                        <div class="hr-guide-actions">
+                            <button class="button" @onclick='() => ReplyAsync("OK")' disabled="@busy">OK — virker</button>
+                            <button class="button button-danger" @onclick='() => ReplyAsync("FAIL")' disabled="@busy">FEJL</button>
+                        </div>
+                    </div>
+                }
+
+                <div class="hr-card">
+                    <h2>Forbindelse</h2>
+                    <p>Flash firmwaren første gang, forbind boardet, og start testen.</p>
+                    <div class="hr-actions">
+                        @if (!awaitingBootloaderPort)
+                        {
+                            <button class="button" @onclick="PrepareFlashAsync" disabled="@(busy || running || flashing)">Installér firmware</button>
+                        }
+                        else
+                        {
+                            <button class="button" @onclick="CompleteFlashAsync" disabled="@busy">Vælg bootloader-port</button>
+                            <button class="button button-secondary" @onclick="CancelFlashAsync" disabled="@busy">Annuller</button>
+                        }
+                        @if (!connected)
+                        {
+                            <button class="button button-secondary" @onclick="ConnectAsync" disabled="@(busy || flashing || awaitingBootloaderPort)">Forbind board</button>
+                        }
+                        else
+                        {
+                            <button class="button" @onclick="StartAsync" disabled="@(busy || running || awaitingConfirm || flashing || awaitingBootloaderPort)">Start test</button>
+                            <button class="button button-secondary" @onclick="AbortAsync" disabled="@(!running && !awaitingConfirm)">Afbryd</button>
+                            <button class="button button-secondary" @onclick="DisconnectAsync" disabled="@(busy || flashing || awaitingBootloaderPort)">Afbryd USB</button>
+                        }
+                    </div>
+                    <p class="hardware-flash-hint" style="margin:.75rem 0 0;max-width:none">
+                        @if (awaitingBootloaderPort)
+                        {
+                            <text>Boardet er i bootloader. Tryk «Vælg bootloader-port» (browseren kræver et nyt klik). Dobbelttryk Reset hvis COM mangler.</text>
+                        }
+                        else
+                        {
+                            <text>Firmware: to klik (port → bootloader-port). Opdatér firmwaren hvis WiFi-trinnet mangler.</text>
+                        }
+                    </p>
+                    @if (flashing || flashPercent is not null || awaitingBootloaderPort)
+                    {
+                        <div class="hr-flash" role="status">
+                            <span>Firmware @(flashPercent?.ToString() ?? "…")%@if (!string.IsNullOrEmpty(flashStatus)) { <text> — @flashStatus</text> }</span>
+                            <progress max="100" value="@(flashPercent ?? 0)"></progress>
+                        </div>
+                    }
+                </div>
+
+                <div class="hr-card">
+                    <h2>WiFi til test</h2>
+                    <p>Sendes til boardet lige før start. Uden SSID springes WiFi over.</p>
+                    <div class="hr-wifi-fields">
+                        <label>
+                            Netværk
+                            <select @bind="wifiPreset" @bind:after="OnWifiPresetChanged" disabled="@(busy || running || flashing)">
+                                <option value="MAGS-OLC">MAGS-OLC</option>
+                                <option value="custom">Andet…</option>
+                                <option value="none">Spring WiFi over</option>
+                            </select>
+                        </label>
+                        @if (wifiPreset == "custom")
+                        {
+                            <label>
+                                SSID
+                                <input type="text" maxlength="32" @bind="wifiSsid" @bind:event="oninput" @bind:after="PersistWifiAsync"
+                                       disabled="@(busy || running || flashing)" autocomplete="off" />
+                            </label>
+                        }
+                        @if (wifiPreset != "none")
+                        {
+                            <label>
+                                Password
+                                <input type="password" maxlength="63" @bind="wifiPassword" @bind:event="oninput" @bind:after="PersistWifiAsync"
+                                       disabled="@(busy || running || flashing)" autocomplete="off" />
+                            </label>
+                        }
+                    </div>
+                    @if (wifiConfiguredOnBoard is not null)
+                    {
+                        <p class="hr-ids" style="margin-top:.75rem" role="status">Board WiFi: <code>@wifiConfiguredOnBoard</code></p>
+                    }
+                </div>
+
+                @if (!string.IsNullOrEmpty(samdId) || steps.Count > 0)
+                {
+                    <div class="hr-card">
+                        @if (!string.IsNullOrEmpty(samdId))
+                        {
+                            <h2>Board</h2>
+                            <p class="hr-ids"><code>@samdId</code>@if (!string.IsNullOrEmpty(mac)) { <text> · MAC @mac</text> }</p>
+                        }
+                        @if (steps.Count > 0)
+                        {
+                            <h2 style="@(string.IsNullOrEmpty(samdId) ? null : "margin-top:1rem")">Testtrin</h2>
+                            <div class="hr-steps" aria-label="Testtrin">
+                                @foreach (var step in steps)
+                                {
+                                    <div class="hr-step @StepTileClass(step)" title="@StepLabel(step)">
+                                        @ShortStepName(step.Name)
+                                        <small>@StepLabel(step)</small>
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+
+                @if (error is not null) { <p role="alert" class="hardware-error hr-msg">@error</p> }
+                @if (message is not null) { <p role="status" class="hr-msg">@message</p> }
+                @if (savedSamdId is not null)
+                {
+                    <p role="status" class="hr-msg">Rapport gemt. <a href="@($"/hardware/{savedSamdId}")">Se boardhistorik</a></p>
+                }
+            </aside>
+        </div>
+
+        <details class="hr-log">
+            <summary>Serial-log</summary>
+            <pre>@(log.Count == 0 ? "(tom — boardet har ikke sendt noget endnu)" : string.Join('\n', log.TakeLast(80)))</pre>
+        </details>
+    }
+</div>
 
 @code {
     private bool supported = true;
@@ -184,6 +225,25 @@ else
         "custom" => string.IsNullOrWhiteSpace(wifiSsid) ? null : wifiSsid.Trim(),
         _ => wifiPreset
     };
+
+    private string? ActiveStepName =>
+        awaitingConfirm ? confirmStep
+        : steps.LastOrDefault(s => s.Phase is "begin" or "awaiting_confirm")?.Name
+          ?? steps.LastOrDefault()?.Name;
+
+    private string ActiveGuide =>
+        awaitingConfirm
+            ? (confirmPrompt ?? OplaBoardVisual.StepCaption(confirmStep))
+            : OplaBoardVisual.StepCaption(ActiveStepName);
+
+    private int CompletedCount => steps.Count(s => s.Phase == "result");
+
+    private string StatusPillClass =>
+        "hr-status-pill"
+        + (awaitingConfirm ? " is-confirm" : running ? " is-running" : connected ? " is-connected" : "");
+
+    private string StatusPillLabel =>
+        awaitingConfirm ? "Bekræft" : running ? "Tester" : connected ? "Forbundet" : "Klar";
 
     protected override async Task OnInitializedAsync()
     {
@@ -293,7 +353,6 @@ else
         catch (JSException ex)
         {
             ApplyFlashError(ex.Message);
-            // Behold awaitingBootloaderPort, så brugeren kan prøve knappen igen.
         }
         catch (Exception ex)
         {
@@ -356,7 +415,6 @@ else
             connected = true;
             message = "Forbundet. Venter på READY fra boardet…";
             StateHasChanged();
-            // Board resetter typisk ved connect; giv det tid, bed så om STATUS.
             await Task.Delay(1500);
             if (string.IsNullOrEmpty(samdId))
             {
@@ -410,8 +468,8 @@ else
             await Serial.WriteLineAsync("START");
             var ssid = EffectiveWifiSsid;
             message = string.IsNullOrEmpty(ssid)
-                ? "Test startet (WiFi springes over) — følg boardet og bekræft visuelle trin her."
-                : $"Test startet med WiFi «{ssid}» — følg boardet og bekræft visuelle trin her.";
+                ? "Test startet (WiFi springes over)."
+                : $"Test startet med WiFi «{ssid}».";
         }
         catch (Exception ex)
         {
@@ -424,7 +482,6 @@ else
     {
         var ssid = EffectiveWifiSsid ?? "";
         var password = wifiPreset == "none" ? "" : wifiPassword;
-        // Escape via JSON so passwords with quotes/newlines stay intact.
         var line = JsonSerializer.Serialize(new { v = 1, cmd = "wifi", ssid, password });
         await Serial.WriteLineAsync(line);
         wifiConfiguredOnBoard = string.IsNullOrEmpty(ssid) ? null : ssid;
@@ -557,7 +614,6 @@ else
         }
         catch (HttpRequestException ex)
         {
-            // Testen kan stadig gemmes senere — API opretter board ved behov.
             message = $"Board identificeret ({samdId}). Registrering afventer: {ex.Message}";
         }
     }
@@ -602,13 +658,12 @@ else
                 label = "Arduino Oplà",
                 tests
             };
-            // Upsert board (SAMD-ID) + gem test. API opretter også boardet, hvis registrering mangler.
             await Hardware.RegisterDeviceAsync(samdId, mac, string.IsNullOrWhiteSpace(eccSerial) || eccSerial == "-" ? null : eccSerial, "Arduino Oplà");
             await Hardware.SubmitTestAsync(samdId, failed == 0, passed, failed, report);
             savedSamdId = samdId;
             message = failed == 0
-                ? "Alle tests bestået — board registreret og rapport gemt i API."
-                : "Test færdig med fejl — board registreret og rapport gemt i API.";
+                ? "Alle tests bestået — board registreret og rapport gemt."
+                : "Test færdig med fejl — board registreret og rapport gemt.";
         }
         catch (HttpRequestException ex) { error = ex.Message; }
         catch (Exception ex) { error = $"Kunne ikke gemme rapport: {ex.Message}"; }
@@ -622,22 +677,30 @@ else
             StateHasChanged();
         });
 
-    private static string StepClass(StepState step) => step.Phase switch
+    private static string StepTileClass(StepState step) => step.Phase switch
     {
-        "result" when step.Skipped => "step-skip",
-        "result" when step.Ok == true => "step-pass",
-        "result" => "step-fail",
-        "awaiting_confirm" => "step-confirm",
-        _ => "step-active"
+        "result" when step.Skipped => "is-skip",
+        "result" when step.Ok == true => "is-pass",
+        "result" => "is-fail",
+        "awaiting_confirm" => "is-confirm",
+        "begin" => "is-active",
+        _ => "is-active"
     };
 
     private static string StepLabel(StepState step) => step.Phase switch
     {
-        "result" when step.Skipped => "Ikke testet",
+        "result" when step.Skipped => "Skip",
         "result" when step.Ok == true => "OK",
-        "result" => "FEJL",
-        "awaiting_confirm" => "Afventer bekræftelse",
-        _ => "Kører…"
+        "result" => "Fejl",
+        "awaiting_confirm" => "?",
+        _ => "…"
+    };
+
+    private static string ShortStepName(string name) => name switch
+    {
+        "Temp/Fugt" => "Temp",
+        "Knapper" => "Knap",
+        _ => name.Length <= 6 ? name : name[..5] + "…"
     };
 
     public async ValueTask DisposeAsync()

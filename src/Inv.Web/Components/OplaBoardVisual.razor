@@ -1,0 +1,221 @@
+@* Stiliseret Arduino Oplà / MKR IoT Carrier — highlighter aktivt testtrin *@
+<div class="opla @CssClass" role="img" aria-label="@AriaLabel">
+    <svg viewBox="0 0 320 320" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <defs>
+            <radialGradient id="opla-pcb" cx="50%" cy="45%" r="55%">
+                <stop offset="0%" stop-color="#2a5147" />
+                <stop offset="70%" stop-color="#143e36" />
+                <stop offset="100%" stop-color="#0c2924" />
+            </radialGradient>
+            <radialGradient id="opla-oled-bg" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stop-color="#1a2e2a" />
+                <stop offset="100%" stop-color="#0a1614" />
+            </radialGradient>
+            <filter id="opla-glow" x="-40%" y="-40%" width="180%" height="180%">
+                <feGaussianBlur stdDeviation="6" result="b" />
+                <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
+            </filter>
+        </defs>
+
+        @* Soft ambient *@
+        <circle class="opla-aura" cx="160" cy="160" r="148" fill="none" stroke="#c2842a" stroke-width="1.5" opacity=".25" />
+
+        @* Carrier PCB *@
+        <circle cx="160" cy="160" r="132" fill="url(#opla-pcb)" stroke="#3d6b5f" stroke-width="3" />
+        <circle cx="160" cy="160" r="118" fill="none" stroke="#1f4a40" stroke-width="8" opacity=".55" />
+
+        @* Screw holes *@
+        <circle cx="72" cy="72" r="5" fill="#0c2924" stroke="#507263" stroke-width="1.5" />
+        <circle cx="248" cy="72" r="5" fill="#0c2924" stroke="#507263" stroke-width="1.5" />
+        <circle cx="72" cy="248" r="5" fill="#0c2924" stroke="#507263" stroke-width="1.5" />
+        <circle cx="248" cy="248" r="5" fill="#0c2924" stroke="#507263" stroke-width="1.5" />
+
+        @* Relays *@
+        <g class="opla-relay">
+            <rect x="48" y="138" width="28" height="44" rx="4" fill="#245348" stroke="#6aa88f" stroke-width="1.5" />
+            <rect x="54" y="146" width="16" height="10" rx="1" fill="#c2842a" class="opla-relay-coil" />
+            <rect x="54" y="164" width="16" height="10" rx="1" fill="#c2842a" class="opla-relay-coil" />
+            <text x="62" y="198" text-anchor="middle" fill="#b9d0c8" font-size="8" font-family="Segoe UI, sans-serif">RELAY</text>
+        </g>
+
+        @* SD slot *@
+        <g class="opla-sd">
+            <rect x="244" y="148" width="26" height="34" rx="3" fill="#0c2924" stroke="#9baa9e" stroke-width="1.5" />
+            <rect x="248" y="154" width="18" height="22" rx="1" fill="#2a5147" />
+            <text x="257" y="200" text-anchor="middle" fill="#b9d0c8" font-size="8" font-family="Segoe UI, sans-serif">SD</text>
+        </g>
+
+        @* WiFi arcs *@
+        <g class="opla-wifi" transform="translate(160 52)">
+            <path class="opla-wifi-arc a1" d="M-18 8 A20 20 0 0 1 18 8" fill="none" stroke="#7ec8b0" stroke-width="2.5" stroke-linecap="round" />
+            <path class="opla-wifi-arc a2" d="M-28 0 A32 32 0 0 1 28 0" fill="none" stroke="#7ec8b0" stroke-width="2.5" stroke-linecap="round" />
+            <path class="opla-wifi-arc a3" d="M-38 -8 A44 44 0 0 1 38 -8" fill="none" stroke="#7ec8b0" stroke-width="2.5" stroke-linecap="round" />
+            <circle cx="0" cy="14" r="4" fill="#7ec8b0" />
+        </g>
+
+        @* Buzzer *@
+        <g class="opla-buzzer" transform="translate(160 268)">
+            <circle cx="0" cy="0" r="14" fill="#1f4a40" stroke="#6aa88f" stroke-width="1.5" />
+            <circle cx="0" cy="0" r="6" fill="#0c2924" />
+            <path class="opla-sound s1" d="M16 -6 A12 12 0 0 1 16 6" fill="none" stroke="#c2842a" stroke-width="2" stroke-linecap="round" />
+            <path class="opla-sound s2" d="M24 -12 A20 20 0 0 1 24 12" fill="none" stroke="#c2842a" stroke-width="2" stroke-linecap="round" />
+        </g>
+
+        @* Sensors cluster *@
+        <g class="opla-sensors" transform="translate(98 98)">
+            <circle class="opla-sensor temp" cx="0" cy="0" r="10" fill="#245348" stroke="#7ec8b0" stroke-width="1.5" />
+            <text x="0" y="3" text-anchor="middle" fill="#d7e1d3" font-size="7" font-family="Segoe UI, sans-serif">T°</text>
+        </g>
+        <g class="opla-sensors" transform="translate(222 98)">
+            <circle class="opla-sensor pressure" cx="0" cy="0" r="10" fill="#245348" stroke="#7ec8b0" stroke-width="1.5" />
+            <text x="0" y="3" text-anchor="middle" fill="#d7e1d3" font-size="7" font-family="Segoe UI, sans-serif">hPa</text>
+        </g>
+        <g class="opla-sensors" transform="translate(98 222)">
+            <circle class="opla-sensor imu" cx="0" cy="0" r="10" fill="#245348" stroke="#7ec8b0" stroke-width="1.5" />
+            <text x="0" y="3" text-anchor="middle" fill="#d7e1d3" font-size="7" font-family="Segoe UI, sans-serif">IMU</text>
+        </g>
+
+        @* Touch buttons (5 around ring) *@
+        <g class="opla-buttons">
+            @foreach (var b in Buttons)
+            {
+                <g class="opla-btn" transform="translate(@b.X.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) @b.Y.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture))">
+                    <circle r="14" fill="#0c2924" stroke="#9baa9e" stroke-width="2" class="opla-btn-pad" />
+                    <circle r="5" fill="#507263" class="opla-btn-dot" />
+                </g>
+            }
+        </g>
+
+        @* LED ring *@
+        <g class="opla-leds">
+            @for (var i = 0; i < 20; i++)
+            {
+                var angle = (i / 20.0) * Math.PI * 2 - Math.PI / 2;
+                var lx = 160 + Math.Cos(angle) * 78;
+                var ly = 160 + Math.Sin(angle) * 78;
+                <circle class="opla-led" cx="@lx.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)"
+                        cy="@ly.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)"
+                        r="3.5" fill="#2b7853" style="@($"--i:{i}")" />
+            }
+        </g>
+
+        @* OLED *@
+        <g class="opla-oled">
+            <circle cx="160" cy="160" r="58" fill="#0a1614" stroke="#3d6b5f" stroke-width="4" />
+            <circle cx="160" cy="160" r="52" fill="url(#opla-oled-bg)" class="opla-oled-face" filter="url(#opla-glow)" />
+            <text class="opla-oled-text" x="160" y="155" text-anchor="middle" fill="#7ec8b0"
+                  font-size="11" font-family="Segoe UI, sans-serif" font-weight="600">@OledLine1</text>
+            <text class="opla-oled-text oled-sub" x="160" y="172" text-anchor="middle" fill="#b9d0c8"
+                  font-size="9" font-family="Segoe UI, sans-serif">@OledLine2</text>
+        </g>
+
+        @* USB tip *@
+        <rect x="148" y="288" width="24" height="18" rx="2" fill="#9baa9e" />
+        <rect x="152" y="292" width="16" height="8" rx="1" fill="#172d2b" />
+    </svg>
+    <p class="opla-caption">@Caption</p>
+</div>
+
+@code {
+    [Parameter] public string? ActiveStep { get; set; }
+    [Parameter] public string Phase { get; set; } = "idle";
+    [Parameter] public bool Connected { get; set; }
+    [Parameter] public bool Running { get; set; }
+    [Parameter] public bool AwaitingConfirm { get; set; }
+
+    private static readonly (double X, double Y)[] Buttons =
+    [
+        ButtonAt(-90), ButtonAt(-18), ButtonAt(54), ButtonAt(126), ButtonAt(198)
+    ];
+
+    private static (double X, double Y) ButtonAt(double deg)
+    {
+        var rad = deg * Math.PI / 180;
+        return (160 + Math.Cos(rad) * 108, 160 + Math.Sin(rad) * 108);
+    }
+
+    private string ModeKey => (ActiveStep ?? "").ToLowerInvariant() switch
+    {
+        "oled" => "oled",
+        "temp/fugt" => "temp",
+        "tryk" => "pressure",
+        "imu" => "imu",
+        "sd" => "sd",
+        "relay" => "relay",
+        "knapper" => "knapper",
+        "led" => "led",
+        "buzzer" => "buzzer",
+        "wifi" => "wifi",
+        _ => Running ? "run" : Connected ? "ready" : "idle"
+    };
+
+    private string CssClass
+    {
+        get
+        {
+            var mode = $"opla-mode-{ModeKey}";
+            if (AwaitingConfirm) mode += " opla-confirm";
+            if (Connected) mode += " opla-connected";
+            if (Running) mode += " opla-running";
+            return mode;
+        }
+    }
+
+    private string AriaLabel => AwaitingConfirm
+        ? $"Bekræft {ActiveStep} på boardet"
+        : string.IsNullOrEmpty(ActiveStep)
+            ? (Connected ? "Oplà klar" : "Oplà venter")
+            : $"Tester {ActiveStep}";
+
+    private string OledLine1 => AwaitingConfirm
+        ? "BEKRÆFT"
+        : ModeKey switch
+        {
+            "oled" => "OLED",
+            "led" => "LED",
+            "knapper" => "TRYK",
+            "relay" => "RELAY",
+            "wifi" => "WiFi…",
+            "temp" => "TEMP",
+            "pressure" => "TRYK",
+            "imu" => "IMU",
+            "sd" => "SD",
+            "buzzer" => "BZZ",
+            "ready" => "KLAR",
+            "run" => "TEST",
+            _ => "OPLÀ"
+        };
+
+    private string OledLine2 => AwaitingConfirm
+        ? (ActiveStep ?? "")
+        : ModeKey switch
+        {
+            "ready" => "Start test",
+            "idle" => "USB",
+            "wifi" => "forbinder",
+            "knapper" => "alle 5",
+            "oled" or "led" or "relay" or "buzzer" => "se board",
+            _ => Running ? "kører" : "inventar"
+        };
+
+    private string Caption => AwaitingConfirm
+        ? $"Ser {ActiveStep} korrekt ud på det fysiske board?"
+        : string.IsNullOrEmpty(ActiveStep)
+            ? (Connected ? "Board forbundet — klar til test" : "Forbind boardet via USB")
+            : StepCaption(ActiveStep);
+
+    public static string StepCaption(string? name) => name switch
+    {
+        "OLED" => "Displayet viser farver og mønstre — kig på den runde skærm.",
+        "Temp/Fugt" => "Temperatur- og fugtsensoren måler automatisk.",
+        "Tryk" => "Barometeret aflæses automatisk.",
+        "IMU" => "Gyro/accelerometer — lad boardet ligge stille.",
+        "SD" => "SD-kortet testes med læs/skriv.",
+        "Relay" => "Lyt efter to tydelige klik fra relæerne.",
+        "Knapper" => "Tryk på alle 5 touch-knapper rundt om skærmen.",
+        "LED" => "LED-ringen skal lyse i skiftende farver.",
+        "Buzzer" => "Buzzeren bipper (kan være slået fra).",
+        "WiFi" => "Boardet forbinder til det valgte WiFi.",
+        _ => "Følg det fysiske board."
+    };
+}
