@@ -120,9 +120,12 @@ export async function completeFlash(dotnetHelper) {
         await flasher.writeFirmware(bin, FLASH_OFFSET);
         await flasher.verifyFirmware(bin, FLASH_OFFSET);
         await flasher.resetDevice();
-        await log('Firmware installeret. Vent et øjeblik, og tryk derefter Forbind board.');
-    } finally {
         pendingBin = null;
+        await log('Firmware installeret. Vent et øjeblik, og tryk derefter Forbind board.');
+    } catch (err) {
+        // Behold pendingBin, så «Vælg bootloader-port» kan prøves igen uden ny prepare.
+        throw err;
+    } finally {
         await flasher.close();
     }
 }

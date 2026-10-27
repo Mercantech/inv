@@ -1,10 +1,15 @@
-// Adapted from Vail-CW/vail-adapter online-updater/samba-flasher.js (MIT).
-// WebSerial SAM-BA / BOSSA flasher for SAMD21 (Arduino MKR WiFi 1010 uses offset 0x2000).
-// Importeres af firmware-flash.js — nginx sender Cache-Control: no-cache for disse scripts.
+// Adapted from Vail-CW/vail-adapter + Arduino BOSSA SAM-BA (MIT).
+// WebSerial flasher for SAMD21 (MKR WiFi 1010 / Oplà). Flash offset 0x2000.
+//
+// Vigtigt (BOSSA/Chromium):
+// - S-kommando og binær payload må IKKE lande i samme USB-pakke → pause efter S#.
+// - Chromium kan splitte writes ved buffer-grænser → små chunks + stort bufferSize.
 
 const FLASH_APP_ADDR = 0x2000;
-const SRAM_BUFFER = 0x20004000;
-const CHUNK = 0x1000;
+/** Arduino bossac staging-buffer for SAMD21 (ikke 0x20004000). */
+const SRAM_BUFFER = 0x20005000;
+/** 256 bytes = én flash-row; mere pålideligt over Web Serial end 4 KiB. */
+const CHUNK = 0x100;
 const AIRCR = 0xE000ED0C;
 const AIRCR_RESET = 0x05FA0004;
 
@@ -30,6 +35,8 @@ function crc16(data) {
     return crc;
 }
 
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
 export class SAMBAFlasher {
     constructor({ log, progress, chunkSize } = {}) {
         this.log = log || (() => {});
@@ -44,7 +51,8 @@ export class SAMBAFlasher {
 
     async open(port, baudRate = 115200) {
         this.port = port;
-        await port.open({ baudRate });
+        // Stort bufferSize reducerer Chromiums tendens til at splitte writes midt i en chunk.
+        await port.open({ baudRate, bufferSize: 16 * 1024 });
         this.writer = port.writable.getWriter();
         this.reader = port.readable.getReader();
         this.rx = '';
@@ -72,8 +80,15 @@ export class SAMBAFlasher {
         this.reader = this.writer = this.port = null;
     }
 
-    async _sendStr(s) { await this.writer.write(new TextEncoder().encode(s)); }
-    async _sendBytes(u8) { await this.writer.write(u8); }
+    async _sendStr(s) {
+        await this.writer.write(new TextEncoder().encode(s));
+    }
+
+    async _sendBytes(u8) {
+        // Eksplicit kopi — undgå SharedArrayBuffer/subarray-kanttilfælde i Chromium.
+        const copy = u8 instanceof Uint8Array ? u8.slice() : new Uint8Array(u8);
+        await this.writer.write(copy);
+    }
 
     async _waitFor(token, timeoutMs = 5000) {
         const deadline = Date.now() + timeoutMs;
@@ -84,9 +99,23 @@ export class SAMBAFlasher {
                 this.rx = this.rx.slice(idx + token.length);
                 return out;
             }
-            await new Promise((r) => setTimeout(r, 15));
+            await sleep(10);
         }
-        throw new Error(`Timeout i bootloader-svar (ventede "${token.replace(/[\r\n]/g, '?')}")`);
+        const tail = this.rx.slice(-40).replace(/[\r\n]/g, '·');
+        throw new Error(
+            `Timeout i bootloader-svar (ventede "${token.replace(/[\r\n]/g, '?')}"` +
+            `${tail ? `, rx="…${tail}"` : ', tom rx'})`);
+    }
+
+    async _expectY(timeoutMs) {
+        // BOSSA forventer "Y\n\r" — match på Y er nok; ryd rest af linjen.
+        await this._waitFor('Y', timeoutMs);
+        const nl = this.rx.search(/[\n\r]/);
+        if (nl !== -1) {
+            let i = nl;
+            while (i < this.rx.length && (this.rx[i] === '\n' || this.rx[i] === '\r')) i++;
+            this.rx = this.rx.slice(i);
+        }
     }
 
     async connect() {
@@ -98,11 +127,11 @@ export class SAMBAFlasher {
         for (let attempt = 1; attempt <= 5 && !version; attempt++) {
             this.rx = '';
             await this._sendStr('N#');
-            await new Promise((r) => setTimeout(r, 120));
+            await sleep(120);
             await this._sendStr('V#');
             try {
                 const line = await this._waitFor('\n', 1200);
-                await new Promise((r) => setTimeout(r, 150));
+                await sleep(150);
                 version = (line + this.rx).replace(/\0/g, '').replace(/[\r\n]/g, ' ').trim();
             } catch {
                 this.log(`Ingen bootloader-svar endnu (${attempt}/5)…`);
@@ -120,23 +149,52 @@ export class SAMBAFlasher {
         this.log('Sletter applikationsflash…');
         this.rx = '';
         await this._sendStr(`X${hex8(FLASH_APP_ADDR)}#`);
-        await this._waitFor('X', 15000);
+        await this._waitFor('X', 20000);
+        this.rx = '';
+        // Bootloader er travl efter chip-erase.
+        await sleep(300);
         this.log('Sletning færdig.');
     }
 
+    /**
+     * Stage chunk i SRAM (S#) derefter Y-copy til flash.
+     * Pause efter S# er påkrævet (SAM firmware USB packet bug / BOSSA flush).
+     */
     async writeFirmware(bin, startAddr = FLASH_APP_ADDR) {
         const total = bin.length;
         let offset = 0;
+        this.log(`Skriver ${total} bytes i ${this.chunkSize}-byte bidder…`);
+
         while (offset < total) {
             const size = Math.min(this.chunkSize, total - offset);
             const chunk = bin.subarray(offset, offset + size);
+            this.rx = '';
+
             await this._sendStr(`S${hex8(SRAM_BUFFER)},${hex8(size)}#`);
-            await new Promise((r) => setTimeout(r, 15));
+            // Flush-ækvivalent: undgå at S# og payload kombineres i samme USB-pakke.
+            await sleep(40);
             await this._sendBytes(chunk);
-            await this._sendStr(`Y${hex8(SRAM_BUFFER)},0#`);
-            await this._waitFor('Y', 5000);
+            // Vent til USB CDC har sendt payload, før næste kommando.
+            await sleep(20);
+
+            let staged = false;
+            for (let attempt = 1; attempt <= 3 && !staged; attempt++) {
+                this.rx = '';
+                await this._sendStr(`Y${hex8(SRAM_BUFFER)},0#`);
+                try {
+                    await this._expectY(4000);
+                    staged = true;
+                } catch (err) {
+                    if (attempt === 3) throw err;
+                    this.log(`SRAM-stage timeout — prøver igen (${attempt}/3)…`);
+                    await sleep(50);
+                }
+            }
+
+            this.rx = '';
             await this._sendStr(`Y${hex8(startAddr + offset)},${hex8(size)}#`);
-            await this._waitFor('Y', 8000);
+            await this._expectY(10000);
+
             offset += size;
             this.progress(offset, total);
         }
@@ -152,7 +210,7 @@ export class SAMBAFlasher {
                 this.rx = this.rx.slice(count);
                 return out;
             }
-            await new Promise((r) => setTimeout(r, 15));
+            await sleep(10);
         }
         throw new Error(`Timeout ved læsning af ${count} bytes`);
     }
