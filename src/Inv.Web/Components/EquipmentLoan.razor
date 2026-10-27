@@ -4,41 +4,39 @@
 @using Inv.Web.Services
 @inject LoanClient Loans
 
-<section class="hardware-section" aria-label="Udlån">
-    <h2>Udlån</h2>
+<div class="hardware-section" aria-label="Udlånsstatus">
     @if (loading)
     {
-        <p role="status">Henter udlånsstatus…</p>
+        <p role="status">Henter udlån…</p>
     }
     else if (loadError is not null)
     {
         <p role="alert">@loadError</p>
-        <button type="button" @onclick="LoadAsync">Prøv igen</button>
+        <button type="button" class="button button-secondary" @onclick="LoadAsync">Prøv igen</button>
     }
     else if (loan is not null)
     {
-        <p role="status"><strong>Udlånt</strong></p>
-        <dl>
+        <p role="status"><span class="eq-chip eq-chip-loan-out">Udlånt</span></p>
+        <dl class="eq-facts" style="margin-top:1rem">
             <dt>Låner</dt><dd>@BorrowerName(loan.BorrowerSubject)</dd>
-            <dt>Udlånt (UTC)</dt><dd>@loan.LoanedAt.UtcDateTime.ToString("dd-MM-yyyy HH:mm")</dd>
-            <dt>Godkendt af (bruger-ID)</dt><dd>@loan.ApprovedBySubject</dd>
+            <dt>Udlånt</dt><dd>@loan.LoanedAt.UtcDateTime.ToString("dd-MM-yyyy HH:mm") UTC</dd>
+            <dt>Godkendt af</dt><dd><code>@loan.ApprovedBySubject</code></dd>
             @if (loan.Note is not null) { <dt>Note</dt><dd class="loan-note">@loan.Note</dd> }
         </dl>
     }
     else
     {
-        <p role="status"><strong>Ledigt</strong></p>
+        <p role="status"><span class="eq-chip eq-chip-loan-free">Ledigt</span></p>
         @if (!showForm)
         {
-            <button type="button" class="button" @onclick="OpenFormAsync">Udlån udstyr</button>
+            <p style="margin-top:1rem"><button type="button" class="button" @onclick="OpenFormAsync">Udlån</button></p>
         }
         else
         {
-            <form class="loan-form" @onsubmit="SaveAsync" @onsubmit:preventDefault>
+            <form class="loan-form" style="margin-top:1rem" @onsubmit="SaveAsync" @onsubmit:preventDefault>
                 <fieldset disabled="@(saving || directoryLoading)">
                     <legend>Registrér udlån</legend>
-                    <p>Vælg en låner fra Mercantec Auth. Låneren behøver ikke have brugt udstyrssystemet før.</p>
-                    <label for="borrower-search">Søg på navn, e-mail eller bruger-ID</label>
+                    <label for="borrower-search">Søg låner</label>
                     <input id="borrower-search" type="search" @bind="search" @bind:event="oninput" />
                     <label for="borrower">Låner</label>
                     <select id="borrower" @bind="borrowerSubject" required>
@@ -50,23 +48,23 @@
                             </option>
                         }
                     </select>
-                    @if (borrowers.Count > 0 && !VisibleBorrowers.Any()) { <p>Ingen lånere matcher søgningen.</p> }
+                    @if (borrowers.Count > 0 && !VisibleBorrowers.Any()) { <p>Ingen matcher søgningen.</p> }
                     <label for="loan-note">Note (valgfri)</label>
                     <textarea id="loan-note" @bind="note" maxlength="4000" rows="3"></textarea>
-                    <button type="submit" class="button" disabled="@(borrowers.Count == 0 || directoryError is not null)">@(saving ? "Gemmer…" : "Registrér udlån")</button>
-                    <button type="button" @onclick="CloseForm">Annuller</button>
+                    <button type="submit" class="button" disabled="@(borrowers.Count == 0 || directoryError is not null)">@(saving ? "Gemmer…" : "Registrér")</button>
+                    <button type="button" class="button button-secondary" @onclick="CloseForm">Annuller</button>
                 </fieldset>
             </form>
         }
     }
-    @if (directoryLoading) { <p role="status">Henter lånere fra Mercantec Auth…</p> }
+    @if (directoryLoading) { <p role="status">Henter lånere…</p> }
     @if (directoryError is not null)
     {
         <p role="alert">@directoryError</p>
-        <button type="button" disabled="@(directoryLoading || saving)" @onclick="LoadBorrowersAsync">Hent lånere igen</button>
+        <button type="button" class="button button-secondary" disabled="@(directoryLoading || saving)" @onclick="LoadBorrowersAsync">Hent igen</button>
     }
     @if (saveError is not null) { <p role="alert">@saveError</p> }
-</section>
+</div>
 
 @code {
     [Parameter] public Guid EquipmentId { get; set; }

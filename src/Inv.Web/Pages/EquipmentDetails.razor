@@ -6,56 +6,93 @@
 @using Inv.Web.Components
 @inject EquipmentClient Equipment
 
-<PageTitle>Udstyrsdetaljer · Udstyrsinventar</PageTitle>
+<PageTitle>@(equipment?.Name ?? "Udstyr") · Udstyrsinventar</PageTitle>
+<HeadContent>
+    <link rel="stylesheet" href="css/equipment.css?v=2" />
+</HeadContent>
 
-<section class="page-intro">
-    <h1>Udstyrsdetaljer</h1>
-</section>
+<div class="eq-page">
+    <a class="eq-back" href="/udstyr">← Udstyr</a>
 
-@if (loading)
-{
-    <p role="status">Henter udstyr…</p>
-}
-else if (!string.IsNullOrWhiteSpace(error))
-{
-    <p role="alert">@error</p>
-}
-else if (equipment is null)
-{
-    <p>Udstyret blev ikke fundet.</p>
-}
-else
-{
-    <h2>@equipment.Name</h2>
-    <a class="button" href="@($"/udstyr/{Id}/rediger")">Rediger udstyr</a>
+    @if (loading)
+    {
+        <div class="eq-loading" role="status" aria-label="Henter udstyr">
+            <div class="eq-skeleton" style="height:7rem"></div>
+            <div class="eq-skeleton"></div>
+            <div class="eq-skeleton"></div>
+        </div>
+    }
+    else if (!string.IsNullOrWhiteSpace(error))
+    {
+        <div class="eq-state" role="alert">
+            <strong>Kunne ikke hente udstyr</strong>
+            <p>@error</p>
+            <a class="button" href="/udstyr">Til oversigt</a>
+        </div>
+    }
+    else if (equipment is null)
+    {
+        <div class="eq-empty" role="status">
+            <strong>Ikke fundet</strong>
+            <p>Udstyret findes ikke, eller du mangler adgang.</p>
+            <p><a class="button" href="/udstyr">Til oversigt</a></p>
+        </div>
+    }
+    else
+    {
+        <header class="eq-detail-hero">
+            <span class="eq-id">#@equipment.ShortId</span>
+            <div>
+                <p class="eyebrow">@equipment.CategoryName</p>
+                <h1>@equipment.Name</h1>
+                <p class="eq-detail-sub">
+                    <span>@equipment.SerialNumber</span>
+                </p>
+                <div class="eq-badges">
+                    <span class="eq-chip eq-chip-cond-@ConditionClass(equipment.Condition)">@GetConditionName(equipment.Condition)</span>
+                    <span class="eq-chip @(equipment.IsLoaned ? "eq-chip-loan-out" : "eq-chip-loan-free")">
+                        @(equipment.IsLoaned ? "Udlånt" : "Ledigt")
+                    </span>
+                </div>
+            </div>
+            <div class="eq-detail-actions">
+                <a class="button" href="@($"/udstyr/{Id}/rediger")">Rediger</a>
+            </div>
+        </header>
 
-    <dl>
-        <dt>Kort ID</dt>
-        <dd>#@equipment.ShortId</dd>
+        <div class="eq-detail-grid">
+            <div class="eq-stack">
+                <section class="eq-panel" aria-label="Stamdata">
+                    <h2>Stamdata</h2>
+                    <dl class="eq-facts">
+                        <dt>Kort ID</dt>
+                        <dd>#@equipment.ShortId</dd>
+                        <dt>Serienummer</dt>
+                        <dd>@equipment.SerialNumber</dd>
+                        <dt>Kategori</dt>
+                        <dd>@equipment.CategoryName</dd>
+                        <dt>Tilstand</dt>
+                        <dd>@GetConditionName(equipment.Condition)</dd>
+                        <dt>Oprettet</dt>
+                        <dd>@equipment.CreatedAt.UtcDateTime.ToString("dd-MM-yyyy HH:mm") UTC</dd>
+                        <dt>Ændret</dt>
+                        <dd>@equipment.UpdatedAt.UtcDateTime.ToString("dd-MM-yyyy HH:mm") UTC</dd>
+                    </dl>
+                </section>
 
-        <dt>Serienummer</dt>
-        <dd>@equipment.SerialNumber</dd>
+                <section class="eq-panel" aria-label="Udlån">
+                    <h2>Udlån</h2>
+                    <EquipmentLoan EquipmentId="Id" @key="Id" />
+                </section>
+            </div>
 
-        <dt>Kategori</dt>
-        <dd>@equipment.CategoryName</dd>
-
-        <dt>Tilstand</dt>
-        <dd>@GetConditionName(equipment.Condition)</dd>
-
-        <dt>ID</dt>
-        <dd>@equipment.Id</dd>
-
-        <dt>Oprettet (UTC)</dt>
-        <dd>@equipment.CreatedAt.UtcDateTime.ToString("dd-MM-yyyy HH:mm")</dd>
-
-        <dt>Senest ændret (UTC)</dt>
-        <dd>@equipment.UpdatedAt.UtcDateTime.ToString("dd-MM-yyyy HH:mm")</dd>
-    </dl>
-    <EquipmentLoan EquipmentId="Id" @key="Id" />
-    <EquipmentHardware EquipmentId="Id" />
-}
-
-<a href="/udstyr">Til udstyrsoversigten</a>
+            <section class="eq-panel" aria-label="Hardwaretest">
+                <h2>Hardwaretest</h2>
+                <EquipmentHardware EquipmentId="Id" />
+            </section>
+        </div>
+    }
+</div>
 
 @code {
     [Parameter]
@@ -79,26 +116,26 @@ else
         {
             error = exception.StatusCode switch
             {
-                HttpStatusCode.Unauthorized =>
-                    "Dit login er udløbet. Log ind igen.",
-                HttpStatusCode.Forbidden =>
-                    "Du mangler rettigheden til at se udstyret.",
-                _ => "Udstyret kunne ikke hentes. Prøv igen senere."
+                HttpStatusCode.Unauthorized => "Login er udløbet. Log ind igen.",
+                HttpStatusCode.Forbidden => "Du mangler rettighed til at se udstyret.",
+                _ => "Udstyret kunne ikke hentes. Prøv igen."
             };
         }
         catch (JSException)
         {
-            error = "Forespørgslen kunne ikke gennemføres. Kontrollér forbindelsen og dit login.";
+            error = "Forespørgslen fejlede. Tjek forbindelse og login.";
         }
         catch (JsonException)
         {
-            error = "API'et returnerede ugyldige udstyrsoplysninger.";
+            error = "Ugyldigt svar fra API.";
         }
         finally
         {
             loading = false;
         }
     }
+
+    private static int ConditionClass(int condition) => condition is >= 0 and <= 4 ? condition : 0;
 
     private static string GetConditionName(int condition) => condition switch
     {
