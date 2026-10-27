@@ -10,21 +10,20 @@
 
 <PageTitle>Kør hardwaretest · Udstyrsinventar</PageTitle>
 <HeadContent>
-    <link rel="stylesheet" href="css/hardware-run.css?v=2" />
+    <link rel="stylesheet" href="css/hardware-run.css?v=3" />
 </HeadContent>
 
 <div class="hr-page">
-    <header class="hr-hero">
+    <header class="hr-hero hr-hero-compact">
         <div class="hr-hero-copy">
             <p class="eyebrow">Arduino Oplà</p>
             <h1>Hardwarelab</h1>
-            <p>Se boardet her, mens testen kører på det fysiske Oplà. Bekræft visuelle trin, og rapporten lander automatisk i inventaret.</p>
         </div>
     </header>
 
     @if (!supported)
     {
-        <p role="alert" class="hardware-error hr-msg">Web Serial understøttes ikke i denne browser. Brug Chrome eller Edge på en computer med USB.</p>
+        <p role="alert" class="hardware-error hr-msg">Kræver Chrome eller Edge med USB (Web Serial).</p>
     }
     else
     {
@@ -56,10 +55,10 @@
                 @if (awaitingConfirm)
                 {
                     <div class="hr-guide" role="alertdialog" aria-labelledby="confirm-title">
-                        <h2 id="confirm-title">Ser det rigtigt ud?</h2>
+                        <h2 id="confirm-title">@(confirmStep ?? "Bekræft")</h2>
                         <p>@(confirmPrompt ?? OplaBoardVisual.StepCaption(confirmStep))</p>
                         <div class="hr-guide-actions">
-                            <button class="button" @onclick='() => ReplyAsync("OK")' disabled="@busy">OK — virker</button>
+                            <button class="button" @onclick='() => ReplyAsync("OK")' disabled="@busy">OK</button>
                             <button class="button button-danger" @onclick='() => ReplyAsync("FAIL")' disabled="@busy">FEJL</button>
                         </div>
                     </div>
@@ -67,7 +66,6 @@
 
                 <div class="hr-card">
                     <h2>Forbindelse</h2>
-                    <p>Flash firmwaren første gang, forbind boardet, og start testen.</p>
                     <div class="hr-actions">
                         @if (!awaitingBootloaderPort)
                         {
@@ -80,25 +78,19 @@
                         }
                         @if (!connected)
                         {
-                            <button class="button button-secondary" @onclick="ConnectAsync" disabled="@(busy || flashing || awaitingBootloaderPort)">Forbind board</button>
+                            <button class="button button-secondary" @onclick="ConnectAsync" disabled="@(busy || flashing || awaitingBootloaderPort)">Forbind</button>
                         }
                         else
                         {
-                            <button class="button" @onclick="StartAsync" disabled="@(busy || running || awaitingConfirm || flashing || awaitingBootloaderPort)">Start test</button>
+                            <button class="button" @onclick="StartAsync" disabled="@(busy || running || awaitingConfirm || flashing || awaitingBootloaderPort)">Start</button>
                             <button class="button button-secondary" @onclick="AbortAsync" disabled="@(!running && !awaitingConfirm)">Afbryd</button>
-                            <button class="button button-secondary" @onclick="DisconnectAsync" disabled="@(busy || flashing || awaitingBootloaderPort)">Afbryd USB</button>
+                            <button class="button button-secondary" @onclick="DisconnectAsync" disabled="@(busy || flashing || awaitingBootloaderPort)">USB fra</button>
                         }
                     </div>
-                    <p class="hardware-flash-hint" style="margin:.75rem 0 0;max-width:none">
-                        @if (awaitingBootloaderPort)
-                        {
-                            <text>Boardet er i bootloader. Tryk «Vælg bootloader-port» (browseren kræver et nyt klik). Dobbelttryk Reset hvis COM mangler.</text>
-                        }
-                        else
-                        {
-                            <text>Firmware: to klik (port → bootloader-port). Opdatér firmwaren hvis WiFi-trinnet mangler.</text>
-                        }
-                    </p>
+                    @if (awaitingBootloaderPort)
+                    {
+                        <p class="hardware-flash-hint" style="margin:.75rem 0 0;max-width:none">Vælg bootloader-port nu. Dobbelttryk Reset hvis COM mangler.</p>
+                    }
                     @if (flashing || flashPercent is not null || awaitingBootloaderPort)
                     {
                         <div class="hr-flash" role="status">
@@ -109,8 +101,7 @@
                 </div>
 
                 <div class="hr-card">
-                    <h2>WiFi til test</h2>
-                    <p>Sendes til boardet lige før start. Uden SSID springes WiFi over.</p>
+                    <h2>WiFi</h2>
                     <div class="hr-wifi-fields">
                         <label>
                             Netværk
@@ -171,7 +162,7 @@
                 @if (message is not null) { <p role="status" class="hr-msg">@message</p> }
                 @if (savedSamdId is not null)
                 {
-                    <p role="status" class="hr-msg">Rapport gemt. <a href="@($"/hardware/{savedSamdId}")">Se boardhistorik</a></p>
+                    <p role="status" class="hr-msg"><a href="@($"/hardware/{savedSamdId}")">Se rapport</a></p>
                 }
             </aside>
         </div>
@@ -339,7 +330,7 @@
             await Serial.PrepareFlashAsync();
             awaitingBootloaderPort = true;
             flashStatus = "Klar til bootloader-port";
-            message = "Tryk «Vælg bootloader-port» for at fortsætte (kræves af browseren).";
+            message = "Vælg bootloader-port.";
         }
         catch (JSException ex)
         {
@@ -367,7 +358,7 @@
         {
             await Serial.CompleteFlashAsync();
             awaitingBootloaderPort = false;
-            message = "Firmware installeret. Tryk Forbind board for at køre test.";
+            message = "Firmware OK — forbind boardet.";
             flashStatus = "Færdig";
             flashPercent = 100;
         }
@@ -392,7 +383,7 @@
         flashing = false;
         flashStatus = null;
         flashPercent = null;
-        message = "Firmware-installation annulleret.";
+        message = "Flash annulleret.";
         error = null;
     }
 
@@ -434,7 +425,7 @@
         {
             await Serial.ConnectAsync();
             connected = true;
-            message = "Forbundet. Venter på READY fra boardet…";
+            message = "Forbundet — venter på board…";
             StateHasChanged();
             await Task.Delay(1500);
             if (string.IsNullOrEmpty(samdId))
@@ -445,11 +436,11 @@
             }
             if (string.IsNullOrEmpty(samdId))
             {
-                message = "Ingen READY endnu. Flash den nye host-styrede firmware, tryk Reset på boardet, eller vælg den rigtige COM-port.";
+                message = "Ingen READY. Flash firmware, tryk Reset, eller vælg anden COM.";
             }
             else
             {
-                message = "Boardet er klar. Tryk Start test.";
+                message = "Klar — tryk Start.";
             }
         }
         catch (JSException ex)
@@ -470,7 +461,7 @@
         {
             await Serial.DisconnectAsync();
             connected = running = awaitingConfirm = false;
-            message = "Forbindelsen er afbrudt.";
+            message = "USB afbrudt.";
         }
         catch (Exception ex) { error = ex.Message; }
         finally { busy = false; }
@@ -489,9 +480,7 @@
             await SendWifiConfigAsync();
             await Serial.WriteLineAsync("START");
             var ssid = EffectiveWifiSsid;
-            message = string.IsNullOrEmpty(ssid)
-                ? "Test startet (WiFi springes over)."
-                : $"Test startet med WiFi «{ssid}».";
+            message = string.IsNullOrEmpty(ssid) ? "Test startet." : $"Test startet · {ssid}";
         }
         catch (Exception ex)
         {
@@ -515,7 +504,7 @@
         try { await Serial.WriteLineAsync("ABORT"); }
         catch (Exception ex) { error = ex.Message; }
         awaitingConfirm = false;
-        message = "Afbrydelse sendt.";
+        message = "Afbrudt.";
     }
 
     private async Task ReplyAsync(string reply)
@@ -547,7 +536,7 @@
                     case "ready":
                         running = false;
                         awaitingConfirm = false;
-                        message ??= "Boardet er klar.";
+                        message ??= "Klar.";
                         break;
                     case "ids":
                         samdId = root.GetProperty("samd_id").GetString();
@@ -699,11 +688,11 @@
                 mac,
                 string.IsNullOrWhiteSpace(eccSerial) || eccSerial == "-" ? null : eccSerial,
                 "Arduino Oplà");
-            message = $"Board {samdId} er registreret (eller fandtes allerede).";
+            message = $"Registreret: {samdId}";
         }
         catch (HttpRequestException ex)
         {
-            message = $"Board identificeret ({samdId}). Registrering afventer: {ex.Message}";
+            message = $"Board {samdId} — registrering senere: {ex.Message}";
         }
     }
 
@@ -750,12 +739,10 @@
             await Hardware.RegisterDeviceAsync(samdId, mac, string.IsNullOrWhiteSpace(eccSerial) || eccSerial == "-" ? null : eccSerial, "Arduino Oplà");
             await Hardware.SubmitTestAsync(samdId, failed == 0, passed, failed, report);
             savedSamdId = samdId;
-            message = failed == 0
-                ? "Alle tests bestået — board registreret og rapport gemt."
-                : "Test færdig med fejl — board registreret og rapport gemt.";
+            message = failed == 0 ? "Bestået — rapport gemt." : "Fejl i test — rapport gemt.";
         }
         catch (HttpRequestException ex) { error = ex.Message; }
-        catch (Exception ex) { error = $"Kunne ikke gemme rapport: {ex.Message}"; }
+        catch (Exception ex) { error = $"Gem fejlede: {ex.Message}"; }
     }
 
     private void OnError(string message) =>

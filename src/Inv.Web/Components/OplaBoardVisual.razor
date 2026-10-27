@@ -210,25 +210,25 @@
     }
 
     private string Caption => AwaitingConfirm
-        ? $"Ser {ActiveStep} korrekt ud på det fysiske board?"
+        ? $"Ser {ActiveStep} OK ud?"
         : !string.IsNullOrWhiteSpace(Reading) && Running
             ? Reading!
             : string.IsNullOrEmpty(ActiveStep)
-                ? (Connected ? "Board forbundet — klar til test" : "Forbind boardet via USB")
+                ? (Connected ? "Klar" : "Forbind via USB")
                 : StepCaption(ActiveStep);
 
     public static string StepCaption(string? name) => name switch
     {
-        "OLED" => "Displayet viser farver og mønstre — kig på den runde skærm.",
-        "Temp/Fugt" => "Temperatur- og fugtsensoren måler automatisk.",
-        "Tryk" => "Barometeret aflæses automatisk.",
-        "IMU" => "Gyro/accelerometer — lad boardet ligge stille.",
-        "SD" => "SD-kortet testes med læs/skriv.",
-        "Relay" => "Lyt efter to tydelige klik fra relæerne.",
-        "Knapper" => "Tryk på alle 5 touch-knapper rundt om skærmen.",
-        "LED" => "LED-ringen skal lyse i skiftende farver.",
-        "Buzzer" => "Buzzeren bipper (kan være slået fra).",
-        "WiFi" => "Boardet forbinder til det valgte WiFi.",
-        _ => "Følg det fysiske board."
+        "OLED" => "Se skærmen på boardet",
+        "Temp/Fugt" => "Måler…",
+        "Tryk" => "Måler…",
+        "IMU" => "Hold boardet stille",
+        "SD" => "Tester SD…",
+        "Relay" => "Lyt efter klik",
+        "Knapper" => "Tryk alle 5 knapper",
+        "LED" => "Se LED-ringen",
+        "Buzzer" => "Lyt efter bip",
+        "WiFi" => "Forbinder…",
+        _ => "Følg boardet"
     };
 }

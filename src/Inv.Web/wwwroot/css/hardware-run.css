@@ -47,7 +47,11 @@
     margin-bottom: .75rem;
     font-size: clamp(2rem, 4.2vw, 3.2rem);
 }
+.hr-hero-compact { padding-block: clamp(1.1rem, 2.2vw, 1.6rem); }
+.hr-hero-compact h1 { margin-bottom: 0; }
 .hr-hero-copy > p { color: var(--hr-muted); font-size: 1.05rem; max-width: 34rem; margin-bottom: 0; }
+.hr-card > h2:only-child,
+.hr-card > h2:first-child { margin-bottom: .75rem; }
 
 .hr-stage {
     position: relative;
