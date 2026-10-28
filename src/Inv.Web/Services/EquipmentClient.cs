@@ -12,7 +12,7 @@ public sealed class EquipmentClient(MercantecAuthClient auth)
     public async Task<List<EquipmentResponse>> GetAllAsync(
         string? search = null,
         Guid? categoryId = null,
-        int? condition = null,
+        int? faultCount = null,
         bool? isLoaned = null,
         string? fault = null)
     {
@@ -28,10 +28,10 @@ public sealed class EquipmentClient(MercantecAuthClient auth)
             parameters.Add($"categoryId={categoryId.Value}");
         }
 
-        if (condition.HasValue)
+        if (faultCount.HasValue)
         {
             parameters.Add(
-                $"condition={condition.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)}");
+                $"faultCount={faultCount.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)}");
         }
 
         if (isLoaned.HasValue)

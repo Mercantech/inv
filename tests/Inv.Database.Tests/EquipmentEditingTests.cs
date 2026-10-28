@@ -28,9 +28,9 @@ public sealed class EquipmentEditingTests(PostgresFixture postgres) : IClassFixt
         client.DefaultRequestHeaders.Add("X-Test-User", "yes");
         await using var db = postgres.CreateContext();
         var category = new EquipmentCategory { Name = Guid.NewGuid().ToString() };
-        var available = new Equipment { Name = "Filtertest ledig", SerialNumber = "SER-LEDIG", Category = category, Condition = EquipmentCondition.Good };
-        var returned = new Equipment { Name = "Filtertest returneret", SerialNumber = "SER-RETUR", Category = category, Condition = EquipmentCondition.Worn };
-        var borrowed = new Equipment { Name = "Filtertest udlånt", SerialNumber = "SER-UD", Category = category, Condition = EquipmentCondition.Good };
+        var available = new Equipment { Name = "Filtertest ledig", SerialNumber = "SER-LEDIG", Category = category };
+        var returned = new Equipment { Name = "Filtertest returneret", SerialNumber = "SER-RETUR", Category = category };
+        var borrowed = new Equipment { Name = "Filtertest udlånt", SerialNumber = "SER-UD", Category = category };
         var historical = new Loan { Equipment = returned, BorrowerSubject = Guid.NewGuid(), ApprovedBySubject = Guid.NewGuid(),
             LoanedAt = DateTimeOffset.UtcNow.AddDays(-2), ReturnedAt = DateTimeOffset.UtcNow.AddDays(-1), ReturnedBySubject = Guid.NewGuid() };
         var active = new Loan { Equipment = borrowed, BorrowerSubject = Guid.NewGuid(), ApprovedBySubject = Guid.NewGuid() };
@@ -45,9 +45,9 @@ public sealed class EquipmentEditingTests(PostgresFixture postgres) : IClassFixt
         Assert.Equal(2, free.Count);
         Assert.All(free, item => Assert.False(item.IsLoaned));
         Assert.Contains(free, item => item.Id == returned.Id);
-        Assert.Equal(available.Id, Assert.Single((await client.GetFromJsonAsync<List<EquipmentResponse>>(path + "&isLoaned=false&condition=1&search=filtertest"))!).Id);
+        Assert.Equal(available.Id, Assert.Single((await client.GetFromJsonAsync<List<EquipmentResponse>>(path + "&isLoaned=false&search=SER-LEDIG"))!).Id);
         Assert.Equal(returned.Id, Assert.Single((await client.GetFromJsonAsync<List<EquipmentResponse>>(path + "&isLoaned=false&search=SER-RETUR"))!).Id);
-        Assert.Empty((await client.GetFromJsonAsync<List<EquipmentResponse>>(path + "&isLoaned=true&condition=2"))!);
+        Assert.Empty((await client.GetFromJsonAsync<List<EquipmentResponse>>(path + "&isLoaned=true&search=SER-RETUR"))!);
         Assert.Equal(HttpStatusCode.BadRequest, (await client.GetAsync(path + "&isLoaned=invalid")).StatusCode);
         using var anonymous = app.GetTestClient();
         Assert.Equal(HttpStatusCode.Unauthorized, (await anonymous.GetAsync(path + "&isLoaned=true")).StatusCode);
@@ -71,7 +71,7 @@ public sealed class EquipmentEditingTests(PostgresFixture postgres) : IClassFixt
         var category = new EquipmentCategory { Name = Guid.NewGuid().ToString() };
         db.Add(category);
         await db.SaveChangesAsync();
-        var request = new SaveEquipmentRequest(" Oprettet ", " SERIAL ", category.Id, EquipmentCondition.Good);
+        var request = new SaveEquipmentRequest(" Oprettet ", " SERIAL ", category.Id);
         Assert.Equal(HttpStatusCode.BadRequest,
             (await client.PostAsJsonAsync("/api/equipment/", request with { Name = " " })).StatusCode);
         var response = await client.PostAsJsonAsync("/api/equipment/", request);
@@ -114,7 +114,7 @@ public sealed class EquipmentEditingTests(PostgresFixture postgres) : IClassFixt
             loan.CreatedAt, loan.UpdatedAt
         });
 
-        var update = new SaveEquipmentRequest("  Nyt navn  ", " NEW ", newCategory.Id, EquipmentCondition.Worn);
+        var update = new SaveEquipmentRequest("  Nyt navn  ", " NEW ", newCategory.Id);
         var response = await client.PutAsJsonAsync($"/api/equipment/{equipment.Id}", update);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var result = await response.Content.ReadFromJsonAsync<EquipmentResponse>();
@@ -122,7 +122,6 @@ public sealed class EquipmentEditingTests(PostgresFixture postgres) : IClassFixt
         Assert.Equal("Nyt navn", result.Name);
         Assert.Equal("NEW", result.SerialNumber);
         Assert.Equal(newCategory.Id, result.EquipmentCategoryId);
-        Assert.Equal(EquipmentCondition.Worn, result.Condition);
         Assert.Equal(before.Id, result.Id);
         Assert.Equal(before.ShortId, result.ShortId);
         Assert.Equal(before.CreatedAt, result.CreatedAt);
@@ -158,7 +157,7 @@ public sealed class EquipmentEditingTests(PostgresFixture postgres) : IClassFixt
         await db.SaveChangesAsync();
         await db.Entry(equipment).ReloadAsync();
         var updatedAt = equipment.UpdatedAt;
-        var valid = new SaveEquipmentRequest("Nyt", "Nyt", equipment.EquipmentCategoryId, EquipmentCondition.Good);
+        var valid = new SaveEquipmentRequest("Nyt", "Nyt", equipment.EquipmentCategoryId);
         var path = $"/api/equipment/{equipment.Id}";
         Assert.Equal(HttpStatusCode.Unauthorized, (await client.PutAsJsonAsync(path, valid)).StatusCode);
         client.DefaultRequestHeaders.Add("X-Test-User", "yes");
@@ -168,7 +167,6 @@ public sealed class EquipmentEditingTests(PostgresFixture postgres) : IClassFixt
             valid with { SerialNumber = null }, valid with { SerialNumber = new string('a', 201) },
             valid with { EquipmentCategoryId = null }, valid with { EquipmentCategoryId = Guid.Empty },
             valid with { EquipmentCategoryId = Guid.NewGuid() },
-            valid with { Condition = null }, valid with { Condition = (EquipmentCondition)99 }
         };
         foreach (var invalid in invalidRequests)
         {
@@ -200,6 +198,10 @@ public sealed class EquipmentEditingTests(PostgresFixture postgres) : IClassFixt
         db.AddRange(equipment, manual, report);
         await db.SaveChangesAsync();
         var path = $"/api/equipment/?categoryId={category.Id}";
+        Assert.Equal(1, (await client.GetFromJsonAsync<EquipmentResponse>($"/api/equipment/{equipment.Id}"))!.FaultCount);
+        Assert.Equal(1, Assert.Single((await client.GetFromJsonAsync<List<EquipmentResponse>>(path + "&faultCount=1"))!).FaultCount);
+        Assert.Empty((await client.GetFromJsonAsync<List<EquipmentResponse>>(path + "&faultCount=0"))!);
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.GetAsync(path + "&faultCount=-1")).StatusCode);
         Assert.Equal(equipment.Id, Assert.Single((await client.GetFromJsonAsync<List<EquipmentResponse>>(path + "&fault=hardware:OLED"))!).Id);
         Assert.Empty((await client.GetFromJsonAsync<List<EquipmentResponse>>(path + "&fault=hardware:WIFI"))!);
         Assert.Empty((await client.GetFromJsonAsync<List<EquipmentResponse>>(path + "&fault=hardware:OLED&search=nomatch"))!);
@@ -211,15 +213,20 @@ public sealed class EquipmentEditingTests(PostgresFixture postgres) : IClassFixt
         var created = await client.PostAsJsonAsync($"/api/equipment/{equipment.Id}/issues", new CreateIssueRequest(manual.Id, "Kabinettet er revnet"));
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
         var issue = (await created.Content.ReadFromJsonAsync<EquipmentIssueResponse>())!;
+        Assert.Equal(2, (await client.GetFromJsonAsync<EquipmentResponse>($"/api/equipment/{equipment.Id}"))!.FaultCount);
+        Assert.Equal(2, Assert.Single((await client.GetFromJsonAsync<List<EquipmentResponse>>(path + "&faultCount=2&fault=hardware:OLED"))!).FaultCount);
         db.HardwareTestReports.Add(new HardwareTestReport { Device = board, SamdId = board.SamdId,
             TestedAt = report.TestedAt.AddMinutes(1), Passed = true, PassedCount = 1,
             ReportJson = """{"tests":[{"name":"oled","ok":true}]}""" });
         await db.SaveChangesAsync();
         Assert.Empty((await client.GetFromJsonAsync<List<EquipmentResponse>>(path + "&fault=hardware:OLED"))!);
+        Assert.Equal(1, (await client.GetFromJsonAsync<EquipmentResponse>($"/api/equipment/{equipment.Id}"))!.FaultCount);
         Assert.Single((await client.GetFromJsonAsync<List<EquipmentResponse>>(path + $"&fault=manual:{manual.Id}"))!);
         Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync($"/api/equipment/{equipment.Id}/issues/{issue.Id}",
             new UpdateIssueRequest(null, null, "Resolved", "Repareret"))).StatusCode);
         Assert.Empty((await client.GetFromJsonAsync<List<EquipmentResponse>>(path + $"&fault=manual:{manual.Id}"))!);
+        Assert.Equal(0, (await client.GetFromJsonAsync<EquipmentResponse>($"/api/equipment/{equipment.Id}"))!.FaultCount);
+        Assert.Equal(0, Assert.Single((await client.GetFromJsonAsync<List<EquipmentResponse>>(path + "&faultCount=0"))!).FaultCount);
         Assert.Equal(2, await db.HardwareTestReports.CountAsync(r => r.SamdId == board.SamdId));
         Assert.Single((await client.GetFromJsonAsync<List<FaultCategoryResponse>>("/api/fault-categories"))!, c => c.Key == "hardware:OLED");
         Assert.Equal(HttpStatusCode.BadRequest, (await client.GetAsync(path + "&fault=bad")).StatusCode);

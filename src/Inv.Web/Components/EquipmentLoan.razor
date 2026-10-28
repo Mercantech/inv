@@ -32,16 +32,6 @@
                 }
                 else
                 {
-                    <label style="flex:1 1 100%">Tilstand ved returnering
-                        <InputSelect TValue="int?" @bind-Value="returnCondition" disabled="@saving">
-                            <option value="">Behold nuværende tilstand</option>
-                            <option value="0">Ukendt</option>
-                            <option value="1">God</option>
-                            <option value="2">Slidt</option>
-                            <option value="3">Beskadiget</option>
-                            <option value="4">Ude af drift</option>
-                        </InputSelect>
-                    </label>
                     <label style="flex:1 1 100%">
                         Returnote (valgfri)
                         <textarea @bind="returnNote" maxlength="4000" rows="2" disabled="@saving"></textarea>
@@ -105,14 +95,12 @@
     private string search = "", note = "", returnNote = "";
     private bool loading, directoryLoading, showForm, showReturn, saving, isAdmin;
     private string? loadError, directoryError, saveError;
-    private int? returnCondition;
     [Parameter] public EventCallback OnReturned { get; set; }
 
     private void CancelReturn()
     {
         showReturn = false;
         returnNote = "";
-        returnCondition = null;
         saveError = null;
     }
     private IEnumerable<BorrowerResponse> VisibleBorrowers => borrowers.Where(b =>
@@ -224,17 +212,16 @@
         saveError = null;
         try
         {
-            var response = await Loans.ReturnAsync(EquipmentId, loan.Id, returnNote, returnCondition);
+            var response = await Loans.ReturnAsync(EquipmentId, loan.Id, returnNote);
             switch (response.Status)
             {
                 case 204:
                     showReturn = false;
                     returnNote = "";
-                    returnCondition = null;
                     await LoadAsync();
                     await OnReturned.InvokeAsync();
                     break;
-                case 400: saveError = "Vælg en gyldig tilstand. Returnoten må højst indeholde 4000 tegn."; break;
+                case 400: saveError = "Returnoten må højst indeholde 4000 tegn."; break;
                 case 401: saveError = "Dit login er udløbet. Log ind igen."; break;
                 case 404: saveError = "Udstyret findes ikke længere."; break;
                 case 403: saveError = "Du mangler rettighed."; break;

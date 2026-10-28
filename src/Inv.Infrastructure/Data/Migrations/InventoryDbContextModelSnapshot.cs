@@ -30,11 +30,6 @@ namespace Inv.Infrastructure.Data.Migrations
                     b.Property<Guid>("Id")
                         .HasColumnType("uuid");
 
-                    b.Property<string>("Condition")
-                        .IsRequired()
-                        .HasMaxLength(30)
-                        .HasColumnType("character varying(30)");
-
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -72,8 +67,6 @@ namespace Inv.Infrastructure.Data.Migrations
 
                     b.ToTable("Equipment", null, t =>
                         {
-                            t.HasCheckConstraint("CK_Equipment_Condition", "\"Condition\" IN ('Unknown', 'Good', 'Worn', 'Damaged', 'OutOfService')");
-
                             t.HasCheckConstraint("CK_Equipment_Name", "length(btrim(\"Name\")) > 0");
 
                             t.HasCheckConstraint("CK_Equipment_SerialNumber", "length(btrim(\"SerialNumber\")) > 0");

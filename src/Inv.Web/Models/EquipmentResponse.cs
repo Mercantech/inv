@@ -6,7 +6,7 @@ public sealed record EquipmentResponse(
     string SerialNumber,
     Guid EquipmentCategoryId,
     string CategoryName,
-    int Condition,
+    int FaultCount,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt,
     int ShortId = 0,

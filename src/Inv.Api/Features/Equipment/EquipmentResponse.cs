@@ -1,5 +1,3 @@
-using Inv.Domain.Entities;
-
 namespace Inv.Api.Features.Equipment;
 
 public sealed record EquipmentResponse(
@@ -8,7 +6,7 @@ public sealed record EquipmentResponse(
     string SerialNumber,
     Guid EquipmentCategoryId,
     string CategoryName,
-    EquipmentCondition Condition,
+    int FaultCount,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt,
     int ShortId = 0,

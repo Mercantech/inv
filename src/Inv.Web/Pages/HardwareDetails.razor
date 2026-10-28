@@ -264,7 +264,7 @@ else
         await Hardware.CreateEquipmentAsync(SamdId);
         equipment = await Equipment.GetAllAsync();
         await RefreshDeviceAsync();
-        message = "Boardet er oprettet som udstyr. Tilstanden er ukendt, indtil den bliver vurderet.";
+        message = "Boardet er oprettet som udstyr. Antal fejl beregnes fra hardwaretests og manuelle fejl.";
     });
 
     private Task LoadMoreAsync() => RunAsync(async () => reports.AddRange(await Hardware.GetTestsAsync(SamdId, reports.Count)));

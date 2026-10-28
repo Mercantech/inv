@@ -15,11 +15,9 @@ internal sealed class EquipmentConfiguration : IEntityTypeConfiguration<Equipmen
         {
             table.HasCheckConstraint("CK_Equipment_Name", "length(btrim(\"Name\")) > 0");
             table.HasCheckConstraint("CK_Equipment_SerialNumber", "length(btrim(\"SerialNumber\")) > 0");
-            table.HasCheckConstraint("CK_Equipment_Condition", "\"Condition\" IN ('Unknown', 'Good', 'Worn', 'Damaged', 'OutOfService')");
         });
         builder.Property(equipment => equipment.Name).HasMaxLength(200).IsRequired();
         builder.Property(equipment => equipment.SerialNumber).HasMaxLength(200).IsRequired();
-        builder.Property(equipment => equipment.Condition).HasConversion<string>().HasMaxLength(30);
         builder.HasOne(equipment => equipment.Category).WithMany(category => category.Equipment)
             .HasForeignKey(equipment => equipment.EquipmentCategoryId).OnDelete(DeleteBehavior.Restrict);
         builder.HasIndex(equipment => equipment.Name);

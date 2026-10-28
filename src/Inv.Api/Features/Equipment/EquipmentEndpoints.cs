@@ -21,19 +21,14 @@ public static class EquipmentEndpoints
         group.MapGet("/", async (
             string? search,
             Guid? categoryId,
-            EquipmentCondition? condition,
+            int? faultCount,
             bool? isLoaned,
             string? fault,
             InventoryDbContext database,
             CancellationToken cancellationToken) =>
         {
-            if (condition.HasValue && !Enum.IsDefined(condition.Value))
-            {
-                return Results.ValidationProblem(new Dictionary<string, string[]>
-                {
-                    ["Condition"] = ["Vælg en gyldig tilstand."]
-                });
-            }
+            if (faultCount < 0) return Results.ValidationProblem(new Dictionary<string, string[]>
+            { ["FaultCount"] = ["Antal fejl skal være 0 eller større."] });
 
             var query = database.Equipment.AsNoTracking();
 
@@ -56,12 +51,6 @@ public static class EquipmentEndpoints
             {
                 query = query.Where(item =>
                     item.EquipmentCategoryId == categoryId.Value);
-            }
-
-            if (condition.HasValue)
-            {
-                query = query.Where(item =>
-                    item.Condition == condition.Value);
             }
 
             if (isLoaned.HasValue)
@@ -95,12 +84,14 @@ public static class EquipmentEndpoints
                     item.SerialNumber,
                     item.EquipmentCategoryId,
                     item.Category.Name,
-                    item.Condition,
+                    0,
                     item.CreatedAt,
                     item.UpdatedAt, item.ShortId, item.Loans.Any(loan => loan.ReturnedAt == null)))
                 .ToListAsync(cancellationToken);
 
-            return Results.Ok(equipment);
+            var counted = await WithFaultCountsAsync(equipment, database, cancellationToken);
+            if (faultCount.HasValue) counted = counted.Where(e => e.FaultCount == faultCount.Value).ToList();
+            return Results.Ok(counted);
         });
 
         group.MapGet("/{id:guid}", async (
@@ -117,14 +108,14 @@ public static class EquipmentEndpoints
                     item.SerialNumber,
                     item.EquipmentCategoryId,
                     item.Category.Name,
-                    item.Condition,
+                    0,
                     item.CreatedAt,
                     item.UpdatedAt, item.ShortId, item.Loans.Any(loan => loan.ReturnedAt == null)))
                 .SingleOrDefaultAsync(cancellationToken);
 
             return equipment is null
                 ? Results.NotFound(new { Message = "Udstyret blev ikke fundet." })
-                : Results.Ok(equipment);
+                : Results.Ok((await WithFaultCountsAsync([equipment], database, cancellationToken))[0]);
         });
 
         group.MapPost("/", CreateAsync).RequireAuthorization("EquipmentManager");
@@ -132,6 +123,20 @@ public static class EquipmentEndpoints
         group.MapDelete("/{id:guid}", DeleteAsync).RequireAuthorization("EquipmentManager");
 
         return endpoints;
+    }
+
+    private static async Task<List<EquipmentResponse>> WithFaultCountsAsync(
+        List<EquipmentResponse> rows, InventoryDbContext db, CancellationToken ct)
+    {
+        if (rows.Count == 0) return rows;
+        var ids = rows.Select(e => e.Id).ToList();
+        var manual = await db.EquipmentIssues.AsNoTracking()
+            .Where(i => ids.Contains(i.EquipmentId) && i.Status != EquipmentIssueStatus.Resolved)
+            .GroupBy(i => i.EquipmentId).Select(g => new { Id = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(g => g.Id, g => g.Count, ct);
+        var hardware = (await HardwareFaults.CurrentAsync(db, rows.Count == 1 ? rows[0].Id : null, ct))
+            .GroupBy(f => f.EquipmentId).ToDictionary(g => g.Key, g => g.Count());
+        return rows.Select(e => e with { FaultCount = manual.GetValueOrDefault(e.Id) + hardware.GetValueOrDefault(e.Id) }).ToList();
     }
 
     private static async Task<IResult> DeleteAsync(
@@ -214,12 +219,6 @@ public static class EquipmentEndpoints
             errors["EquipmentCategoryId"] = ["Vælg en kategori."];
         }
 
-        if (request.Condition is null ||
-            !Enum.IsDefined(request.Condition.Value))
-        {
-            errors["Condition"] = ["Vælg en gyldig tilstand."];
-        }
-
         if (errors.Count > 0)
         {
             return Results.ValidationProblem(errors);
@@ -248,7 +247,6 @@ public static class EquipmentEndpoints
         equipment.SerialNumber = serialNumber!;
         equipment.EquipmentCategoryId = category.Id;
         equipment.Category = category;
-        equipment.Condition = request.Condition!.Value;
 
         // Også en gemning uden feltændringer opdaterer ændringstidspunktet.
         if (id.HasValue)
@@ -279,11 +277,12 @@ public static class EquipmentEndpoints
                 equipment.SerialNumber,
                 equipment.EquipmentCategoryId,
                 category.Name,
-                equipment.Condition,
+                0,
                 equipment.CreatedAt,
                 equipment.UpdatedAt, equipment.ShortId,
                 await database.Loans.AnyAsync(loan => loan.EquipmentId == equipment.Id && loan.ReturnedAt == null, cancellationToken));
 
+        response = (await WithFaultCountsAsync([response], database, cancellationToken))[0];
         return id.HasValue
             ? Results.Ok(response)
             : Results.Created($"/api/equipment/{equipment.Id}", response);

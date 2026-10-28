@@ -105,6 +105,7 @@
 
 @code {
     [Parameter] public Guid EquipmentId { get; set; }
+    [Parameter] public EventCallback OnChanged { get; set; }
 
     private List<EquipmentIssueResponse> issues = [];
     private List<HardwareFaultResponse> hardwareFaults = [];
@@ -148,6 +149,7 @@
             {
                 createModel = new();
                 await LoadAsync();
+                await OnChanged.InvokeAsync();
             }
             else
                 saveError = response.Status switch
@@ -175,7 +177,7 @@
                 Status = "Resolved",
                 ResolutionNote = "Løst"
             });
-            if (response.Status == 200) await LoadAsync();
+            if (response.Status == 200) { await LoadAsync(); await OnChanged.InvokeAsync(); }
             else saveError = response.Status == 403 ? "Du mangler rettighed." : "Kunne ikke lukke fejlrapporten.";
         }
         catch (JSException) { saveError = "Tjek forbindelse og login."; }
@@ -198,7 +200,7 @@
                 Status = status,
                 ResolutionNote = issue.ResolutionNote
             });
-            if (response.Status == 200) await LoadAsync();
+            if (response.Status == 200) { await LoadAsync(); await OnChanged.InvokeAsync(); }
             else saveError = "Status kunne ikke opdateres.";
         }
         catch (JSException) { saveError = "Tjek forbindelse og login."; }
@@ -213,7 +215,7 @@
         try
         {
             var response = await Issues.DeleteAsync(EquipmentId, issue.Id);
-            if (response.Status == 204) await LoadAsync();
+            if (response.Status == 204) { await LoadAsync(); await OnChanged.InvokeAsync(); }
             else saveError = response.Status == 403 ? "Du mangler rettighed." : "Kunne ikke slette.";
         }
         catch (JSException) { saveError = "Tjek forbindelse og login."; }

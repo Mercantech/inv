@@ -202,7 +202,6 @@ public sealed class DatabaseRulesTests(PostgresFixture postgres) : IClassFixture
             Name = "Testcomputer",
             SerialNumber = Guid.NewGuid().ToString("N"),
             Category = category,
-            Condition = EquipmentCondition.Good
         };
         database.Add(equipment);
         await database.SaveChangesAsync();

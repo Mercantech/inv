@@ -69,8 +69,7 @@ public static class HardwareEndpoints
             var equipment = new Inv.Domain.Entities.Equipment
             {
                 Name = string.IsNullOrWhiteSpace(device.Label) ? "Arduino Oplà" : device.Label,
-                SerialNumber = samd, Category = category, EquipmentCategoryId = category.Id,
-                Condition = EquipmentCondition.Unknown
+                SerialNumber = samd, Category = category, EquipmentCategoryId = category.Id
             };
             db.Equipment.Add(equipment);
             device.EquipmentId = equipment.Id;

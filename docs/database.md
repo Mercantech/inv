@@ -14,7 +14,7 @@ erDiagram
 | Tabel | Centrale felter |
 | --- | --- |
 | `EquipmentCategories` | `Id`, `Name`, databaseberegnet `NormalizedName` |
-| `Equipment` | `Id`, `Name`, `SerialNumber`, `EquipmentCategoryId`, `Condition` |
+| `Equipment` | `Id`, `Name`, `SerialNumber`, `EquipmentCategoryId` |
 | `Loans` | `EquipmentId`, `BorrowerSubject`, `ApprovedBySubject`, `LoanedAt`, `Note`, `ReturnedAt`, `ReturnedBySubject`, `ReturnNote` |
 | `IssueCategories` | `Name`, databaseberegnet `NormalizedName`, valgfri `EquipmentCategoryId` |
 | `EquipmentIssues` | `EquipmentId`, `IssueCategoryId`, `Description`, `ReportedBySubject`, `ReportedAt`, `Status`, `ResolutionNote`, `ResolvedAt`, `ResolvedBySubject` |
@@ -25,7 +25,7 @@ Inventartabellerne og `HardwareTestReports` indeholder desuden `CreatedAt` og `U
 
 ## Udstyr og kategorier
 
-Navn og serienummer er påkrævet. Navne og serienumre har indeks; serienumre er ikke gjort unikke, da backloggen kun kræver entydige udstyrs-ID'er. Udstyrstilstande er foreløbig `Unknown`, `Good`, `Worn`, `Damaged` og `OutOfService`. Brugerfladen kan vise danske betegnelser.
+Navn og serienummer er påkrævet. Navne og serienumre har indeks; serienumre er ikke gjort unikke, da backloggen kun kræver entydige udstyrs-ID'er. Tilstand er fjernet. API-feltet `faultCount` beregnes ved læsning som antal fejlede, ikke oversprungne komponenter i seneste test pr. tilknyttet board plus antal manuelle fejl med status `Open` eller `InProgress`. En gammel fejlet rapport uden komponentdetaljer tæller som én ukendt hardwarefejl. Antallet gemmes ikke på udstyret og kan ikke vælges i formularen. `0` betyder ingen registrerede aktuelle fejl; det er ikke en garanti for testdækning.
 
 Kategorinavne skal indeholde andet end mellemrum. `lower(btrim("Name"))` beregnes af PostgreSQL og gør kategorinavne unikke uden hensyn til store/små bogstaver og omgivende mellemrum.
 

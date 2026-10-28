@@ -60,20 +60,10 @@
             </InputSelect>
         </label>
 
-        <label for="equipment-condition-filter">
-            Tilstand
-            <InputSelect id="equipment-condition-filter"
-                         TValue="int?"
-                         @bind-Value="condition"
-                         @bind-Value:after="OnFilterChangedAsync"
-                         disabled="@loading">
-                <option value="">Alle</option>
-                <option value="0">Ukendt</option>
-                <option value="1">God</option>
-                <option value="2">Slidt</option>
-                <option value="3">Beskadiget</option>
-                <option value="4">Ude af drift</option>
-            </InputSelect>
+        <label for="equipment-fault-count">
+            Antal fejl
+            <input id="equipment-fault-count" type="number" min="0" step="1" placeholder="Alle"
+                   @bind="faultCount" @bind:after="OnFilterChangedAsync" disabled="@loading" />
         </label>
 
         <label for="equipment-loan-filter">
@@ -164,7 +154,7 @@
                             </p>
                         </div>
                         <div class="eq-badges">
-                            <span class="eq-chip eq-chip-cond-@ConditionClass(item.Condition)">@GetConditionName(item.Condition)</span>
+                            <span class="eq-chip @(item.FaultCount == 0 ? "eq-chip-loan-free" : "eq-chip-loan-out")">@item.FaultCount fejl</span>
                             <span class="eq-chip @(item.IsLoaned ? "eq-chip-loan-out" : "eq-chip-loan-free")">
                                 @(item.IsLoaned ? "Udlånt" : "Ledigt")
                             </span>
@@ -181,7 +171,7 @@
     private List<EquipmentcategoryResponse> categories = [];
     private string search = string.Empty;
     private Guid? categoryId;
-    private int? condition;
+    private int? faultCount;
     private bool? isLoaned;
     private string? fault;
     private List<FaultCategoryResponse> faultCategories = [];
@@ -204,7 +194,7 @@
         }
         catch (HttpRequestException)
         {
-            categoryError = "Kategorier kunne ikke hentes — søgning på navn og tilstand virker stadig.";
+            categoryError = "Kategorier kunne ikke hentes — søgning på navn virker stadig.";
         }
         catch (JSException)
         {
@@ -243,7 +233,7 @@
 
         var appliedSearch = search.Trim();
         var appliedCategoryId = categoryId;
-        var appliedCondition = condition;
+        var appliedFaultCount = faultCount;
         var appliedIsLoaned = isLoaned;
         var appliedFault = fault;
 
@@ -252,13 +242,13 @@
             equipment = await Equipment.GetAllAsync(
                 appliedSearch,
                 appliedCategoryId,
-                appliedCondition,
+                appliedFaultCount,
                 appliedIsLoaned, appliedFault);
 
             hasAppliedFilters =
                 !string.IsNullOrWhiteSpace(appliedSearch) ||
                 appliedCategoryId.HasValue ||
-                appliedCondition.HasValue ||
+                appliedFaultCount.HasValue ||
                 appliedIsLoaned.HasValue || !string.IsNullOrWhiteSpace(appliedFault);
         }
         catch (HttpRequestException exception)
@@ -289,21 +279,10 @@
     {
         search = string.Empty;
         categoryId = null;
-        condition = null;
+        faultCount = null;
         isLoaned = null;
         fault = null;
         await LoadAsync(showSkeleton: false);
     }
 
-    private static int ConditionClass(int condition) => condition is >= 0 and <= 4 ? condition : 0;
-
-    private static string GetConditionName(int condition) => condition switch
-    {
-        0 => "Ukendt",
-        1 => "God",
-        2 => "Slidt",
-        3 => "Beskadiget",
-        4 => "Ude af drift",
-        _ => "Ukendt"
-    };
 }

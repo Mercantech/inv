@@ -1,5 +1,14 @@
 # Udstyrsinventar
 
+## Antal fejl erstatter tilstand (28. oktober 2026)
+
+Udstyr viser nu **0 fejl, 1 fejl, …** i oversigten og på detaljesiden. Antallet er summen af aktuelle hardwarefejl og åbne/igangværende manuelle fejl. Løste fejl og oversprungne tests tæller ikke med. Seneste test pr. tilknyttet board er afgørende. Udstyr uden test eller manuelle fejl viser 0 registrerede fejl. Tallet opdateres efter oprettelse, løsning og sletning af en manuel fejl på detaljesiden.
+
+Tilstand er fjernet fra formularer, returnering, API og domænemodel. Oversigten har i stedet et valgfrit **Antal fejl**-filter, som matcher det præcise tal fra 0 og opefter og kan kombineres med de øvrige filtre. API-parameteren hedder 'faultCount'; udstyrssvar har samme felt. Oprettelse/redigering kræver kun navn, serienummer og kategori. Returnering modtager udlåns-ID og valgfri note.
+
+Migrationen **ReplaceEquipmentConditionWithFaultCounts** fjerner den gamle Condition-kolonne og dens check constraint. Gamle tilstandsværdier fjernes; udstyr, testhistorik, fejl og udlån bevares. Antal fejl beregnes fra kilderne og gemmes ikke som en ny kolonne. Tidligere afsnit nedenfor beskriver historikken før denne ændring.
+
+
 ## Udlånshistorik for udstyr (V1-14)
 
 Vælg **Se udlånshistorik** under Udlån på udstyrets detaljeside. Siden `/udstyr/{id}/historik` viser alle udlån for netop dette udstyr, nyeste udlånstidspunkt først. Aktive og afsluttede udlån har tydelige statusmærker. Hvert udlån viser låner, udlåns- og returneringstidspunkt, udlåns- og returgodkender samt særskilte udlåns- og returnoter. Tidspunkter vises i browserens lokale tidszone. Manglende noter og endnu ikke udfyldte returoplysninger vises eksplicit.
@@ -220,3 +229,5 @@ Ekstra fejl kan fortsat registreres manuelt på udstyret. Egne fejlkategorier op
 API: `GET /api/fault-categories` samler automatisk fundne hardwarekategorier og manuelle kategorier. `GET /api/equipment/{id}/hardware-faults` returnerer aktuelle hardwarefejl. Udstyrslisten accepterer `fault=hardware:OLED` eller `fault=manual:{kategori-id}`. Alle tre kræver login. Ingen migration eller nye miljøvariabler kræves.
 
 Valideret 28. oktober 2026: Release-build uden fejl/advarsler, 61 beståede .NET-tests i Linux/Docker mod midlertidig PostgreSQL og uændret EF-model. Ny integrationstest dækker automatisk kategori, komponentfejl, oversprunget test, kombinerede filtre, bestået gentest, bevaret rapporthistorik, ekstra manuel fejl, manuel løsning, ugyldigt filter og loginbeskyttelse. Manuel browserkontrol af det nye flow afventer.
+
+Teknisk validering af fejlantal: Release-build uden fejl/advarsler; alle 61 .NET-tests består i Linux/Docker, og EF-kontrollen matcher migrationerne. Integrationstesten verificerer 0, 1 og 2 fejl, præcist antal-filter, kombination med fejlkategori, afvisning af negative antal samt genberegning efter ny bestået test og manuel løsning. Browserkontrol af det nye layout afventer.

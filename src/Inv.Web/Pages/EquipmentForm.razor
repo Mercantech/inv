@@ -18,7 +18,7 @@
     <div>
         <p class="eyebrow">Register</p>
         <h1>@(IsEditing ? "Rediger udstyr" : "Opret udstyr")</h1>
-        <p>Angiv navn, serienummer, kategori og tilstand.</p>
+        <p>Angiv navn, serienummer og kategori.</p>
     </div>
 </header>
 
@@ -74,18 +74,6 @@ else
             </label>
             <ValidationMessage For="@(() => model.EquipmentCategoryId)" />
 
-            <label for="equipment-condition">
-                Tilstand
-                <InputSelect id="equipment-condition" TValue="int?" @bind-Value="model.Condition">
-                    <option value="">Vælg en tilstand</option>
-                    <option value="0">Ukendt</option>
-                    <option value="1">God</option>
-                    <option value="2">Slidt</option>
-                    <option value="3">Beskadiget</option>
-                    <option value="4">Ude af drift</option>
-                </InputSelect>
-            </label>
-            <ValidationMessage For="@(() => model.Condition)" />
 
             <div class="page-form-actions">
                 <button type="submit" class="button">
@@ -165,8 +153,7 @@ else
                 {
                     Name = existing.Name,
                     SerialNumber = existing.SerialNumber,
-                    EquipmentCategoryId = existing.EquipmentCategoryId,
-                    Condition = existing.Condition
+                    EquipmentCategoryId = existing.EquipmentCategoryId
                 };
             }
             loaded = true;

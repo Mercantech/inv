@@ -103,7 +103,7 @@ public sealed class LoanTests(PostgresFixture postgres) : IClassFixture<Postgres
         var before = DateTimeOffset.UtcNow.AddMicroseconds(-1);
         var result = await client.PostAsJsonAsync($"/api/equipment/{equipment.Id}/loans/return", new
         {
-            LoanId = loan.Id, ReturnNote = "  Skærm ridset  ", Condition = EquipmentCondition.Damaged,
+            LoanId = loan.Id, ReturnNote = "  Skærm ridset  ",
             ReturnedBySubject = Guid.NewGuid(), ReturnedAt = before.AddYears(-1)
         });
         Assert.Equal(HttpStatusCode.NoContent, result.StatusCode);
@@ -117,15 +117,13 @@ public sealed class LoanTests(PostgresFixture postgres) : IClassFixture<Postgres
         Assert.Equal(loan.ApprovedBySubject, saved.ApprovedBySubject);
         var reloaded = (await client.GetFromJsonAsync<EquipmentResponse>($"/api/equipment/{equipment.Id}"))!;
         Assert.False(reloaded.IsLoaned);
-        Assert.Equal(EquipmentCondition.Damaged, reloaded.Condition);
         Assert.Equal(HttpStatusCode.NoContent, (await client.GetAsync($"/api/equipment/{equipment.Id}/loan")).StatusCode);
         Assert.DoesNotContain((await client.GetFromJsonAsync<ActiveLoansResponse>("/api/loans"))!.Loans, l => l.Id == loan.Id);
         directory.Unavailable = false;
         Assert.Equal(HttpStatusCode.Created, (await client.PostAsJsonAsync($"/api/equipment/{equipment.Id}/loans", new CreateLoanRequest(Borrower, null))).StatusCode);
-        Assert.Equal(HttpStatusCode.Conflict, (await client.PostAsJsonAsync($"/api/equipment/{equipment.Id}/loans/return", new ReturnLoanRequest("Overskriv", loan.Id, EquipmentCondition.Good))).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await client.PostAsJsonAsync($"/api/equipment/{equipment.Id}/loans/return", new ReturnLoanRequest("Overskriv", loan.Id))).StatusCode);
         await db.Entry(saved).ReloadAsync();
         Assert.Equal("Skærm ridset", saved.ReturnNote);
-        Assert.Equal(EquipmentCondition.Damaged, (await db.Equipment.SingleAsync(e => e.Id == equipment.Id)).Condition);
         Assert.True((await client.GetFromJsonAsync<EquipmentResponse>($"/api/equipment/{equipment.Id}"))!.IsLoaned);
         Assert.Equal(2, await db.Loans.CountAsync(l => l.EquipmentId == equipment.Id));
     }
@@ -140,7 +138,7 @@ public sealed class LoanTests(PostgresFixture postgres) : IClassFixture<Postgres
         var loan = (await created.Content.ReadFromJsonAsync<LoanResponse>())!;
         var path = $"/api/equipment/{equipment.Id}/loans/return";
         foreach (var request in new[] { new ReturnLoanRequest(null), new ReturnLoanRequest(null, Guid.Empty),
-            new ReturnLoanRequest(new string('x', 4001), loan.Id), new ReturnLoanRequest(null, loan.Id, (EquipmentCondition)999) })
+            new ReturnLoanRequest(new string('x', 4001), loan.Id) })
             Assert.Equal(HttpStatusCode.BadRequest, (await client.PostAsJsonAsync(path, request)).StatusCode);
         Assert.Equal(HttpStatusCode.Conflict, (await client.PostAsJsonAsync(path, new ReturnLoanRequest(null, Guid.NewGuid()))).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await client.PostAsJsonAsync($"/api/equipment/{Guid.NewGuid()}/loans/return", new ReturnLoanRequest(null, loan.Id))).StatusCode);
@@ -151,7 +149,6 @@ public sealed class LoanTests(PostgresFixture postgres) : IClassFixture<Postgres
         Assert.Equal(HttpStatusCode.Conflict, (await client.PostAsJsonAsync(path, new ReturnLoanRequest(null, loan.Id))).StatusCode);
         await using var db = postgres.CreateContext();
         Assert.Equal(4000, (await db.Loans.SingleAsync(l => l.Id == loan.Id)).ReturnNote!.Length);
-        Assert.Equal(equipment.Condition, (await db.Equipment.SingleAsync(e => e.Id == equipment.Id)).Condition);
     }
 
     [Fact]
@@ -163,14 +160,13 @@ public sealed class LoanTests(PostgresFixture postgres) : IClassFixture<Postgres
         var created = await client.PostAsJsonAsync($"/api/equipment/{equipment.Id}/loans", new CreateLoanRequest(Borrower, null));
         var loan = (await created.Content.ReadFromJsonAsync<LoanResponse>())!;
         var path = $"/api/equipment/{equipment.Id}/loans/return";
-        var requests = new[] { new ReturnLoanRequest("A", loan.Id, EquipmentCondition.Good), new ReturnLoanRequest("B", loan.Id, EquipmentCondition.Damaged) };
+        var requests = new[] { new ReturnLoanRequest("A", loan.Id), new ReturnLoanRequest("B", loan.Id) };
         var responses = await Task.WhenAll(requests.Select(r => client.PostAsJsonAsync(path, r)));
         Assert.Single(responses, r => r.StatusCode == HttpStatusCode.NoContent);
         Assert.Single(responses, r => r.StatusCode == HttpStatusCode.Conflict);
         var winner = requests[Array.FindIndex(responses, r => r.StatusCode == HttpStatusCode.NoContent)];
         await using var db = postgres.CreateContext();
         Assert.Equal(winner.ReturnNote, (await db.Loans.SingleAsync(l => l.Id == loan.Id)).ReturnNote);
-        Assert.Equal(winner.Condition, (await db.Equipment.SingleAsync(e => e.Id == equipment.Id)).Condition);
     }
 
     [Fact]
@@ -251,7 +247,7 @@ public sealed class LoanTests(PostgresFixture postgres) : IClassFixture<Postgres
             .Single(e => e.Id == equipment.Id).IsLoaned);
         // Redigering må ikke få et aktivt udlån til at fremstå ledigt.
         var edited = await client.PutAsJsonAsync($"/api/equipment/{equipment.Id}",
-            new SaveEquipmentRequest("Rettet", "SERIAL", equipment.EquipmentCategoryId, EquipmentCondition.Good));
+            new SaveEquipmentRequest("Rettet", "SERIAL", equipment.EquipmentCategoryId));
         Assert.True((await edited.Content.ReadFromJsonAsync<EquipmentResponse>())!.IsLoaned);
     }
 

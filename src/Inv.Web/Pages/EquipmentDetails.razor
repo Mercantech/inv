@@ -51,7 +51,7 @@
                     <span>@equipment.SerialNumber</span>
                 </p>
                 <div class="eq-badges">
-                    <span class="eq-chip eq-chip-cond-@ConditionClass(equipment.Condition)">@GetConditionName(equipment.Condition)</span>
+                    <span class="eq-chip @(equipment.FaultCount == 0 ? "eq-chip-loan-free" : "eq-chip-loan-out")">@equipment.FaultCount fejl</span>
                     <span class="eq-chip @(equipment.IsLoaned ? "eq-chip-loan-out" : "eq-chip-loan-free")">
                         @(equipment.IsLoaned ? "Udlånt" : "Ledigt")
                     </span>
@@ -82,8 +82,8 @@
                         <dd>@equipment.SerialNumber</dd>
                         <dt>Kategori</dt>
                         <dd>@equipment.CategoryName</dd>
-                        <dt>Tilstand</dt>
-                        <dd>@GetConditionName(equipment.Condition)</dd>
+                        <dt>Antal aktuelle fejl</dt>
+                        <dd>@equipment.FaultCount</dd>
                         <dt>Oprettet</dt>
                         <dd>@equipment.CreatedAt.UtcDateTime.ToString("dd-MM-yyyy HH:mm") UTC</dd>
                         <dt>Ændret</dt>
@@ -97,7 +97,7 @@
                     <EquipmentLoan EquipmentId="Id" OnReturned="OnParametersSetAsync" @key="Id" />
                 </section>
 
-                <EquipmentIssues EquipmentId="Id" @key="@($"issues-{Id}")" />
+                <EquipmentIssues EquipmentId="Id" OnChanged="RefreshFaultCountAsync" @key="@($"issues-{Id}")" />
             </div>
 
             <section class="eq-panel" aria-label="Hardwaretest">
@@ -151,6 +151,13 @@
         }
     }
 
+    private async Task RefreshFaultCountAsync()
+    {
+        try { equipment = await Equipment.GetByIdAsync(Id); }
+        catch (Exception e) when (e is HttpRequestException or JSException or JsonException)
+        { actionError = "Fejlen er gemt, men antal fejl kunne ikke opdateres. Genindlæs siden."; }
+    }
+
     private async Task DeleteAsync()
     {
         if (busy || equipment is null) return;
@@ -168,7 +175,7 @@
                     actionError = "Du mangler rettighed.";
                     break;
                 case 409:
-                    actionError = TryMessage(response.Body) ?? "Udstyret kan ikke slettes i den nuværende tilstand.";
+                    actionError = TryMessage(response.Body) ?? "Udstyret kan ikke slettes.";
                     break;
                 default:
                     actionError = "Udstyret kunne ikke slettes.";
@@ -194,15 +201,4 @@
         return null;
     }
 
-    private static int ConditionClass(int condition) => condition is >= 0 and <= 4 ? condition : 0;
-
-    private static string GetConditionName(int condition) => condition switch
-    {
-        0 => "Ukendt",
-        1 => "God",
-        2 => "Slidt",
-        3 => "Beskadiget",
-        4 => "Ude af drift",
-        _ => "Ukendt"
-    };
 }

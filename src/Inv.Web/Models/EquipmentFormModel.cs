@@ -14,8 +14,4 @@ public sealed class EquipmentFormModel
 
     [Required(ErrorMessage = "Vælg en kategori.")]
     public Guid? EquipmentCategoryId { get; set; }
-
-    [Required(ErrorMessage = "Vælg en tilstand.")]
-    [Range(0, 4, ErrorMessage = "Vælg en gyldig tilstand.")]
-    public int? Condition { get; set; }
 }
