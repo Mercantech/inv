@@ -3,7 +3,6 @@
 @using Inv.Web.Models
 @using Inv.Web.Services
 @inject LoanClient Loans
-@inject AdminAccess Admin
 
 <div class="hardware-section" aria-label="Udlånsstatus">
     @if (loading)
@@ -115,7 +114,8 @@
         returnNote = "";
         borrowers = [];
         directoryError = null;
-        isAdmin = await Admin.IsAdminAsync();
+        try { isAdmin = await Loans.CanManageAsync(); }
+        catch (JSException) { isAdmin = false; }
         await LoadAsync();
         if (loan is not null && isAdmin) await LoadBorrowersAsync();
     }

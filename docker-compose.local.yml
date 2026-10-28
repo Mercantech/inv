@@ -1,10 +1,12 @@
 services:
+  api:
+    environment:
+      ALLOW_LOAN_TESTING_WITHOUT_ROLE: "true"
+    ports:
+      - "127.0.0.1:${API_PORT:-8080}:8080"
   db:
     ports:
       - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
-  api:
-    ports:
-      - "127.0.0.1:${API_PORT:-8080}:8080"
   web:
     ports:
       - "127.0.0.1:${WEB_PORT:-3000}:3000"

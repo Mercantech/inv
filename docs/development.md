@@ -2,6 +2,10 @@
 
 ## Konfiguration
 
+Til lokal test aktiverer `docker-compose.local.yml` `ALLOW_LOAN_TESTING_WITHOUT_ROLE=true` på API'et. Når API'et kører i `Development`, kan alle indloggede brugere slå lånere op samt udlåne og returnere udstyr. Frontendens udlånsknapper følger samme API-policy. Øvrige administratorfunktioner beholder deres rollekrav. Ved IDE-kørsel kan variablen sættes i lokal `.env`.
+
+I produktion håndhæves `LoanManager` med samme roller/bruger-ID'er som `EquipmentManager`, også hvis testvariablen ved en fejl er sat. Dokploy skal bruge `ASPNETCORE_ENVIRONMENT=Production` og den normale Compose-fil uden lokal override. Uden testvariablen håndhæves rollekravet også i Development.
+
 Konfiguration læses fra miljøet. Runtime-forbindelsen vælges i rækkefølgen `CONNECTION_STRING` og derefter `ConnectionStrings__Default`. Der er ingen databaseforbindelse i `appsettings.json`, som kan overskrive Dokploy-konfigurationen.
 
 | Variabel | Brug |

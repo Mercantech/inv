@@ -22,6 +22,7 @@ public static class LoanEndpoints
         var group = endpoints.MapGroup("/api").RequireAuthorization().WithTags("Loans");
 
         group.MapGet("/loans", GetActiveAsync);
+        group.MapGet("/loan-access", () => Results.Ok(new { Allowed = true })).RequireAuthorization("LoanManager");
 
         group.MapGet("/borrowers", async (string? search, IBorrowerDirectory directory, CancellationToken ct) =>
         {
@@ -35,7 +36,7 @@ public static class LoanEndpoints
                     || b.Subject.ToString().Equals(term, StringComparison.OrdinalIgnoreCase)));
             }
             catch (DirectoryUnavailableException) { return DirectoryUnavailable(); }
-        }).RequireAuthorization("EquipmentManager");
+        }).RequireAuthorization("LoanManager");
 
         group.MapGet("/equipment/{id:guid}/loan", async (Guid id, InventoryDbContext db, CancellationToken ct) =>
         {
@@ -46,8 +47,8 @@ public static class LoanEndpoints
             return loan is null ? Results.NoContent() : Results.Ok(loan);
         });
 
-        group.MapPost("/equipment/{id:guid}/loans", CreateAsync).RequireAuthorization("EquipmentManager");
-        group.MapPost("/equipment/{id:guid}/loans/return", ReturnAsync).RequireAuthorization("EquipmentManager");
+        group.MapPost("/equipment/{id:guid}/loans", CreateAsync).RequireAuthorization("LoanManager");
+        group.MapPost("/equipment/{id:guid}/loans/return", ReturnAsync).RequireAuthorization("LoanManager");
         return endpoints;
     }
 

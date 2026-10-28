@@ -7,6 +7,7 @@ namespace Inv.Web.Services;
 public sealed class LoanClient(MercantecAuthClient auth)
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+    public async Task<bool> CanManageAsync() => (await auth.GetAsync("loan-access")).Status == 200;
 
     public async Task<ActiveLoansResponse> GetActiveAsync(string? search = null)
     {

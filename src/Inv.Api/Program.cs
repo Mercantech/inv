@@ -49,7 +49,7 @@ builder.Services.AddHttpClient<IBorrowerDirectory, BorrowerDirectory>(client => 
     .RedactLoggedHeaders(["x-api-key"])
     .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
 builder.Services.AddOpenApi();
-builder.Services.AddMercantecAuthentication(builder.Configuration);
+builder.Services.AddMercantecAuthentication(builder.Configuration, builder.Environment.IsDevelopment());
 builder.Services.AddHealthChecks().AddCheck<DatabaseHealthCheck>("database", tags: ["ready"]);
 builder.Services.AddRateLimiter(options =>
 {

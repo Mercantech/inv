@@ -236,7 +236,11 @@ public sealed class LoanTests(PostgresFixture postgres) : IClassFixture<Postgres
         builder.Services.AddSingleton(directory);
         builder.Services.AddAuthentication("test")
             .AddScheme<AuthenticationSchemeOptions, TestUserHandler>("test", _ => { });
-        builder.Services.AddAuthorization(options => options.AddPolicy("EquipmentManager", policy => policy.RequireAuthenticatedUser()));
+        builder.Services.AddAuthorization(options =>
+        {
+            options.AddPolicy("EquipmentManager", policy => policy.RequireAuthenticatedUser());
+            options.AddPolicy("LoanManager", policy => policy.RequireAuthenticatedUser());
+        });
         var app = builder.Build();
         app.UseAuthentication();
         app.UseAuthorization();
