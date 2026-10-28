@@ -9,6 +9,13 @@ public sealed class LoanClient(MercantecAuthClient auth)
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     public async Task<bool> CanManageAsync() => (await auth.GetAsync("loan-access")).Status == 200;
 
+    public async Task<LoanHistoryResponse> GetHistoryAsync(Guid equipmentId)
+    {
+        var response = await auth.GetAsync($"equipment/{equipmentId}/loans");
+        EnsureSuccess(response);
+        return JsonSerializer.Deserialize<LoanHistoryResponse>(response.Body, JsonOptions) ?? throw new JsonException();
+    }
+
     public async Task<ActiveLoansResponse> GetActiveAsync(string? search = null)
     {
         var response = await auth.GetAsync($"loans?search={Uri.EscapeDataString(search?.Trim() ?? string.Empty)}");

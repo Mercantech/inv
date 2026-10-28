@@ -1,5 +1,15 @@
 # Udstyrsinventar
 
+## Udlånshistorik for udstyr (V1-14)
+
+Vælg **Se udlånshistorik** under Udlån på udstyrets detaljeside. Siden `/udstyr/{id}/historik` viser alle udlån for netop dette udstyr, nyeste udlånstidspunkt først. Aktive og afsluttede udlån har tydelige statusmærker. Hvert udlån viser låner, udlåns- og returneringstidspunkt, udlåns- og returgodkender samt særskilte udlåns- og returnoter. Tidspunkter vises i browserens lokale tidszone. Manglende noter og endnu ikke udfyldte returoplysninger vises eksplicit.
+
+`GET /api/equipment/{id}/loans` kræver login ligesom øvrige læsefunktioner og returnerer `{ loans, directoryUnavailable }`. Historikken hentes direkte fra `Loans` uden ny tabel eller migration. Navne slås op i det eksisterende Auth-katalog; bruger-ID bevares i visningen, også når en konto mangler eller Auth er utilgængelig. Fejl i Auth skjuler ikke historikken. Et kendt udstyr uden udlån giver en tom liste, ukendt udstyr giver 404, og manglende login giver 401. Nye udlån tilføjes, mens tidligere udlån bevares.
+
+Manuel kontrol: åbn historikken fra detaljesiden, kontrollér aktive/afsluttede udlån, noter og godkendere; returnér og genudlån udstyret, og kontrollér at begge udlån står i rigtig rækkefølge. Kontrollér også et udstyr uden udlån. Browserkontrollen er endnu ikke gennemført.
+
+Teknisk validering den 28. oktober 2026: Release-build uden fejl/advarsler, alle 25 auth-/udlånstests bestået i Linux/Docker mod midlertidig PostgreSQL. Lokal Compose er genbygget og startet med API-readiness `Healthy`. Testene dækker historik efter genudlån, rækkefølge, afgrænsning til valgt udstyr, aktive/afsluttede udlån, begge noter/godkendere, tom historik, ukendt udstyr, login og Auth-udfald.
+
 ## Returnering af udstyr (V1-08)
 
 Åbn et aktivt udlån på udstyrets detaljeside, og vælg **Registrér returnering**. Vælg eventuelt en ny tilstand og skriv en returnote (højst 4000 tegn). **Bekræft returnering** gemmer serverens UTC-tid og den indloggede medarbejders `sub` som returgodkender. Tilstand kan også være **Behold nuværende tilstand**. **Annuller** rydder formularen uden at gemme. Efter gemning opdateres detaljesidens tilstand og status til **Ledigt**. Udlånet forsvinder fra `/udlaan`, når oversigten åbnes/opdateres igen.

@@ -14,6 +14,10 @@ public sealed record ActiveLoanResponse(Guid Id, Guid EquipmentId, int Equipment
     string EquipmentName, string SerialNumber, Guid BorrowerSubject, string? BorrowerName,
     string? BorrowerEmail, DateTimeOffset LoanedAt);
 public sealed record ActiveLoansResponse(IReadOnlyList<ActiveLoanResponse> Loans, bool DirectoryUnavailable);
+public sealed record LoanHistoryEntry(Guid Id, Guid BorrowerSubject, string? BorrowerName,
+    DateTimeOffset LoanedAt, DateTimeOffset? ReturnedAt, Guid ApprovedBySubject, string? ApprovedByName,
+    Guid? ReturnedBySubject, string? ReturnedByName, string? Note, string? ReturnNote);
+public sealed record LoanHistoryResponse(IReadOnlyList<LoanHistoryEntry> Loans, bool DirectoryUnavailable);
 
 public static class LoanEndpoints
 {
@@ -22,6 +26,7 @@ public static class LoanEndpoints
         var group = endpoints.MapGroup("/api").RequireAuthorization().WithTags("Loans");
 
         group.MapGet("/loans", GetActiveAsync);
+        group.MapGet("/equipment/{id:guid}/loans", GetHistoryAsync);
         group.MapGet("/loan-access", () => Results.Ok(new { Allowed = true })).RequireAuthorization("LoanManager");
 
         group.MapGet("/borrowers", async (string? search, IBorrowerDirectory directory, CancellationToken ct) =>
@@ -54,6 +59,29 @@ public static class LoanEndpoints
 
     private static IResult DirectoryUnavailable() => Results.Problem(statusCode: 503,
         detail: "Lånerregistret kunne ikke hentes fra Mercantec Auth. Prøv igen senere, eller kontakt administratoren.");
+
+    private static async Task<IResult> GetHistoryAsync(Guid id, InventoryDbContext db,
+        IBorrowerDirectory directory, CancellationToken ct)
+    {
+        if (!await db.Equipment.AnyAsync(e => e.Id == id, ct)) return Results.NotFound();
+        var loans = await db.Loans.AsNoTracking().Where(l => l.EquipmentId == id)
+            .OrderByDescending(l => l.LoanedAt).ThenByDescending(l => l.Id)
+            .Select(l => new LoanHistoryEntry(l.Id, l.BorrowerSubject, null, l.LoanedAt, l.ReturnedAt,
+                l.ApprovedBySubject, null, l.ReturnedBySubject, null, l.Note, l.ReturnNote)).ToListAsync(ct);
+        var unavailable = false;
+        if (loans.Count > 0)
+        {
+            try
+            {
+                var people = (await directory.GetAsync(ct)).ToDictionary(b => b.Subject);
+                string? Name(Guid? subject) => subject.HasValue && people.TryGetValue(subject.Value, out var person) ? person.Name : null;
+                loans = loans.Select(l => l with { BorrowerName = Name(l.BorrowerSubject),
+                    ApprovedByName = Name(l.ApprovedBySubject), ReturnedByName = Name(l.ReturnedBySubject) }).ToList();
+            }
+            catch (DirectoryUnavailableException) { unavailable = true; }
+        }
+        return Results.Ok(new LoanHistoryResponse(loans, unavailable));
+    }
 
     private static async Task<IResult> GetActiveAsync(string? search, InventoryDbContext db,
         IBorrowerDirectory directory, CancellationToken ct)

@@ -1,0 +1,90 @@
+@page "/udstyr/{Id:guid}/historik"
+@using System.Net
+@using System.Text.Json
+@using Inv.Web.Models
+@using Inv.Web.Services
+@inject LoanClient Loans
+@inject EquipmentClient Equipment
+
+<PageTitle>Udlånshistorik · Udstyrsinventar</PageTitle>
+<HeadContent><link rel="stylesheet" href="css/equipment.css?v=2" /></HeadContent>
+
+<div class="eq-page">
+    <a class="eq-back" href="@($"/udstyr/{Id}")">← Til udstyret</a>
+    <header class="eq-hero"><div><p class="eyebrow">Historik</p><h1>Udlånshistorik</h1><p>@equipmentName</p></div></header>
+    @if (loading)
+    {
+        <p role="status">Henter udlånshistorik…</p>
+    }
+    else if (error is not null)
+    {
+        <div class="eq-state" role="alert"><p>@error</p><button class="button" @onclick="LoadAsync">Prøv igen</button></div>
+    }
+    else
+    {
+        @if (directoryUnavailable)
+        {
+            <p class="eq-alert eq-alert-soft" role="status">Brugerregistret kunne ikke hentes. Historikken vises med bruger-ID i stedet for navne.</p>
+        }
+        <p class="eq-summary" role="status">@history.Count udlån · nyeste først</p>
+        @if (history.Count == 0)
+        {
+            <div class="eq-empty" role="status"><strong>Udstyret har endnu ingen udlån</strong></div>
+        }
+        <div class="eq-stack">
+            @foreach (var loan in history)
+            {
+                <section class="eq-panel" aria-label="Udlån" @key="loan.Id">
+                    <p><span class="eq-chip @(loan.ReturnedAt is null ? "eq-chip-loan-out" : "eq-chip-loan-free")">@(loan.ReturnedAt is null ? "Aktivt udlån" : "Afsluttet udlån")</span></p>
+                    <dl class="eq-facts">
+                        <dt>Låner</dt><dd>@Person(loan.BorrowerName, loan.BorrowerSubject)</dd>
+                        <dt>Udlånt</dt><dd><time datetime="@loan.LoanedAt.ToString("O")">@Format(loan.LoanedAt)</time></dd>
+                        <dt>Godkendt af</dt><dd>@Person(loan.ApprovedByName, loan.ApprovedBySubject)</dd>
+                        <dt>Udlånsnote</dt><dd class="loan-note">@(loan.Note ?? "Ingen note")</dd>
+                        <dt>Returneret</dt><dd>@(loan.ReturnedAt.HasValue ? Format(loan.ReturnedAt.Value) : "Ikke returneret")</dd>
+                        <dt>Returgodkender</dt><dd>@(loan.ReturnedBySubject.HasValue ? Person(loan.ReturnedByName, loan.ReturnedBySubject.Value) : "—")</dd>
+                        <dt>Returnote</dt><dd class="loan-note">@(loan.ReturnNote ?? "Ingen note")</dd>
+                    </dl>
+                </section>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+    private IReadOnlyList<LoanHistoryEntry> history = [];
+    private string? equipmentName, error;
+    private bool loading = true, directoryUnavailable;
+    protected override Task OnParametersSetAsync() => LoadAsync();
+    private async Task LoadAsync()
+    {
+        loading = true;
+        error = null;
+        equipmentName = null;
+        try
+        {
+            var equipment = await Equipment.GetByIdAsync(Id);
+            if (equipment is null) { error = "Udstyret blev ikke fundet."; return; }
+            equipmentName = $"#{equipment.ShortId} · {equipment.Name}";
+            var result = await Loans.GetHistoryAsync(Id);
+            history = result.Loans;
+            directoryUnavailable = result.DirectoryUnavailable;
+        }
+        catch (HttpRequestException e)
+        {
+            error = e.StatusCode switch
+            {
+                HttpStatusCode.NotFound => "Udstyret blev ikke fundet.",
+                HttpStatusCode.Unauthorized => "Dit login er udløbet. Log ind igen.",
+                HttpStatusCode.Forbidden => "Du mangler adgang til historikken.",
+                _ => "Historikken kunne ikke hentes. Prøv igen."
+            };
+        }
+        catch (JSException) { error = "Kontrollér forbindelse og login, og prøv igen."; }
+        catch (JsonException) { error = "Ugyldigt svar fra API. Prøv igen senere."; }
+        finally { loading = false; }
+    }
+    private static string Person(string? name, Guid subject) => name is null ? subject.ToString() : $"{name} ({subject})";
+    private static string Format(DateTimeOffset time) => time.ToLocalTime().ToString("dd-MM-yyyy HH:mm");
+}

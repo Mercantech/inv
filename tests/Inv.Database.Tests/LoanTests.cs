@@ -25,6 +25,72 @@ public sealed class LoanTests(PostgresFixture postgres) : IClassFixture<Postgres
     private static readonly Guid Disabled = Guid.NewGuid();
 
     [Fact]
+    public async Task History_includes_both_notes_approvals_and_active_and_returned_loans_after_reloan()
+    {
+        await using var app = await StartAsync(new TestDirectory());
+        using var client = Login(app);
+        var equipment = await SeedAsync();
+        var other = await SeedAsync();
+        Assert.Empty((await client.GetFromJsonAsync<LoanHistoryResponse>($"/api/equipment/{equipment.Id}/loans"))!.Loans);
+        var first = await client.PostAsJsonAsync($"/api/equipment/{equipment.Id}/loans", new CreateLoanRequest(Borrower, "Udlånsnote"));
+        var loan = (await first.Content.ReadFromJsonAsync<LoanResponse>())!;
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsJsonAsync($"/api/equipment/{equipment.Id}/loans/return", new ReturnLoanRequest("Retur", loan.Id))).StatusCode);
+        var second = await client.PostAsJsonAsync($"/api/equipment/{equipment.Id}/loans", new CreateLoanRequest( Borrower, "Nyt udlån"));
+        var active = (await second.Content.ReadFromJsonAsync<LoanResponse>())!;
+        await client.PostAsJsonAsync($"/api/equipment/{other.Id}/loans", new CreateLoanRequest(Borrower, "Andet udstyr"));
+        var result = (await client.GetFromJsonAsync<LoanHistoryResponse>($"/api/equipment/{equipment.Id}/loans"))!;
+        Assert.False(result.DirectoryUnavailable);
+        Assert.Equal(2, result.Loans.Count);
+        Assert.Equal(active.Id, result.Loans[0].Id);
+        Assert.Null(result.Loans[0].ReturnedAt);
+        Assert.Null(result.Loans[0].ReturnedBySubject);
+        var previous = result.Loans[1];
+        Assert.Equal(loan.Id, previous.Id);
+        Assert.Equal(Borrower, previous.BorrowerSubject);
+        Assert.Equal("Ny Auth-bruger", previous.BorrowerName);
+        Assert.Equal(Approver, previous.ApprovedBySubject);
+        Assert.Equal(Approver, previous.ReturnedBySubject);
+        Assert.NotNull(previous.ReturnedAt);
+        Assert.Equal("Udlånsnote", previous.Note);
+        Assert.Equal("Retur", previous.ReturnNote);
+        // Godkenderen findes ikke i testkataloget: identiteten bevares som sub.
+        Assert.Null(previous.ApprovedByName);
+        Assert.Null(previous.ReturnedByName);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync($"/api/equipment/{Guid.NewGuid()}/loans")).StatusCode);
+        using var anonymous = app.GetTestClient();
+        Assert.Equal(HttpStatusCode.Unauthorized, (await anonymous.GetAsync($"/api/equipment/{equipment.Id}/loans")).StatusCode);
+    }
+
+    [Fact]
+    public async Task History_preserves_records_when_directory_fails_and_resolves_all_people_when_available()
+    {
+        var directory = new TestDirectory();
+        await using var app = await StartAsync(directory);
+        using var client = Login(app);
+        var equipment = await SeedAsync();
+        await using var db = postgres.CreateContext();
+        var loan = new Loan { EquipmentId = equipment.Id, BorrowerSubject = Borrower,
+            ApprovedBySubject = Borrower, LoanedAt = DateTimeOffset.UtcNow.AddDays(-2),
+            ReturnedAt = DateTimeOffset.UtcNow.AddDays(-1), ReturnedBySubject = Disabled, Note = "Bevares", ReturnNote = "Også retur" };
+        db.Add(loan);
+        await db.SaveChangesAsync();
+        var path = $"/api/equipment/{equipment.Id}/loans";
+        var named = Assert.Single((await client.GetFromJsonAsync<LoanHistoryResponse>(path))!.Loans);
+        Assert.Equal("Ny Auth-bruger", named.ApprovedByName);
+        Assert.Equal("Lukket konto", named.ReturnedByName);
+        directory.Unavailable = true;
+        var result = (await client.GetFromJsonAsync<LoanHistoryResponse>(path))!;
+        Assert.True(result.DirectoryUnavailable);
+        var row = Assert.Single(result.Loans);
+        Assert.Equal(loan.Id, row.Id);
+        Assert.Equal(Borrower, row.BorrowerSubject);
+        Assert.Equal(Disabled, row.ReturnedBySubject);
+        Assert.Null(row.BorrowerName);
+        Assert.Equal("Bevares", row.Note);
+        Assert.Equal("Også retur", row.ReturnNote);
+    }
+
+    [Fact]
     public async Task Return_records_server_approval_preserves_history_and_updates_equipment()
     {
         var directory = new TestDirectory();

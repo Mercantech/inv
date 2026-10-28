@@ -1,5 +1,10 @@
 namespace Inv.Web.Models;
 
+public sealed record LoanHistoryEntry(Guid Id, Guid BorrowerSubject, string? BorrowerName,
+    DateTimeOffset LoanedAt, DateTimeOffset? ReturnedAt, Guid ApprovedBySubject, string? ApprovedByName,
+    Guid? ReturnedBySubject, string? ReturnedByName, string? Note, string? ReturnNote);
+public sealed record LoanHistoryResponse(IReadOnlyList<LoanHistoryEntry> Loans, bool DirectoryUnavailable);
+
 public sealed record ActiveLoanResponse(Guid Id, Guid EquipmentId, int EquipmentShortId,
     string EquipmentName, string SerialNumber, Guid BorrowerSubject, string? BorrowerName,
     string? BorrowerEmail, DateTimeOffset LoanedAt);
