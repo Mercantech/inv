@@ -161,7 +161,8 @@ public sealed class EquipmentEditingTests(PostgresFixture postgres) : IClassFixt
         });
         builder.Services.AddAuthentication("test")
             .AddScheme<AuthenticationSchemeOptions, TestUserHandler>("test", _ => { });
-        builder.Services.AddAuthorization();
+        builder.Services.AddAuthorization(options =>
+            options.AddPolicy("EquipmentManager", policy => policy.RequireAuthenticatedUser()));
         var app = builder.Build();
         app.UseAuthentication();
         app.UseAuthorization();

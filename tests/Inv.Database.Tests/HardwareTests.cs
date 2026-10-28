@@ -205,7 +205,8 @@ public sealed class HardwareTests(PostgresFixture postgres) : IClassFixture<Post
         });
         builder.Services.AddScoped<HardwareStore>();
         builder.Services.AddAuthentication("test").AddScheme<AuthenticationSchemeOptions, TestUserHandler>("test", _ => { });
-        builder.Services.AddAuthorization();
+        builder.Services.AddAuthorization(options =>
+            options.AddPolicy("EquipmentManager", policy => policy.RequireAuthenticatedUser()));
         builder.Services.AddRateLimiter(options => options.AddPolicy("hardware-ingestion", _ =>
             RateLimitPartition.GetNoLimiter("test")));
         var app = builder.Build();
