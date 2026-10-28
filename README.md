@@ -1,5 +1,15 @@
 # Udstyrsinventar
 
+## Aktive udlån (V1-06)
+
+Åbn **Aktive udlån** i navigationen (`/udlaan`). Oversigten viser kun udlån uden `ReturnedAt`, med udstyr, serienummer, låner og lokalt udlånstidspunkt; nyeste udlån vises først. Klik på en række for at åbne udstyrets detaljeside. Søg på dele af udstyrsnavn, serienummer, lånernavn eller e-mail, eller på eksakt udstyrsnummer/bruger-ID. Søgningen ignorerer store/små bogstaver og omgivende mellemrum. **Nulstil** viser alle aktive udlån igen.
+
+`GET /api/loans?search=...` kræver login og returnerer `{ loans, directoryUnavailable }`. Lånernavne hentes fra det eksisterende Auth-register. Ved manglende konto vises bruger-ID; ved Auth-fejl vises også en besked om begrænset søgning. Ingen ny migration eller konfiguration kræves. Returnerede udlån udelades ved næste søgning/opdatering eller genåbning af siden. **Søg / opdatér** genindlæser oversigten, også efter returnering fra en anden browser.
+
+Integrationstestene i `LoanTests` dækker aktive/returnerede udlån, udstyr og lånerdata, søgefelter, ingen resultater, manglende konto, Auth-fejl og loginbeskyttelse. Manuel browserkontrol: åbn oversigten, søg efter både udstyr og låner, åbn detaljesiden, returnér udstyret og kontrollér, at det er væk, når oversigten åbnes igen.
+
+Teknisk validering den 28. oktober 2026: Release-build uden fejl/advarsler, alle 8 udlånstests bestået i Linux/Docker mod midlertidig PostgreSQL, lokal Compose rebuild/opstart gennemført og API-readiness `Healthy`. Manuel kontrol i en indlogget browser er endnu ikke gennemført.
+
 ## Arduino Oplà-hardwaretests
 
 Oplà-rapportmodtagelsen er portet til .NET. På `/hardware` kan indloggede brugere se boards, seneste komponentfejl og testhistorik, importere gamle rapporter og knytte boards til udstyr. Udstyrets detaljeside viser derefter seneste test. Hardwaretesteren findes i `hardware/HardwareTest`. Se [integrations- og importvejledningen](docs/hardware.md) for enhedsnøgle, historikimport og upload af firmware.

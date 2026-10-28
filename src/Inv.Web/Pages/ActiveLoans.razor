@@ -1,0 +1,103 @@
+@page "/udlaan"
+@using System.Net
+@using System.Text.Json
+@using Inv.Web.Models
+@using Inv.Web.Services
+@inject LoanClient Loans
+
+<PageTitle>Aktive udlån · Udstyrsinventar</PageTitle>
+<HeadContent><link rel="stylesheet" href="css/equipment.css?v=2" /></HeadContent>
+
+<div class="eq-page">
+    <header class="eq-hero">
+        <div><p class="eyebrow">Udlån</p><h1>Aktive udlån</h1><p>Se hvilket udstyr der er ude, og hvem der har det.</p></div>
+    </header>
+    <form class="eq-toolbar" @onsubmit="LoadAsync" @onsubmit:preventDefault aria-label="Søg i aktive udlån">
+        <label for="loan-search">Søg efter udstyr eller låner
+            <input id="loan-search" type="search" placeholder="Udstyr, serienummer, navn eller e-mail" @bind="search" disabled="@loading" />
+        </label>
+        <div class="eq-toolbar-actions">
+            <button class="button" type="submit" disabled="@loading">Søg / opdatér</button>
+            <button class="button button-secondary" type="button" @onclick="ResetAsync" disabled="@loading">Nulstil</button>
+        </div>
+    </form>
+    @if (loading)
+    {
+        <p role="status">Henter aktive udlån…</p>
+    }
+    else if (error is not null)
+    {
+        <div class="eq-state" role="alert"><p>@error</p><button class="button" @onclick="LoadAsync">Prøv igen</button></div>
+    }
+    else
+    {
+        @if (directoryUnavailable)
+        {
+            <p class="eq-alert eq-alert-soft" role="status">Lånerregistret er utilgængeligt. Lånere vises med bruger-ID; søgning på navn og e-mail er midlertidigt utilgængelig.</p>
+        }
+        <p class="eq-summary" role="status">@loans.Count aktive udlån @(filtered ? "· filtreret" : "")</p>
+        @if (loans.Count == 0)
+        {
+            <div class="eq-empty" role="status"><strong>@(filtered ? "Ingen udlån matcher søgningen" : "Intet udstyr er udlånt")</strong></div>
+        }
+        else
+        {
+            <ul class="eq-list">
+                @foreach (var loan in loans)
+                {
+                    <li @key="loan.Id">
+                        <a class="eq-item" href="@($"/udstyr/{loan.EquipmentId}")">
+                            <span class="eq-id">#@loan.EquipmentShortId</span>
+                            <div class="eq-body">
+                                <p class="eq-name">@loan.EquipmentName</p>
+                                <p class="eq-meta"><span>@loan.SerialNumber</span><span>Låner: @(loan.BorrowerName ?? loan.BorrowerSubject.ToString())</span>
+                                    @if (loan.BorrowerEmail is not null) { <span>@loan.BorrowerEmail</span> }
+                                </p>
+                                <p class="eq-meta">Udlånt <time datetime="@loan.LoanedAt.ToString("O")">@loan.LoanedAt.ToLocalTime().ToString("dd-MM-yyyy HH:mm")</time></p>
+                            </div>
+                        </a>
+                    </li>
+                }
+            </ul>
+        }
+    }
+</div>
+
+@code {
+    private IReadOnlyList<ActiveLoanResponse> loans = [];
+    private string search = string.Empty;
+    private bool loading = true;
+    private bool filtered;
+    private bool directoryUnavailable;
+    private string? error;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        loading = true;
+        error = null;
+        try
+        {
+            var result = await Loans.GetActiveAsync(search);
+            loans = result.Loans;
+            directoryUnavailable = result.DirectoryUnavailable;
+            filtered = !string.IsNullOrWhiteSpace(search);
+        }
+        catch (HttpRequestException exception)
+        {
+            error = exception.StatusCode == HttpStatusCode.Unauthorized
+                ? "Login er udløbet. Log ind igen."
+                : "Udlånene kunne ikke hentes. Prøv igen.";
+        }
+        catch (JSException) { error = "Tjek forbindelse og login, og prøv igen."; }
+        catch (JsonException) { error = "Ugyldigt svar fra API. Prøv igen senere."; }
+        finally { loading = false; }
+    }
+
+    private async Task ResetAsync()
+    {
+        search = string.Empty;
+        await LoadAsync();
+    }
+}

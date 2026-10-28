@@ -25,6 +25,52 @@ public sealed class LoanTests(PostgresFixture postgres) : IClassFixture<Postgres
     private static readonly Guid Disabled = Guid.NewGuid();
 
     [Fact]
+    public async Task Active_overview_searches_equipment_and_borrower_and_removes_returned_loans()
+    {
+        await using var app = await StartAsync(new TestDirectory());
+        using var client = Login(app);
+        var equipment = await SeedAsync();
+        var created = await client.PostAsJsonAsync($"/api/equipment/{equipment.Id}/loans", new CreateLoanRequest(Borrower, null));
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var loan = (await created.Content.ReadFromJsonAsync<LoanResponse>())!;
+        foreach (var term in new[] { "  udLÅnsTEST  ", equipment.SerialNumber, "ny auth", "NY@example.test", Borrower.ToString(), $"#{equipment.ShortId}" })
+        {
+            var result = (await client.GetFromJsonAsync<ActiveLoansResponse>($"/api/loans?search={Uri.EscapeDataString(term)}"))!;
+            var row = Assert.Single(result.Loans, l => l.Id == loan.Id);
+            Assert.Equal(equipment.Id, row.EquipmentId);
+            Assert.Equal(equipment.Name, row.EquipmentName);
+            Assert.Equal("Ny Auth-bruger", row.BorrowerName);
+            // PostgreSQL gemmer mikrosekunder, mens .NET også har 100 ns-ticks.
+            Assert.InRange((loan.LoanedAt - row.LoanedAt).Duration(), TimeSpan.Zero, TimeSpan.FromMicroseconds(1));
+            Assert.False(result.DirectoryUnavailable);
+        }
+        Assert.Empty((await client.GetFromJsonAsync<ActiveLoansResponse>("/api/loans?search=%25_%20ingen"))!.Loans);
+        Assert.Equal(HttpStatusCode.NoContent,
+            (await client.PostAsJsonAsync($"/api/equipment/{equipment.Id}/loans/return", new ReturnLoanRequest(null))).StatusCode);
+        Assert.DoesNotContain((await client.GetFromJsonAsync<ActiveLoansResponse>("/api/loans"))!.Loans, l => l.Id == loan.Id);
+    }
+
+    [Fact]
+    public async Task Active_overview_preserves_loans_when_directory_is_unavailable_or_borrower_is_missing()
+    {
+        var directory = new TestDirectory();
+        await using var app = await StartAsync(directory);
+        using var client = Login(app);
+        var equipment = await SeedAsync();
+        await using var db = postgres.CreateContext();
+        var loan = new Loan { EquipmentId = equipment.Id, BorrowerSubject = Guid.NewGuid(), ApprovedBySubject = Approver };
+        db.Add(loan);
+        await db.SaveChangesAsync();
+        var result = (await client.GetFromJsonAsync<ActiveLoansResponse>("/api/loans"))!;
+        Assert.Null(Assert.Single(result.Loans, l => l.Id == loan.Id).BorrowerName);
+        Assert.False(result.DirectoryUnavailable);
+        directory.Unavailable = true;
+        result = (await client.GetFromJsonAsync<ActiveLoansResponse>($"/api/loans?search={loan.BorrowerSubject}"))!;
+        Assert.Equal(loan.Id, Assert.Single(result.Loans).Id);
+        Assert.True(result.DirectoryUnavailable);
+    }
+
+    [Fact]
     public async Task Loan_uses_auth_subject_and_server_approval_and_becomes_visible_after_reload()
     {
         await using var app = await StartAsync(new TestDirectory());
@@ -89,6 +135,7 @@ public sealed class LoanTests(PostgresFixture postgres) : IClassFixture<Postgres
         using var client = app.GetTestClient();
         var id = Guid.NewGuid();
         Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/borrowers")).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/loans")).StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync($"/api/equipment/{id}/loan")).StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized,
             (await client.PostAsJsonAsync($"/api/equipment/{id}/loans", new CreateLoanRequest(Borrower, null))).StatusCode);
@@ -189,7 +236,7 @@ public sealed class LoanTests(PostgresFixture postgres) : IClassFixture<Postgres
         builder.Services.AddSingleton(directory);
         builder.Services.AddAuthentication("test")
             .AddScheme<AuthenticationSchemeOptions, TestUserHandler>("test", _ => { });
-        builder.Services.AddAuthorization();
+        builder.Services.AddAuthorization(options => options.AddPolicy("EquipmentManager", policy => policy.RequireAuthenticatedUser()));
         var app = builder.Build();
         app.UseAuthentication();
         app.UseAuthorization();
