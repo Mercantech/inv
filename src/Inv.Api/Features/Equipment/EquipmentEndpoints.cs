@@ -21,6 +21,7 @@ public static class EquipmentEndpoints
             string? search,
             Guid? categoryId,
             EquipmentCondition? condition,
+            bool? isLoaned,
             InventoryDbContext database,
             CancellationToken cancellationToken) =>
         {
@@ -59,6 +60,11 @@ public static class EquipmentEndpoints
             {
                 query = query.Where(item =>
                     item.Condition == condition.Value);
+            }
+
+            if (isLoaned.HasValue)
+            {
+                query = query.Where(item => item.Loans.Any(loan => loan.ReturnedAt == null) == isLoaned.Value);
             }
 
             var equipment = await query

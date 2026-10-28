@@ -9,7 +9,7 @@
 
 <PageTitle>Udstyr · Udstyrsinventar</PageTitle>
 <HeadContent>
-    <link rel="stylesheet" href="css/equipment.css?v=2" />
+    <link rel="stylesheet" href="css/equipment.css?v=3" />
 </HeadContent>
 
 <div class="eq-page">
@@ -32,7 +32,7 @@
         }
     </header>
 
-    <form class="eq-toolbar" @onsubmit="LoadAsync" @onsubmit:preventDefault aria-label="Søgning og filtrering">
+    <form class="eq-toolbar eq-toolbar-equipment" @onsubmit="LoadAsync" @onsubmit:preventDefault aria-label="Søgning og filtrering">
         <label for="equipment-search">
             Søg
             <input id="equipment-search"
@@ -72,6 +72,16 @@
                 <option value="2">Slidt</option>
                 <option value="3">Beskadiget</option>
                 <option value="4">Ude af drift</option>
+            </InputSelect>
+        </label>
+
+        <label for="equipment-loan-filter">
+            Udlånsstatus
+            <InputSelect id="equipment-loan-filter" TValue="bool?" @bind-Value="isLoaned"
+                         @bind-Value:after="OnFilterChangedAsync" disabled="@loading">
+                <option value="">Alle</option>
+                <option value="false">Ledigt</option>
+                <option value="true">Udlånt</option>
             </InputSelect>
         </label>
 
@@ -156,6 +166,7 @@
     private string search = string.Empty;
     private Guid? categoryId;
     private int? condition;
+    private bool? isLoaned;
     private bool loading = true;
     private bool hasAppliedFilters;
     private bool isAdmin;
@@ -212,18 +223,21 @@
         var appliedSearch = search.Trim();
         var appliedCategoryId = categoryId;
         var appliedCondition = condition;
+        var appliedIsLoaned = isLoaned;
 
         try
         {
             equipment = await Equipment.GetAllAsync(
                 appliedSearch,
                 appliedCategoryId,
-                appliedCondition);
+                appliedCondition,
+                appliedIsLoaned);
 
             hasAppliedFilters =
                 !string.IsNullOrWhiteSpace(appliedSearch) ||
                 appliedCategoryId.HasValue ||
-                appliedCondition.HasValue;
+                appliedCondition.HasValue ||
+                appliedIsLoaned.HasValue;
         }
         catch (HttpRequestException exception)
         {
@@ -254,6 +268,7 @@
         search = string.Empty;
         categoryId = null;
         condition = null;
+        isLoaned = null;
         await LoadAsync(showSkeleton: false);
     }
 

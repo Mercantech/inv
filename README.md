@@ -149,12 +149,15 @@ På `/udstyr` kan indloggede brugere søge på dele af navn eller serienummer ud
 | `search` | Del af navn eller serienummer; indledende og afsluttende mellemrum fjernes |
 | `categoryId` | ID på den ønskede kategori |
 | `condition` | Tilstand: 0 = ukendt, 1 = god, 2 = slidt, 3 = beskadiget, 4 = ude af drift |
+| `isLoaned` | Udeladt = alle; `false` = ledigt; `true` = udlånt. Kun udlån uden `ReturnedAt` tæller som aktive |
 
 Eksempel: `/api/equipment/?search=arduino&condition=1`. Filtrene kombineres, så udstyret skal opfylde alle valgte betingelser. Særlige søgetegn som `%` og `_` behandles som almindelig tekst. En ugyldig tilstand afvises med 400. Datamodellen er uændret, og der kræves ingen ny migration.
 
 **Manuel afprøvning den 26. oktober 2026:** Brugeren har meldt søgning og kategori- og tilstandsfiltrering bestået efter afprøvning lokalt i Docker, herunder kombinerede filtre, tilstanden ukendt, ingen resultater og nulstilling.
 
-**Resterende arbejde:** V1-05 forbliver åbent. Visning af udlånsstatus og filter på udlånsstatus afventer udlånsmodulet i Sprint 2. Tilstand er en samlet vurdering; konkrete fejl på eksempelvis skærm eller føler håndteres senere i fejlmodulet med mulighed for flere aktuelle fejl og historik over udbedrede fejl. Filtrering på konkrete fejl er endnu ikke implementeret.
+**Udlånsfilter (28. oktober 2026):** På `/udstyr` kan **Udlånsstatus** vælges som **Alle / Ledigt / Udlånt**. Filteret kombineres med søgning, kategori og tilstand; **Nulstil** rydder alle fire valg. Eksempel: `/api/equipment/?isLoaned=false&condition=1`. Udstyr med kun afsluttede udlån tæller som ledigt. Ved næste opdatering følger filterresultaterne nye udlån og returneringer. Ugyldig `isLoaned` giver 400; endpointet kræver fortsat login. Ingen migration eller ny miljøkonfiguration kræves. Manuel kontrol af det nye filter afventer brugerens afprøvning. Filtrering på konkrete fejl hører til statusoversigten i Sprint 3.
+
+Teknisk validering af udlånsfilteret: Release-build uden fejl/advarsler, alle 60 .NET-tests bestået i Linux/Docker og EF-kontrol uden modelændringer. Lokal Compose er genbygget og startet med readiness `Healthy`. Integrationstesten dækker alle/ledigt/udlånt, kombination med søgning/kategori/tilstand, ingen resultater, ugyldig filterværdi, loginbeskyttelse samt returnering og genudlån.
 
 ## Redigering af udstyr (V1-03)
 

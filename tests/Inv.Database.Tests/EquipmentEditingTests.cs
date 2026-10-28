@@ -20,6 +20,47 @@ namespace Inv.Database.Tests;
 public sealed class EquipmentEditingTests(PostgresFixture postgres) : IClassFixture<PostgresFixture>
 {
     [Fact]
+    public async Task Loan_filter_combines_with_other_filters_and_tracks_return_and_reloan()
+    {
+        await using var app = await StartAsync();
+        using var client = app.GetTestClient();
+        client.DefaultRequestHeaders.Add("X-Test-User", "yes");
+        await using var db = postgres.CreateContext();
+        var category = new EquipmentCategory { Name = Guid.NewGuid().ToString() };
+        var available = new Equipment { Name = "Filtertest ledig", SerialNumber = "SER-LEDIG", Category = category, Condition = EquipmentCondition.Good };
+        var returned = new Equipment { Name = "Filtertest returneret", SerialNumber = "SER-RETUR", Category = category, Condition = EquipmentCondition.Worn };
+        var borrowed = new Equipment { Name = "Filtertest udlånt", SerialNumber = "SER-UD", Category = category, Condition = EquipmentCondition.Good };
+        var historical = new Loan { Equipment = returned, BorrowerSubject = Guid.NewGuid(), ApprovedBySubject = Guid.NewGuid(),
+            LoanedAt = DateTimeOffset.UtcNow.AddDays(-2), ReturnedAt = DateTimeOffset.UtcNow.AddDays(-1), ReturnedBySubject = Guid.NewGuid() };
+        var active = new Loan { Equipment = borrowed, BorrowerSubject = Guid.NewGuid(), ApprovedBySubject = Guid.NewGuid() };
+        db.AddRange(available, historical, active);
+        await db.SaveChangesAsync();
+        var path = $"/api/equipment/?categoryId={category.Id}";
+        Assert.Equal(3, (await client.GetFromJsonAsync<List<EquipmentResponse>>(path))!.Count);
+        var onlyBorrowed = Assert.Single((await client.GetFromJsonAsync<List<EquipmentResponse>>(path + "&isLoaned=true"))!);
+        Assert.Equal(borrowed.Id, onlyBorrowed.Id);
+        Assert.True(onlyBorrowed.IsLoaned);
+        var free = (await client.GetFromJsonAsync<List<EquipmentResponse>>(path + "&isLoaned=false"))!;
+        Assert.Equal(2, free.Count);
+        Assert.All(free, item => Assert.False(item.IsLoaned));
+        Assert.Contains(free, item => item.Id == returned.Id);
+        Assert.Equal(available.Id, Assert.Single((await client.GetFromJsonAsync<List<EquipmentResponse>>(path + "&isLoaned=false&condition=1&search=filtertest"))!).Id);
+        Assert.Equal(returned.Id, Assert.Single((await client.GetFromJsonAsync<List<EquipmentResponse>>(path + "&isLoaned=false&search=SER-RETUR"))!).Id);
+        Assert.Empty((await client.GetFromJsonAsync<List<EquipmentResponse>>(path + "&isLoaned=true&condition=2"))!);
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.GetAsync(path + "&isLoaned=invalid")).StatusCode);
+        using var anonymous = app.GetTestClient();
+        Assert.Equal(HttpStatusCode.Unauthorized, (await anonymous.GetAsync(path + "&isLoaned=true")).StatusCode);
+        active.ReturnedAt = DateTimeOffset.UtcNow;
+        active.ReturnedBySubject = Guid.NewGuid();
+        await db.SaveChangesAsync();
+        Assert.Empty((await client.GetFromJsonAsync<List<EquipmentResponse>>(path + "&isLoaned=true"))!);
+        Assert.Equal(3, (await client.GetFromJsonAsync<List<EquipmentResponse>>(path + "&isLoaned=false"))!.Count);
+        db.Loans.Add(new Loan { EquipmentId = borrowed.Id, BorrowerSubject = Guid.NewGuid(), ApprovedBySubject = Guid.NewGuid() });
+        await db.SaveChangesAsync();
+        Assert.Equal(borrowed.Id, Assert.Single((await client.GetFromJsonAsync<List<EquipmentResponse>>(path + "&isLoaned=true"))!).Id);
+    }
+
+    [Fact]
     public async Task Shared_save_flow_still_creates_equipment_and_validates_creation()
     {
         await using var app = await StartAsync();

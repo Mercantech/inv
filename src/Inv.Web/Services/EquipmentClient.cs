@@ -12,7 +12,8 @@ public sealed class EquipmentClient(MercantecAuthClient auth)
     public async Task<List<EquipmentResponse>> GetAllAsync(
         string? search = null,
         Guid? categoryId = null,
-        int? condition = null)
+        int? condition = null,
+        bool? isLoaned = null)
     {
         var parameters = new List<string>();
 
@@ -30,6 +31,11 @@ public sealed class EquipmentClient(MercantecAuthClient auth)
         {
             parameters.Add(
                 $"condition={condition.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)}");
+        }
+
+        if (isLoaned.HasValue)
+        {
+            parameters.Add($"isLoaned={(isLoaned.Value ? "true" : "false")}");
         }
 
         var url = "equipment/";

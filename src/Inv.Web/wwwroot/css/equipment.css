@@ -259,6 +259,11 @@
     100% { background-position: -100% 0; }
 }
 
+@media (min-width: 901px) {
+    .eq-toolbar-equipment { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .eq-toolbar-equipment .eq-toolbar-actions { grid-column: 1 / -1; }
+}
+
 @media (max-width: 900px) {
     .eq-toolbar {
         grid-template-columns: 1fr 1fr;
