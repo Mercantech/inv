@@ -8,7 +8,7 @@
 
 Produktionsadgang følger `LoanManager` (samme roller/bruger-ID'er som `EquipmentManager`). Den aftalte lokale testadgang uden rolle gælder fortsat kun Development; se `docs/development.md`. Datamodellen har allerede returfeltterne, så ingen migration kræves. Visning af fuld historik hører til V1-14.
 
-Manuel kontrol før V1-08 og V1-06 lukkes: udlån udstyr med en note, returnér med ny tilstand og særskilt returnote, kontrollér tilstand/status på detaljesiden og at udstyret er væk fra aktive udlån. Kontrollér også **Annuller** og at en gammel returformular ikke kan returnere samme udlån igen. Denne browserkontrol er endnu ikke gennemført.
+Manuel kontrol af V1-08 og V1-06 er meldt bestået af brugeren den 28. oktober 2026. Det samlede flow omfatter udlån, returnering med tilstand og note samt opdatering af aktive udlån. Produktionsudgaven håndhæver `LoanManager` med samme adgangskrav som `EquipmentManager`; den lokale testundtagelse følger ikke med den normale Compose-opsætning.
 
 Teknisk validering den 28. oktober 2026: Release-build uden fejl/advarsler, alle 23 auth-/udlånstests bestået i Linux/Docker mod midlertidig PostgreSQL og lokal Compose-opstart med rebuild gennemført med readiness `Healthy`. Returtestene dækker serverstyret godkendelse/tid, bevaret historik, tilstandsændring, validering, Auth-udfald, dobbeltreturnering, samtidige kald og en gammel formular efter genudlån.
 
