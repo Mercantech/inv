@@ -8,9 +8,9 @@ public sealed class IssueCategoryClient(MercantecAuthClient auth)
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
-    public async Task<List<IssueCategoryResponse>> GetAllAsync()
+    public async Task<List<IssueCategoryResponse>> GetAllAsync(Guid? equipmentId = null)
     {
-        var response = await auth.GetAsync("issue-categories/");
+        var response = await auth.GetAsync(equipmentId.HasValue ? $"issue-categories/?equipmentId={equipmentId.Value}" : "issue-categories/");
         if (response.Status != 200)
             throw new HttpRequestException("Fejlkategorier kunne ikke hentes.", null, (HttpStatusCode)response.Status);
 

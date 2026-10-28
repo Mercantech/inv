@@ -231,3 +231,15 @@ API: `GET /api/fault-categories` samler automatisk fundne hardwarekategorier og 
 Valideret 28. oktober 2026: Release-build uden fejl/advarsler, 61 beståede .NET-tests i Linux/Docker mod midlertidig PostgreSQL og uændret EF-model. Ny integrationstest dækker automatisk kategori, komponentfejl, oversprunget test, kombinerede filtre, bestået gentest, bevaret rapporthistorik, ekstra manuel fejl, manuel løsning, ugyldigt filter og loginbeskyttelse. Manuel browserkontrol af det nye flow afventer.
 
 Teknisk validering af fejlantal: Release-build uden fejl/advarsler; alle 61 .NET-tests består i Linux/Docker, og EF-kontrollen matcher migrationerne. Integrationstesten verificerer 0, 1 og 2 fejl, præcist antal-filter, kombination med fejlkategori, afvisning af negative antal samt genberegning efter ny bestået test og manuel løsning. Browserkontrol af det nye layout afventer.
+
+## Fejlkategorier afgrænset til udstyr (V1-12)
+
+Fejlformularen på udstyrets detaljeside viser kun globale fejlkategorier (**Alle typer**) og kategorier til udstyrets aktuelle udstyrskategori. Kategorien oprettes fortsat under **Kategorier**, hvor navn og valgfri udstyrskategori vælges. Automatiske hardwarekategorier og testresultater følger fortsat boardets rapporter.
+
+`GET /api/issue-categories/?equipmentId={id}` returnerer de relevante manuelle kategorier; ukendt udstyr giver 404. Uden parameteren returneres alle kategorier til administration. Login er påkrævet i begge tilfælde. Oprettelse og ændring af en fejlrapport afviser en ny kategori fra en anden udstyrstype med 400 og feltfejl på `IssueCategoryId`. Hvis udstyret senere omklassificeres, bevares eksisterende rapporter og deres kategorier, og de kan fortsat behandles/løses. Nye fejl og kategoriskift kontrolleres mod udstyrets aktuelle kategori. En fejlkategori i brug kan ikke afgrænses til en udstyrstype, der udelukker udstyr med eksisterende rapporter (409).
+
+Ingen migration eller nye miljøvariabler kræves. Integrationstests i `IssueCategoryTests` dækker globale/matchende/forkerte kategorier, omklassificering, ukendt udstyr, login, servervalidering, bevaret rapport ved afvist ændring, gamle rapporters behandling, tomt/langt navn, ukendt udstyrskategori og dubletter inden for samme afgrænsning.
+
+Manuel kontrol: Opret en global fejlkategori og én for hver af to udstyrstyper. Kontrollér på udstyr af begge typer, at kun globale og matchende kategorier kan vælges. Registrér en fejl og kontrollér fejlantal. Kontrollér tomt navn og dubletnavn. Browserkontrollen afventer, før V1-12 lukkes.
+
+Teknisk validering af V1-12 den 28. oktober 2026: Release-build uden fejl/advarsler, alle 64 .NET-tests bestået i Linux/Docker og EF-kontrol uden modelændringer.

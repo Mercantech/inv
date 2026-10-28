@@ -52,9 +52,16 @@ public static class IssueEndpoints
         return endpoints;
     }
 
-    private static async Task<IResult> ListCategoriesAsync(InventoryDbContext db, CancellationToken ct)
+    private static async Task<IResult> ListCategoriesAsync(Guid? equipmentId, InventoryDbContext db, CancellationToken ct)
     {
-        var rows = await db.IssueCategories.AsNoTracking()
+        var query = db.IssueCategories.AsNoTracking();
+        if (equipmentId.HasValue)
+        {
+            var equipment = await db.Equipment.AsNoTracking().SingleOrDefaultAsync(e => e.Id == equipmentId.Value, ct);
+            if (equipment is null) return Results.NotFound(new { Message = "Udstyret blev ikke fundet." });
+            query = query.Where(c => c.EquipmentCategoryId == null || c.EquipmentCategoryId == equipment.EquipmentCategoryId);
+        }
+        var rows = await query
             .OrderBy(item => item.Name)
             .Select(item => new IssueCategoryResponse(item.Id, item.Name, item.EquipmentCategoryId))
             .ToListAsync(ct);
@@ -119,6 +126,11 @@ public static class IssueEndpoints
                 });
             }
         }
+
+        if (request.EquipmentCategoryId is Guid scope && category.EquipmentCategoryId != scope
+            && await db.EquipmentIssues.AnyAsync(i => i.IssueCategoryId == id
+                && i.Equipment.EquipmentCategoryId != scope, ct))
+            return Results.Conflict(new { Message = "Kategorien bruges på udstyr uden for den valgte udstyrskategori. Behold den nuværende afgrænsning eller vælg Alle typer." });
 
         category.Name = (string)name;
         category.EquipmentCategoryId = request.EquipmentCategoryId;
@@ -191,8 +203,8 @@ public static class IssueEndpoints
 
         if (request.IssueCategoryId is null || request.IssueCategoryId == Guid.Empty)
             errors["IssueCategoryId"] = ["Vælg en fejlkategori."];
-        else if (!await db.IssueCategories.AnyAsync(item => item.Id == request.IssueCategoryId, ct))
-            errors["IssueCategoryId"] = ["Fejlkategorien findes ikke."];
+        else if (await CategoryErrorAsync(request.IssueCategoryId.Value, equipmentId, db, ct) is { } categoryError)
+            errors["IssueCategoryId"] = [categoryError];
 
         if (errors.Count > 0) return Results.ValidationProblem(errors);
 
@@ -251,8 +263,10 @@ public static class IssueEndpoints
 
         if (request.IssueCategoryId is Guid categoryId)
         {
-            if (!await db.IssueCategories.AnyAsync(item => item.Id == categoryId, ct))
-                errors["IssueCategoryId"] = ["Fejlkategorien findes ikke."];
+            // Existing reports remain actionable after equipment has been reclassified.
+            if (categoryId != issue.IssueCategoryId
+                && await CategoryErrorAsync(categoryId, equipmentId, db, ct) is { } categoryError)
+                errors["IssueCategoryId"] = [categoryError];
             else
                 issue.IssueCategoryId = categoryId;
         }
@@ -331,6 +345,17 @@ public static class IssueEndpoints
         db.EquipmentIssues.Remove(issue);
         await db.SaveChangesAsync(ct);
         return Results.NoContent();
+    }
+
+    private static async Task<string?> CategoryErrorAsync(Guid categoryId, Guid equipmentId,
+        InventoryDbContext db, CancellationToken ct)
+    {
+        var category = await db.IssueCategories.AsNoTracking().SingleOrDefaultAsync(c => c.Id == categoryId, ct);
+        if (category is null) return "Fejlkategorien findes ikke.";
+        if (category.EquipmentCategoryId is null) return null;
+        return await db.Equipment.AnyAsync(e => e.Id == equipmentId
+            && e.EquipmentCategoryId == category.EquipmentCategoryId, ct)
+            ? null : "Fejlkategorien gælder ikke denne udstyrskategori.";
     }
 
     private static object ValidateCategoryName(string? value)

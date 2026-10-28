@@ -61,7 +61,7 @@
             </EditForm>
             @if (categories.Count == 0)
             {
-                <p class="page-summary">Opret en fejlkategori under Kategorier først.</p>
+                <p class="page-summary">Ingen fejlkategorier gælder dette udstyr. Opret en global kategori eller en kategori til denne udstyrstype under Kategorier.</p>
             }
         }
 
@@ -128,7 +128,11 @@
         {
             issues = await Issues.GetForEquipmentAsync(EquipmentId);
             hardwareFaults = await Issues.GetFaultDataAsync<HardwareFaultResponse>($"equipment/{EquipmentId}/hardware-faults");
-            if (isAdmin) categories = await IssueCategories.GetAllAsync();
+            if (isAdmin)
+            {
+                categories = await IssueCategories.GetAllAsync(EquipmentId);
+                if (!categories.Any(c => c.Id == createModel.IssueCategoryId)) createModel.IssueCategoryId = null;
+            }
         }
         catch (Exception e) when (e is HttpRequestException or JSException or JsonException)
         {
@@ -155,7 +159,7 @@
                 saveError = response.Status switch
                 {
                     403 => "Du mangler rettighed.",
-                    400 => "Udfyld kategori og beskrivelse.",
+                    400 => "Vælg en fejlkategori, der gælder udstyret, og udfyld beskrivelsen. Genindlæs siden, hvis kategorierne er ændret.",
                     _ => "Fejlen kunne ikke oprettes."
                 };
         }
