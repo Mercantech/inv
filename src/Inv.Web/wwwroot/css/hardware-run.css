@@ -387,6 +387,74 @@
     background: #fff;
 }
 
+.hr-test-pick {
+    margin: 0 0 1rem;
+    padding: .85rem .9rem;
+    border: 1px solid #c5d2c8;
+    border-radius: .4rem;
+    background: #f6f8f5;
+}
+.hr-test-pick-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .5rem;
+    margin-bottom: .35rem;
+}
+.hr-test-pick-head h3 {
+    margin: 0;
+    font-size: .95rem;
+    font-weight: 700;
+    color: #1e3830;
+}
+.hr-test-pick-actions {
+    display: flex;
+    gap: .35rem;
+}
+.hr-mini {
+    padding: .28rem .55rem !important;
+    font-size: .72rem !important;
+}
+.hr-test-pick-hint {
+    margin: 0 0 .65rem;
+    font-size: .75rem;
+    color: #5a6e66;
+}
+.hr-test-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: .4rem .55rem;
+}
+.hr-test-opt {
+    display: flex;
+    align-items: flex-start;
+    gap: .45rem;
+    font-size: .8rem;
+    font-weight: 600;
+    color: #2a3f38;
+    cursor: pointer;
+}
+.hr-test-opt input {
+    margin-top: .15rem;
+    flex-shrink: 0;
+}
+.hr-test-opt span {
+    display: grid;
+    gap: .05rem;
+    line-height: 1.25;
+}
+.hr-test-opt small {
+    font-weight: 500;
+    color: #6a7f76;
+}
+.hr-test-opt-sound {
+    grid-column: 1 / -1;
+    padding: .35rem .45rem;
+    border-radius: .3rem;
+    background: #fff8e8;
+    border: 1px solid #e6d4a8;
+}
+
 /* ——— Oplà SVG ——— */
 .opla {
     width: min(100%, 22rem);

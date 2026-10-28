@@ -28,20 +28,22 @@ Firmwaren til browser-flash ligger i `src/Inv.Web/wwwroot/firmware/opla-hardware
 
 ## Serial-protokol
 
-Kommandoer (newline-termineret): `START`, `OK` / `FAIL`, `ABORT`, `STATUS` (gentag READY/IDS), samt JSON:
+Kommandoer (newline-termineret): `START` (alle tests, stille), `OK` / `FAIL`, `ABORT`, `STATUS` (gentag READY/IDS), samt JSON:
 
 - `{"v":1,"cmd":"wifi","ssid":"...","password":"..."}` — sætter WiFi til næste test (tom ssid rydder)
+- `{"v":1,"cmd":"start","sound":true,"tests":"OLED,Temp/Fugt,Tryk,IMU,SD,Relay,Knapper,LED,Buzzer,WiFi"}` — kør valgte tests (`tests` er CSV; udelad feltet for alle). `sound` aktiverer buzzer/bip.
 
 Events er JSON-linjer, fx:
 
 - `{"v":1,"type":"ready"}`
 - `{"v":1,"type":"ids","samd_id":"...","mac":"...","ecc_serial":"..."}`
 - `{"v":1,"type":"wifi","ok":true,"ssid":"..."}`
-- `{"v":1,"type":"step","name":"OLED","phase":"begin|awaiting_confirm|result",...}`
+- `{"v":1,"type":"step","name":"OLED","phase":"begin|awaiting_confirm|result",...}` — udfylder «Testtrin» i UI
 - `{"v":1,"type":"reading","name":"Tryk","text":"101.23 kPa · 1012 hPa"}` — live sensorværdi til UI
 - `{"v":1,"type":"done","passed":8,"failed":0,"tests":[...]}`
+- `{"v":1,"type":"error","message":"unknown command"}` — ukendt tekstkommando (sjældent; typisk stale input)
 
-WiFi-trinnet springes over (`skipped`) hvis der ikke er sat credentials. `ENABLE_SOUND_TEST` er som standard `false`. `ENABLE_API_REPORT` er `false` — browseren poster til API'et.
+WiFi-trinnet springes over (`skipped`) hvis der ikke er sat credentials. Buzzer kræver `sound:true` (eller at Buzzer er i `tests`). `ENABLE_API_REPORT` er `false` — browseren poster til API'et.
 
 ## Kompilering i Docker
 

@@ -10,7 +10,7 @@
 
 <PageTitle>Kør hardwaretest · Udstyrsinventar</PageTitle>
 <HeadContent>
-    <link rel="stylesheet" href="css/hardware-run.css?v=4" />
+    <link rel="stylesheet" href="css/hardware-run.css?v=5" />
 </HeadContent>
 
 <div class="hr-page">
@@ -133,8 +133,36 @@
                                 </label>
                             }
                         </div>
+                        <div class="hr-test-pick" aria-label="Vælg tests">
+                            <div class="hr-test-pick-head">
+                                <h3>Tests</h3>
+                                <div class="hr-test-pick-actions">
+                                    <button type="button" class="button button-secondary hr-mini" @onclick="SelectAllTests" disabled="@busy">Alle</button>
+                                    <button type="button" class="button button-secondary hr-mini" @onclick="SelectDefaultTests" disabled="@busy">Standard</button>
+                                </div>
+                            </div>
+                            <p class="hr-test-pick-hint">Vælg hvad der skal køres. Buzzer spiller lyd.</p>
+                            <div class="hr-test-grid">
+                                @foreach (var opt in TestOptions)
+                                {
+                                    <label class="hr-test-opt @(opt.Id == "Buzzer" ? "hr-test-opt-sound" : null)">
+                                        <input type="checkbox"
+                                               checked="@selectedTests.Contains(opt.Id)"
+                                               disabled="@busy"
+                                               @onchange="e => ToggleTest(opt.Id, e)" />
+                                        <span>
+                                            @opt.Label
+                                            @if (!string.IsNullOrEmpty(opt.Hint))
+                                            {
+                                                <small>@opt.Hint</small>
+                                            }
+                                        </span>
+                                    </label>
+                                }
+                            </div>
+                        </div>
                         <div class="hr-actions hr-actions-stack">
-                            <button class="button" @onclick="StartAsync" disabled="@busy">Start test</button>
+                            <button class="button" @onclick="StartAsync" disabled="@(busy || selectedTests.Count == 0)">Start test</button>
                         </div>
                         <details class="hr-more">
                             <summary>Mere</summary>
@@ -224,7 +252,27 @@
     private readonly List<string> log = [];
     private readonly List<StepState> steps = [];
     private readonly List<StepState> completed = [];
+    private readonly HashSet<string> selectedTests = new(StringComparer.Ordinal);
+    private bool legacyStartAttempted;
     private const string WifiStorageKey = "inv.hardware.wifi";
+    private const string TestsStorageKey = "inv.hardware.tests";
+
+    /// <summary>Navne matcher firmwarens testtrin 1:1 (TestRunner).</summary>
+    private static readonly TestOption[] TestOptions =
+    [
+        new("OLED", "OLED", "skærm"),
+        new("Temp/Fugt", "Temp/fugt", null),
+        new("Tryk", "Tryk", null),
+        new("IMU", "IMU", null),
+        new("SD", "SD-kort", null),
+        new("Relay", "Relay", "klik"),
+        new("Knapper", "Knapper", null),
+        new("LED", "LED", null),
+        new("Buzzer", "Buzzer", "med lyd"),
+        new("WiFi", "WiFi", null),
+    ];
+
+    private sealed record TestOption(string Id, string Label, string? Hint);
 
     private sealed class StepState
     {
@@ -293,6 +341,77 @@
             await TryAutoConnectAsync();
         }
         await LoadWifiAsync();
+        await LoadTestSelectionAsync();
+    }
+
+    private void ApplyDefaultTestSelection()
+    {
+        selectedTests.Clear();
+        foreach (var opt in TestOptions)
+        {
+            if (opt.Id == "Buzzer") continue; // stille som standard
+            selectedTests.Add(opt.Id);
+        }
+    }
+
+    private void SelectAllTests()
+    {
+        selectedTests.Clear();
+        foreach (var opt in TestOptions)
+            selectedTests.Add(opt.Id);
+        _ = PersistTestSelectionAsync();
+    }
+
+    private void SelectDefaultTests()
+    {
+        ApplyDefaultTestSelection();
+        _ = PersistTestSelectionAsync();
+    }
+
+    private void ToggleTest(string id, ChangeEventArgs e)
+    {
+        var on = e.Value switch
+        {
+            bool b => b,
+            string s => bool.TryParse(s, out var p) && p,
+            _ => false
+        };
+        if (on) selectedTests.Add(id);
+        else selectedTests.Remove(id);
+        _ = PersistTestSelectionAsync();
+    }
+
+    private async Task LoadTestSelectionAsync()
+    {
+        ApplyDefaultTestSelection();
+        try
+        {
+            var raw = await Js.InvokeAsync<string?>("sessionStorage.getItem", TestsStorageKey);
+            if (string.IsNullOrWhiteSpace(raw)) return;
+            var ids = JsonSerializer.Deserialize<string[]>(raw);
+            if (ids is null || ids.Length == 0) return;
+            var known = TestOptions.Select(t => t.Id).ToHashSet(StringComparer.Ordinal);
+            selectedTests.Clear();
+            foreach (var id in ids)
+            {
+                if (known.Contains(id))
+                    selectedTests.Add(id);
+            }
+            if (selectedTests.Count == 0)
+                ApplyDefaultTestSelection();
+        }
+        catch (JSException) { /* ignore */ }
+        catch (JsonException) { /* ignore */ }
+    }
+
+    private async Task PersistTestSelectionAsync()
+    {
+        try
+        {
+            var payload = JsonSerializer.Serialize(selectedTests.OrderBy(x => x).ToArray());
+            await Js.InvokeVoidAsync("sessionStorage.setItem", TestsStorageKey, payload);
+        }
+        catch (JSException) { /* ignore */ }
     }
 
     private async Task TryAutoConnectAsync()
@@ -530,20 +649,45 @@
         steps.Clear();
         completed.Clear();
         liveReading = liveReadingStep = null;
+        if (selectedTests.Count == 0)
+        {
+            error = "Vælg mindst én test.";
+            return;
+        }
         running = true;
         awaitingConfirm = false;
+        legacyStartAttempted = false;
         try
         {
             await SendWifiConfigAsync();
-            await Serial.WriteLineAsync("START");
+            await SendStartConfigAsync();
             var ssid = EffectiveWifiSsid;
-            message = string.IsNullOrEmpty(ssid) ? "Test startet." : $"Test startet · {ssid}";
+            var n = selectedTests.Count;
+            message = string.IsNullOrEmpty(ssid)
+                ? $"Test startet ({n})."
+                : $"Test startet ({n}) · {ssid}";
         }
         catch (Exception ex)
         {
             running = false;
             error = ex.Message;
         }
+    }
+
+    private async Task SendStartConfigAsync()
+    {
+        // CSV i "tests" er nemmere for firmwaren end JSON-array
+        var ordered = TestOptions.Where(t => selectedTests.Contains(t.Id)).Select(t => t.Id).ToArray();
+        var sound = selectedTests.Contains("Buzzer");
+        var line = JsonSerializer.Serialize(new
+        {
+            v = 1,
+            cmd = "start",
+            sound,
+            tests = string.Join(',', ordered)
+        });
+        await Serial.WriteLineAsync(line);
+        await PersistTestSelectionAsync();
     }
 
     private async Task SendWifiConfigAsync()
@@ -629,7 +773,24 @@
                         await SaveReportAsync(root);
                         break;
                     case "error":
-                        error = root.TryGetProperty("message", out var msg) ? msg.GetString() : "Boardfejl";
+                        var errMsg = root.TryGetProperty("message", out var msg) ? msg.GetString() : "Boardfejl";
+                        // Ældre firmware forstår ikke start-JSON — prøv plain START én gang
+                        if (errMsg is "unknown json command" or "unknown command"
+                            && running && steps.Count == 0
+                            && !legacyStartAttempted)
+                        {
+                            legacyStartAttempted = true;
+                            try
+                            {
+                                await Serial.WriteLineAsync("START");
+                                message = "Ældre firmware — kører alle tests. Opdatér firmware for testvalg.";
+                            }
+                            catch (Exception ex) { error = ex.Message; }
+                        }
+                        else
+                        {
+                            error = errMsg;
+                        }
                         break;
                 }
             }
@@ -786,7 +947,7 @@
             var report = new
             {
                 firmware = "HardwareTest-webserial",
-                sound_enabled = false,
+                sound_enabled = selectedTests.Contains("Buzzer"),
                 samd_id = samdId,
                 mac,
                 ecc_serial = eccSerial,

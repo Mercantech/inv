@@ -91,11 +91,11 @@ void printDeviceIds(MKRIoTCarrier &carrier) {
 }
 
 void maybeBeep(MKRIoTCarrier &carrier) {
-#if ENABLE_SOUND_TEST
-  carrier.Buzzer.beep();
-#else
-  (void)carrier;
-#endif
+  if (isSoundEnabled()) {
+    carrier.Buzzer.beep();
+  } else {
+    (void)carrier;
+  }
 }
 
 void showTestResult(MKRIoTCarrier &carrier, const char *name, bool ok) {

@@ -7,7 +7,8 @@
 #include "Secrets.h"
 #endif
 
-// Stille lokale: sæt til false — springer buzzer-test over og undgår bip ved knapper
+// Legacy compile-flag (bruges kun som default hvis host ikke sætter sound).
+// Browseren styrer lyd/buzzer via {"cmd":"start","sound":true,...}.
 #ifndef ENABLE_SOUND_TEST
 #define ENABLE_SOUND_TEST false
 #endif
@@ -16,6 +17,9 @@
 #ifndef ENABLE_API_REPORT
 #define ENABLE_API_REPORT false
 #endif
+
+// Antal navngivne testtrin (rækkefølge i TestRunner)
+#define HW_TEST_COUNT 10
 
 #ifndef API_HOST
 #define API_HOST "inv.mercantec.tech"
@@ -63,7 +67,7 @@ void clearWifiCredentials();
 bool applyWifiConfigJson(const char *json);
 bool testWiFi(MKRIoTCarrier &carrier);
 
-// Host-protokol (JSON-linjer + START/OK/FAIL/ABORT)
+// Host-protokol (JSON-linjer + START/OK/FAIL/ABORT + start-config)
 void emitReady();
 void emitIds();
 void emitError(const char *message);
@@ -77,6 +81,13 @@ void clearAbortRequest();
 bool isAbortRequested();
 bool isTestsRunning();
 void setTestsRunning(bool running);
+
+// Testvalg / lyd (sat af applyStartConfigJson eller resetTestSelection)
+void resetTestSelection();
+bool applyStartConfigJson(const char *json);
+bool isSoundEnabled();
+bool isTestSelected(const char *name);
+const char *const *testNames(); // HW_TEST_COUNT navne
 
 void maybeBeep(MKRIoTCarrier &carrier);
 

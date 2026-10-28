@@ -1,7 +1,20 @@
 #include <Arduino_MKRIoTCarrier.h>
 #include "Hardwaretestere.h"
+#include <string.h>
+#include <ctype.h>
 
 MKRIoTCarrier carrier;
+
+static void trimInPlace(char *s) {
+  if (!s) return;
+  char *start = s;
+  while (*start && isspace((unsigned char)*start)) start++;
+  if (start != s) memmove(s, start, strlen(start) + 1);
+  size_t n = strlen(s);
+  while (n > 0 && isspace((unsigned char)s[n - 1])) {
+    s[--n] = '\0';
+  }
+}
 
 void setup() {
   Serial.begin(9600);
@@ -21,6 +34,7 @@ void setup() {
 
   initOLEDScreen(carrier);
   loadDeviceIds();
+  resetTestSelection();
 
   // Send READY before OLED delay so Web Serial ikke misser handshake.
   emitReady();
@@ -39,7 +53,8 @@ void setup() {
 }
 
 void loop() {
-  char cmd[200];
+  // wifi + start-config kan være lange; 512 undgår truncated JSON → unknown command
+  char cmd[512];
   if (!readHostCommand(cmd, sizeof(cmd), 0)) {
     delay(20);
     return;
@@ -51,15 +66,30 @@ void loop() {
       applyWifiConfigJson(cmd);
       return;
     }
+    // {"v":1,"cmd":"start","sound":true,"tests":"OLED,Buzzer,..."}
+    if (strstr(cmd, "\"cmd\":\"start\"") != nullptr || strstr(cmd, "\"cmd\": \"start\"") != nullptr) {
+      if (isTestsRunning()) {
+        emitError("tests already running");
+        return;
+      }
+      applyStartConfigJson(cmd);
+      runAllTests(carrier);
+      emitReady();
+      emitIds();
+      return;
+    }
     emitError("unknown json command");
     return;
   }
+
+  trimInPlace(cmd);
 
   if (strcmp(cmd, "START") == 0) {
     if (isTestsRunning()) {
       emitError("tests already running");
       return;
     }
+    resetTestSelection();
     runAllTests(carrier);
     emitReady();
     emitIds();

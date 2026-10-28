@@ -244,7 +244,7 @@ bool reportToApi(MKRIoTCarrier &carrier) {
   testJson += ",\"passed_count\":"; testJson += g_testsPassed;
   testJson += ",\"failed_count\":"; testJson += g_testsFailed;
   testJson += ",\"report\":{\"firmware\":\"HardwareTest-inv\",\"sound_enabled\":";
-  testJson += ENABLE_SOUND_TEST ? "true" : "false";
+  testJson += isSoundEnabled() ? "true" : "false";
   testJson += ",\"samd_id\":"; testJson += jsonString(g_samdId);
   testJson += ",\"mac\":"; testJson += jsonString(g_macStr);
   testJson += ",\"ecc_serial\":"; testJson += jsonString(g_eccOk ? g_eccSerial : "");

@@ -133,10 +133,11 @@ bool testLEDs(MKRIoTCarrier &carrier) {
 }
 
 bool testBuzzer(MKRIoTCarrier &carrier) {
-#if !ENABLE_SOUND_TEST
-  Serial.println(F("Buzzer: sprunget over (ENABLE_SOUND_TEST=false)"));
-  return true;
-#else
+  if (!isSoundEnabled()) {
+    setTestNote("disabled_quiet_room");
+    return true;
+  }
+
   clearDisplay(carrier);
   drawCenteredF(carrier, F("Buzzer"), OLED_CY - 12, 3, ST77XX_WHITE);
   delay(500);
@@ -168,5 +169,4 @@ bool testBuzzer(MKRIoTCarrier &carrier) {
   }
   showTestResult(carrier, "Buzzer", ok);
   return ok;
-#endif
 }
