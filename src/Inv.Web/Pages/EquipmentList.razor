@@ -6,6 +6,7 @@
 @inject EquipmentClient Equipment
 @inject EquipmentCategoryClient Categories
 @inject AdminAccess Admin
+@inject IssueClient Issues
 
 <PageTitle>Udstyr · Udstyrsinventar</PageTitle>
 <HeadContent>
@@ -85,6 +86,21 @@
             </InputSelect>
         </label>
 
+        <label for="equipment-fault-filter">
+            Fejlkategori (aktuelle fejl)
+            <select id="equipment-fault-filter" @bind="fault" @bind:after="OnFilterChangedAsync" disabled="@loading">
+                <option value="">Alle</option>
+                @foreach (var group in faultCategories.GroupBy(c => c.Source))
+                {
+                    <optgroup label="@group.Key">
+                        @foreach (var category in group)
+                        {
+                            <option value="@category.Key">@category.Name</option>
+                        }
+                    </optgroup>
+                }
+            </select>
+        </label>
         <div class="eq-toolbar-actions">
             <button type="submit" class="button" disabled="@loading">Søg</button>
             <button type="button" class="button button-secondary" @onclick="ResetAsync" disabled="@loading">Nulstil</button>
@@ -167,6 +183,8 @@
     private Guid? categoryId;
     private int? condition;
     private bool? isLoaned;
+    private string? fault;
+    private List<FaultCategoryResponse> faultCategories = [];
     private bool loading = true;
     private bool hasAppliedFilters;
     private bool isAdmin;
@@ -197,6 +215,9 @@
             categoryError = "Ugyldigt kategorisvar fra API.";
         }
 
+        try { faultCategories = await Issues.GetFaultDataAsync<FaultCategoryResponse>("fault-categories"); }
+        catch (Exception e) when (e is HttpRequestException or JSException or JsonException)
+        { categoryError = "Fejlkategorier kunne ikke hentes. Genindlæs siden for at prøve igen."; }
         await LoadAsync();
     }
 
@@ -224,6 +245,7 @@
         var appliedCategoryId = categoryId;
         var appliedCondition = condition;
         var appliedIsLoaned = isLoaned;
+        var appliedFault = fault;
 
         try
         {
@@ -231,13 +253,13 @@
                 appliedSearch,
                 appliedCategoryId,
                 appliedCondition,
-                appliedIsLoaned);
+                appliedIsLoaned, appliedFault);
 
             hasAppliedFilters =
                 !string.IsNullOrWhiteSpace(appliedSearch) ||
                 appliedCategoryId.HasValue ||
                 appliedCondition.HasValue ||
-                appliedIsLoaned.HasValue;
+                appliedIsLoaned.HasValue || !string.IsNullOrWhiteSpace(appliedFault);
         }
         catch (HttpRequestException exception)
         {
@@ -269,6 +291,7 @@
         categoryId = null;
         condition = null;
         isLoaned = null;
+        fault = null;
         await LoadAsync(showSkeleton: false);
     }
 

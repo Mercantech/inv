@@ -29,6 +29,14 @@ public static class IssueEndpoints
     {
         var categories = endpoints.MapGroup("/api/issue-categories").WithTags("IssueCategories")
             .RequireAuthorization();
+        endpoints.MapGet("/api/fault-categories", async (InventoryDbContext db, CancellationToken ct) =>
+            Results.Ok(await HardwareFaults.CategoriesAsync(db, ct))).RequireAuthorization();
+        endpoints.MapGet("/api/equipment/{equipmentId:guid}/hardware-faults", async (
+            Guid equipmentId, InventoryDbContext db, CancellationToken ct) =>
+        {
+            if (!await db.Equipment.AnyAsync(e => e.Id == equipmentId, ct)) return Results.NotFound();
+            return Results.Ok(await HardwareFaults.CurrentAsync(db, equipmentId, ct));
+        }).RequireAuthorization();
         categories.MapGet("/", ListCategoriesAsync);
         categories.MapPost("/", CreateCategoryAsync).RequireAuthorization("EquipmentManager");
         categories.MapPut("/{id:guid}", UpdateCategoryAsync).RequireAuthorization("EquipmentManager");

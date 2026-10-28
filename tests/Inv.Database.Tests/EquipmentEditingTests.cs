@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
 using Inv.Api.Features.Equipment;
+using Inv.Api.Features.Issues;
 using Inv.Domain.Entities;
 using Inv.Infrastructure.Data;
 using Microsoft.AspNetCore.Authentication;
@@ -183,6 +184,50 @@ public sealed class EquipmentEditingTests(PostgresFixture postgres) : IClassFixt
             (await client.PutAsJsonAsync($"/api/equipment/{Guid.NewGuid()}", valid)).StatusCode);
     }
 
+    [Fact]
+    public async Task Fault_filters_follow_latest_board_test_and_keep_manual_issues_independent()
+    {
+        await using var app = await StartAsync();
+        using var client = app.GetTestClient();
+        client.DefaultRequestHeaders.Add("X-Test-User", "yes");
+        await using var db = postgres.CreateContext();
+        var category = new EquipmentCategory { Name = Guid.NewGuid().ToString() };
+        var equipment = new Equipment { Name = "Fejltest", SerialNumber = Guid.NewGuid().ToString(), Category = category };
+        var manual = new IssueCategory { Name = Guid.NewGuid().ToString() };
+        var board = new HardwareDevice { SamdId = Guid.NewGuid().ToString("N"), Equipment = equipment };
+        var report = new HardwareTestReport { Device = board, SamdId = board.SamdId, Passed = false,
+            FailedCount = 1, ReportJson = """{"tests":[{"name":"OLED","ok":false,"note":"Sort skærm"},{"name":"WiFi","ok":false,"skipped":true}]}""" };
+        db.AddRange(equipment, manual, report);
+        await db.SaveChangesAsync();
+        var path = $"/api/equipment/?categoryId={category.Id}";
+        Assert.Equal(equipment.Id, Assert.Single((await client.GetFromJsonAsync<List<EquipmentResponse>>(path + "&fault=hardware:OLED"))!).Id);
+        Assert.Empty((await client.GetFromJsonAsync<List<EquipmentResponse>>(path + "&fault=hardware:WIFI"))!);
+        Assert.Empty((await client.GetFromJsonAsync<List<EquipmentResponse>>(path + "&fault=hardware:OLED&search=nomatch"))!);
+        var faults = (await client.GetFromJsonAsync<List<HardwareFaultResponse>>($"/api/equipment/{equipment.Id}/hardware-faults"))!;
+        Assert.Equal("OLED", Assert.Single(faults).Name);
+        var categories = (await client.GetFromJsonAsync<List<FaultCategoryResponse>>("/api/fault-categories"))!;
+        Assert.Single(categories, c => c.Key == "hardware:OLED");
+        Assert.Contains(categories, c => c.Key == $"manual:{manual.Id}");
+        var created = await client.PostAsJsonAsync($"/api/equipment/{equipment.Id}/issues", new CreateIssueRequest(manual.Id, "Kabinettet er revnet"));
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var issue = (await created.Content.ReadFromJsonAsync<EquipmentIssueResponse>())!;
+        db.HardwareTestReports.Add(new HardwareTestReport { Device = board, SamdId = board.SamdId,
+            TestedAt = report.TestedAt.AddMinutes(1), Passed = true, PassedCount = 1,
+            ReportJson = """{"tests":[{"name":"oled","ok":true}]}""" });
+        await db.SaveChangesAsync();
+        Assert.Empty((await client.GetFromJsonAsync<List<EquipmentResponse>>(path + "&fault=hardware:OLED"))!);
+        Assert.Single((await client.GetFromJsonAsync<List<EquipmentResponse>>(path + $"&fault=manual:{manual.Id}"))!);
+        Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync($"/api/equipment/{equipment.Id}/issues/{issue.Id}",
+            new UpdateIssueRequest(null, null, "Resolved", "Repareret"))).StatusCode);
+        Assert.Empty((await client.GetFromJsonAsync<List<EquipmentResponse>>(path + $"&fault=manual:{manual.Id}"))!);
+        Assert.Equal(2, await db.HardwareTestReports.CountAsync(r => r.SamdId == board.SamdId));
+        Assert.Single((await client.GetFromJsonAsync<List<FaultCategoryResponse>>("/api/fault-categories"))!, c => c.Key == "hardware:OLED");
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.GetAsync(path + "&fault=bad")).StatusCode);
+        using var anonymous = app.GetTestClient();
+        Assert.Equal(HttpStatusCode.Unauthorized, (await anonymous.GetAsync("/api/fault-categories")).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await anonymous.GetAsync($"/api/equipment/{equipment.Id}/hardware-faults")).StatusCode);
+    }
+
     private static void AssertPersisted(EquipmentResponse expected, EquipmentResponse actual)
     {
         // PostgreSQL gemmer mikrosekunder, mens .NET også har 100 ns-ticks.
@@ -208,6 +253,7 @@ public sealed class EquipmentEditingTests(PostgresFixture postgres) : IClassFixt
         app.UseAuthentication();
         app.UseAuthorization();
         app.MapEquipmentEndpoints();
+        app.MapIssueEndpoints();
         await app.StartAsync();
         return app;
     }

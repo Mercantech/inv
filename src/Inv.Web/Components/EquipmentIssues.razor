@@ -20,11 +20,28 @@
     }
     else
     {
+        <h3>Fra seneste hardwaretest pr. board</h3>
+        <p>Opdateres automatisk ved nye tests. Ikke testede komponenter tæller ikke som fejl.</p>
+        @if (hardwareFaults.Count == 0)
+        {
+            <p>Ingen registrerede hardwarefejl i seneste tests. Se testpanelet for testdækning.</p>
+        }
+        else
+        {
+            <ul class="page-list">
+                @foreach (var fault in hardwareFaults)
+                {
+                    <li class="page-item"><div><strong>@fault.Name · Hardwaretest</strong><p>@fault.Note</p><small>Board: @fault.SamdId · @fault.TestedAt.ToLocalTime().ToString("dd-MM-yyyy HH:mm")</small></div></li>
+                }
+            </ul>
+        }
+        <h3>Manuelt registrerede fejl</h3>
         @if (isAdmin)
         {
             <EditForm Model="@createModel" OnValidSubmit="CreateAsync" class="loan-form" style="margin-bottom:1rem">
                 <fieldset disabled="@busy">
-                    <legend>Ny fejl</legend>
+                    <legend>Tilføj ekstra fejl</legend>
+                    <p><a href="/kategorier">Opret eller rediger egne fejlkategorier</a></p>
                     <label>
                         Kategori
                         <InputSelect TValue="Guid?" @bind-Value="createModel.IssueCategoryId">
@@ -90,6 +107,7 @@
     [Parameter] public Guid EquipmentId { get; set; }
 
     private List<EquipmentIssueResponse> issues = [];
+    private List<HardwareFaultResponse> hardwareFaults = [];
     private List<IssueCategoryResponse> categories = [];
     private CreateIssueFormModel createModel = new();
     private bool loading = true, busy, isAdmin;
@@ -108,6 +126,7 @@
         try
         {
             issues = await Issues.GetForEquipmentAsync(EquipmentId);
+            hardwareFaults = await Issues.GetFaultDataAsync<HardwareFaultResponse>($"equipment/{EquipmentId}/hardware-faults");
             if (isAdmin) categories = await IssueCategories.GetAllAsync();
         }
         catch (Exception e) when (e is HttpRequestException or JSException or JsonException)

@@ -13,7 +13,8 @@ public sealed class EquipmentClient(MercantecAuthClient auth)
         string? search = null,
         Guid? categoryId = null,
         int? condition = null,
-        bool? isLoaned = null)
+        bool? isLoaned = null,
+        string? fault = null)
     {
         var parameters = new List<string>();
 
@@ -38,6 +39,7 @@ public sealed class EquipmentClient(MercantecAuthClient auth)
             parameters.Add($"isLoaned={(isLoaned.Value ? "true" : "false")}");
         }
 
+        if (!string.IsNullOrWhiteSpace(fault)) parameters.Add($"fault={Uri.EscapeDataString(fault)}");
         var url = "equipment/";
 
         if (parameters.Count > 0)

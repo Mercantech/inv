@@ -1,6 +1,7 @@
 // src/Inv.Api/Features/Equipment/EquipmentEndpoints.cs
 
 using Inv.Domain.Entities;
+using Inv.Api.Features.Issues;
 using Inv.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
@@ -22,6 +23,7 @@ public static class EquipmentEndpoints
             Guid? categoryId,
             EquipmentCondition? condition,
             bool? isLoaned,
+            string? fault,
             InventoryDbContext database,
             CancellationToken cancellationToken) =>
         {
@@ -65,6 +67,23 @@ public static class EquipmentEndpoints
             if (isLoaned.HasValue)
             {
                 query = query.Where(item => item.Loans.Any(loan => loan.ReturnedAt == null) == isLoaned.Value);
+            }
+
+            if (!string.IsNullOrWhiteSpace(fault))
+            {
+                if (fault.StartsWith("manual:") && Guid.TryParse(fault[7..], out var issueCategoryId))
+                    query = query.Where(e => database.EquipmentIssues.Any(i => i.EquipmentId == e.Id
+                        && i.IssueCategoryId == issueCategoryId && i.Status != EquipmentIssueStatus.Resolved));
+                else if (fault.StartsWith("hardware:") && fault.Length > 9 && fault.Length <= 100)
+                {
+                    var ids = (await HardwareFaults.CurrentAsync(database, null, cancellationToken))
+                        .Where(f => f.Key == fault).Select(f => f.EquipmentId).Distinct().ToList();
+                    query = query.Where(e => ids.Contains(e.Id));
+                }
+                else return Results.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    ["Fault"] = ["Vælg en gyldig fejlkategori."]
+                });
             }
 
             var equipment = await query

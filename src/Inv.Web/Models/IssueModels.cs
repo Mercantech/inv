@@ -34,3 +34,7 @@ public sealed class UpdateIssueFormModel
     public string Status { get; set; } = "Open";
     public string? ResolutionNote { get; set; }
 }
+
+public sealed record FaultCategoryResponse(string Key, string Name, string Source);
+public sealed record HardwareFaultResponse(string Key, string Name, Guid EquipmentId, string SamdId,
+    Guid ReportId, DateTimeOffset TestedAt, string? Note);

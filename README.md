@@ -208,3 +208,15 @@ Manuel browserkontrol før issue #7 afsluttes:
 5. Kontrollér søgning uden resultater, valg af en aktiv konto og fejlbesked hvis Auth-opslaget ikke kan hentes.
 
 Issue #7 forbliver åbent til manuel kontrol. Produktionsmiljøet skal have den eksisterende Auth MCP-nøgle konfigureret som `AUTH_MCP_API_KEY`, før funktionen tages i brug dér.
+
+## Fejlkategorier fra hardwaretests (Sprint 3)
+
+På `/udstyr` kan **Fejlkategori (aktuelle fejl)** kombineres med søgning, kategori, tilstand og udlånsstatus. Kategorierne dannes automatisk fra komponentnavnene i hardwaretestene; samme navn samles uden hensyn til store/små bogstaver og omgivende mellemrum. Hardwarekategorier og egne manuelle kategorier grupperes i filteret. **Nulstil** rydder også fejlfilteret.
+
+Kun seneste test pr. tilknyttet board tæller som aktuel hardwarestatus (testtidspunkt, derefter rapport-ID). Flere boards på samme udstyr vurderes hver for sig. Fejlede komponenter vises automatisk på udstyrets detaljeside med board, tidspunkt og testnote; oversprungne komponenter tæller ikke som fejl. En ny bestået test fjerner boardets tidligere hardwarefejl fra de aktuelle resultater. Historikken bevares, og tilknytning/flytning af et board slår igennem ved næste hentning. Manglende tests betyder ikke, at udstyret er godkendt. Gamle fejlede rapporter uden komponentdetaljer vises som **Ukendt hardwarefejl**.
+
+Ekstra fejl kan fortsat registreres manuelt på udstyret. Egne fejlkategorier oprettes under **Kategorier** via linket i fejlformularen. Manuelle fejl forbliver åbne, indtil de løses manuelt; nye hardwaretests ændrer dem ikke. Filteret medtager manuelle fejl med status Åben/I gang. Eksisterende adgangskrav gælder fortsat.
+
+API: `GET /api/fault-categories` samler automatisk fundne hardwarekategorier og manuelle kategorier. `GET /api/equipment/{id}/hardware-faults` returnerer aktuelle hardwarefejl. Udstyrslisten accepterer `fault=hardware:OLED` eller `fault=manual:{kategori-id}`. Alle tre kræver login. Ingen migration eller nye miljøvariabler kræves.
+
+Valideret 28. oktober 2026: Release-build uden fejl/advarsler, 61 beståede .NET-tests i Linux/Docker mod midlertidig PostgreSQL og uændret EF-model. Ny integrationstest dækker automatisk kategori, komponentfejl, oversprunget test, kombinerede filtre, bestået gentest, bevaret rapporthistorik, ekstra manuel fejl, manuel løsning, ugyldigt filter og loginbeskyttelse. Manuel browserkontrol af det nye flow afventer.

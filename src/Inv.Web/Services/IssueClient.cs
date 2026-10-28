@@ -18,6 +18,14 @@ public sealed class IssueClient(MercantecAuthClient auth)
             ?? throw new JsonException();
     }
 
+    public async Task<List<T>> GetFaultDataAsync<T>(string path)
+    {
+        var response = await auth.GetAsync(path);
+        if (response.Status != 200)
+            throw new HttpRequestException("Fejldata kunne ikke hentes.", null, (HttpStatusCode)response.Status);
+        return JsonSerializer.Deserialize<List<T>>(response.Body, JsonOptions) ?? throw new JsonException();
+    }
+
     public Task<AuthResponse> CreateAsync(Guid equipmentId, CreateIssueFormModel model) =>
         auth.PostAsync($"equipment/{equipmentId}/issues", model);
 
