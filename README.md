@@ -1,5 +1,17 @@
 # Udstyrsinventar
 
+## Returnering af udstyr (V1-08)
+
+Åbn et aktivt udlån på udstyrets detaljeside, og vælg **Registrér returnering**. Vælg eventuelt en ny tilstand og skriv en returnote (højst 4000 tegn). **Bekræft returnering** gemmer serverens UTC-tid og den indloggede medarbejders `sub` som returgodkender. Tilstand kan også være **Behold nuværende tilstand**. **Annuller** rydder formularen uden at gemme. Efter gemning opdateres detaljesidens tilstand og status til **Ledigt**. Udlånet forsvinder fra `/udlaan`, når oversigten åbnes/opdateres igen.
+
+`POST /api/equipment/{id}/loans/return` modtager `loanId` (påkrævet), `returnNote` og valgfri `condition` (0–4). Note og tilstand gemmes i samme transaktion. Oprindelig udlånsnote, låner, godkender og udlånstidspunkt bevares i historikken; returgodkender/tid kan ikke vælges af klienten. Samme udlån kan kun afsluttes én gang, også ved samtidige kald. En gammel formular kan ikke returnere et nyt udlån på samme udstyr. Ugyldige værdier giver 400, manglende login 401, manglende produktionsrettighed 403, ukendt udstyr 404 og afsluttet/forkert udlån 409. Returnering virker også, når Auths lånerregister er utilgængeligt.
+
+Produktionsadgang følger `LoanManager` (samme roller/bruger-ID'er som `EquipmentManager`). Den aftalte lokale testadgang uden rolle gælder fortsat kun Development; se `docs/development.md`. Datamodellen har allerede returfeltterne, så ingen migration kræves. Visning af fuld historik hører til V1-14.
+
+Manuel kontrol før V1-08 og V1-06 lukkes: udlån udstyr med en note, returnér med ny tilstand og særskilt returnote, kontrollér tilstand/status på detaljesiden og at udstyret er væk fra aktive udlån. Kontrollér også **Annuller** og at en gammel returformular ikke kan returnere samme udlån igen. Denne browserkontrol er endnu ikke gennemført.
+
+Teknisk validering den 28. oktober 2026: Release-build uden fejl/advarsler, alle 23 auth-/udlånstests bestået i Linux/Docker mod midlertidig PostgreSQL og lokal Compose-opstart med rebuild gennemført med readiness `Healthy`. Returtestene dækker serverstyret godkendelse/tid, bevaret historik, tilstandsændring, validering, Auth-udfald, dobbeltreturnering, samtidige kald og en gammel formular efter genudlån.
+
 ## Aktive udlån (V1-06)
 
 Åbn **Aktive udlån** i navigationen (`/udlaan`). Oversigten viser kun udlån uden `ReturnedAt`, med udstyr, serienummer, låner og lokalt udlånstidspunkt; nyeste udlån vises først. Klik på en række for at åbne udstyrets detaljeside. Søg på dele af udstyrsnavn, serienummer, lånernavn eller e-mail, eller på eksakt udstyrsnummer/bruger-ID. Søgningen ignorerer store/små bogstaver og omgivende mellemrum. **Nulstil** viser alle aktive udlån igen.

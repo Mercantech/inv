@@ -93,7 +93,7 @@
 
                 <section class="eq-panel" aria-label="Udlån">
                     <h2>Udlån</h2>
-                    <EquipmentLoan EquipmentId="Id" @key="Id" />
+                    <EquipmentLoan EquipmentId="Id" OnReturned="OnParametersSetAsync" @key="Id" />
                 </section>
 
                 <EquipmentIssues EquipmentId="Id" @key="@($"issues-{Id}")" />

@@ -37,8 +37,8 @@ public sealed class LoanClient(MercantecAuthClient auth)
     public Task<AuthResponse> CreateAsync(Guid equipmentId, Guid borrowerSubject, string? note) =>
         auth.PostAsync($"equipment/{equipmentId}/loans", new { BorrowerSubject = borrowerSubject, Note = note });
 
-    public Task<AuthResponse> ReturnAsync(Guid equipmentId, string? returnNote) =>
-        auth.PostAsync($"equipment/{equipmentId}/loans/return", new { ReturnNote = returnNote });
+    public Task<AuthResponse> ReturnAsync(Guid equipmentId, Guid loanId, string? returnNote, int? condition) =>
+        auth.PostAsync($"equipment/{equipmentId}/loans/return", new { LoanId = loanId, ReturnNote = returnNote, Condition = condition });
 
     private static void EnsureSuccess(AuthResponse response)
     {

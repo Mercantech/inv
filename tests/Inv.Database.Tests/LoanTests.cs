@@ -25,6 +25,89 @@ public sealed class LoanTests(PostgresFixture postgres) : IClassFixture<Postgres
     private static readonly Guid Disabled = Guid.NewGuid();
 
     [Fact]
+    public async Task Return_records_server_approval_preserves_history_and_updates_equipment()
+    {
+        var directory = new TestDirectory();
+        await using var app = await StartAsync(directory);
+        using var client = Login(app);
+        var equipment = await SeedAsync();
+        var created = await client.PostAsJsonAsync($"/api/equipment/{equipment.Id}/loans", new CreateLoanRequest(Borrower, "Oprindelig note"));
+        var loan = (await created.Content.ReadFromJsonAsync<LoanResponse>())!;
+        directory.Unavailable = true; // Returnering afhænger ikke af Auth-kataloget.
+        var before = DateTimeOffset.UtcNow.AddMicroseconds(-1);
+        var result = await client.PostAsJsonAsync($"/api/equipment/{equipment.Id}/loans/return", new
+        {
+            LoanId = loan.Id, ReturnNote = "  Skærm ridset  ", Condition = EquipmentCondition.Damaged,
+            ReturnedBySubject = Guid.NewGuid(), ReturnedAt = before.AddYears(-1)
+        });
+        Assert.Equal(HttpStatusCode.NoContent, result.StatusCode);
+        await using var db = postgres.CreateContext();
+        var saved = await db.Loans.SingleAsync(l => l.Id == loan.Id);
+        Assert.InRange(saved.ReturnedAt!.Value, before, DateTimeOffset.UtcNow);
+        Assert.Equal(Approver, saved.ReturnedBySubject);
+        Assert.Equal("Skærm ridset", saved.ReturnNote);
+        Assert.Equal("Oprindelig note", saved.Note);
+        Assert.Equal(Borrower, saved.BorrowerSubject);
+        Assert.Equal(loan.ApprovedBySubject, saved.ApprovedBySubject);
+        var reloaded = (await client.GetFromJsonAsync<EquipmentResponse>($"/api/equipment/{equipment.Id}"))!;
+        Assert.False(reloaded.IsLoaned);
+        Assert.Equal(EquipmentCondition.Damaged, reloaded.Condition);
+        Assert.Equal(HttpStatusCode.NoContent, (await client.GetAsync($"/api/equipment/{equipment.Id}/loan")).StatusCode);
+        Assert.DoesNotContain((await client.GetFromJsonAsync<ActiveLoansResponse>("/api/loans"))!.Loans, l => l.Id == loan.Id);
+        directory.Unavailable = false;
+        Assert.Equal(HttpStatusCode.Created, (await client.PostAsJsonAsync($"/api/equipment/{equipment.Id}/loans", new CreateLoanRequest(Borrower, null))).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await client.PostAsJsonAsync($"/api/equipment/{equipment.Id}/loans/return", new ReturnLoanRequest("Overskriv", loan.Id, EquipmentCondition.Good))).StatusCode);
+        await db.Entry(saved).ReloadAsync();
+        Assert.Equal("Skærm ridset", saved.ReturnNote);
+        Assert.Equal(EquipmentCondition.Damaged, (await db.Equipment.SingleAsync(e => e.Id == equipment.Id)).Condition);
+        Assert.True((await client.GetFromJsonAsync<EquipmentResponse>($"/api/equipment/{equipment.Id}"))!.IsLoaned);
+        Assert.Equal(2, await db.Loans.CountAsync(l => l.EquipmentId == equipment.Id));
+    }
+
+    [Fact]
+    public async Task Return_validates_input_and_rejects_unknown_or_inactive_loans()
+    {
+        await using var app = await StartAsync(new TestDirectory());
+        using var client = Login(app);
+        var equipment = await SeedAsync();
+        var created = await client.PostAsJsonAsync($"/api/equipment/{equipment.Id}/loans", new CreateLoanRequest(Borrower, null));
+        var loan = (await created.Content.ReadFromJsonAsync<LoanResponse>())!;
+        var path = $"/api/equipment/{equipment.Id}/loans/return";
+        foreach (var request in new[] { new ReturnLoanRequest(null), new ReturnLoanRequest(null, Guid.Empty),
+            new ReturnLoanRequest(new string('x', 4001), loan.Id), new ReturnLoanRequest(null, loan.Id, (EquipmentCondition)999) })
+            Assert.Equal(HttpStatusCode.BadRequest, (await client.PostAsJsonAsync(path, request)).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await client.PostAsJsonAsync(path, new ReturnLoanRequest(null, Guid.NewGuid()))).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.PostAsJsonAsync($"/api/equipment/{Guid.NewGuid()}/loans/return", new ReturnLoanRequest(null, loan.Id))).StatusCode);
+        using var anonymous = app.GetTestClient();
+        Assert.Equal(HttpStatusCode.Unauthorized, (await anonymous.PostAsJsonAsync(path, new ReturnLoanRequest(null, loan.Id))).StatusCode);
+        Assert.NotNull(await client.GetFromJsonAsync<LoanResponse>($"/api/equipment/{equipment.Id}/loan"));
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsJsonAsync(path, new ReturnLoanRequest(new string('x', 4000), loan.Id))).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await client.PostAsJsonAsync(path, new ReturnLoanRequest(null, loan.Id))).StatusCode);
+        await using var db = postgres.CreateContext();
+        Assert.Equal(4000, (await db.Loans.SingleAsync(l => l.Id == loan.Id)).ReturnNote!.Length);
+        Assert.Equal(equipment.Condition, (await db.Equipment.SingleAsync(e => e.Id == equipment.Id)).Condition);
+    }
+
+    [Fact]
+    public async Task Concurrent_returns_allow_one_winner_and_do_not_overwrite_it()
+    {
+        await using var app = await StartAsync(new TestDirectory());
+        using var client = Login(app);
+        var equipment = await SeedAsync();
+        var created = await client.PostAsJsonAsync($"/api/equipment/{equipment.Id}/loans", new CreateLoanRequest(Borrower, null));
+        var loan = (await created.Content.ReadFromJsonAsync<LoanResponse>())!;
+        var path = $"/api/equipment/{equipment.Id}/loans/return";
+        var requests = new[] { new ReturnLoanRequest("A", loan.Id, EquipmentCondition.Good), new ReturnLoanRequest("B", loan.Id, EquipmentCondition.Damaged) };
+        var responses = await Task.WhenAll(requests.Select(r => client.PostAsJsonAsync(path, r)));
+        Assert.Single(responses, r => r.StatusCode == HttpStatusCode.NoContent);
+        Assert.Single(responses, r => r.StatusCode == HttpStatusCode.Conflict);
+        var winner = requests[Array.FindIndex(responses, r => r.StatusCode == HttpStatusCode.NoContent)];
+        await using var db = postgres.CreateContext();
+        Assert.Equal(winner.ReturnNote, (await db.Loans.SingleAsync(l => l.Id == loan.Id)).ReturnNote);
+        Assert.Equal(winner.Condition, (await db.Equipment.SingleAsync(e => e.Id == equipment.Id)).Condition);
+    }
+
+    [Fact]
     public async Task Active_overview_searches_equipment_and_borrower_and_removes_returned_loans()
     {
         await using var app = await StartAsync(new TestDirectory());
@@ -46,7 +129,7 @@ public sealed class LoanTests(PostgresFixture postgres) : IClassFixture<Postgres
         }
         Assert.Empty((await client.GetFromJsonAsync<ActiveLoansResponse>("/api/loans?search=%25_%20ingen"))!.Loans);
         Assert.Equal(HttpStatusCode.NoContent,
-            (await client.PostAsJsonAsync($"/api/equipment/{equipment.Id}/loans/return", new ReturnLoanRequest(null))).StatusCode);
+            (await client.PostAsJsonAsync($"/api/equipment/{equipment.Id}/loans/return", new ReturnLoanRequest(null, loan.Id))).StatusCode);
         Assert.DoesNotContain((await client.GetFromJsonAsync<ActiveLoansResponse>("/api/loans"))!.Loans, l => l.Id == loan.Id);
     }
 

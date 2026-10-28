@@ -7,7 +7,7 @@ using Npgsql;
 namespace Inv.Api.Features.Loans;
 
 public sealed record CreateLoanRequest(Guid? BorrowerSubject, string? Note);
-public sealed record ReturnLoanRequest(string? ReturnNote);
+public sealed record ReturnLoanRequest(string? ReturnNote, Guid? LoanId = null, EquipmentCondition? Condition = null);
 public sealed record LoanResponse(Guid Id, Guid EquipmentId, Guid BorrowerSubject,
     Guid ApprovedBySubject, DateTimeOffset LoanedAt, string? Note);
 public sealed record ActiveLoanResponse(Guid Id, Guid EquipmentId, int EquipmentShortId,
@@ -141,25 +141,34 @@ public static class LoanEndpoints
             return Results.Unauthorized();
 
         var note = request.ReturnNote?.Trim();
-        if (note?.Length > 4000)
-        {
-            return Results.ValidationProblem(new Dictionary<string, string[]>
-            {
-                ["ReturnNote"] = ["Noten må højst indeholde 4000 tegn."]
-            });
-        }
+        var errors = new Dictionary<string, string[]>();
+        if (note?.Length > 4000) errors["ReturnNote"] = ["Noten må højst indeholde 4000 tegn."];
+        if (request.LoanId is null || request.LoanId == Guid.Empty) errors["LoanId"] = ["Angiv det aktive udlån."];
+        if (request.Condition.HasValue && !Enum.IsDefined(request.Condition.Value))
+            errors["Condition"] = ["Vælg en gyldig tilstand."];
+        if (errors.Count > 0) return Results.ValidationProblem(errors);
 
         if (!await db.Equipment.AnyAsync(e => e.Id == id, ct))
             return Results.NotFound(new { Message = "Udstyret blev ikke fundet." });
 
-        var loan = await db.Loans.SingleOrDefaultAsync(l => l.EquipmentId == id && l.ReturnedAt == null, ct);
-        if (loan is null)
-            return Results.Conflict(new { Message = "Udstyret er ikke udlånt." });
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        // Lås det konkrete udlån: samtidige kald må hverken overskrive returgodkender
+        // eller returnere et nyt udlån fra en gammel browserformular.
+        var locked = await db.Loans.FromSqlInterpolated($"SELECT * FROM \"Loans\" WHERE \"Id\" = {request.LoanId.GetValueOrDefault()} AND \"EquipmentId\" = {id} FOR UPDATE").ToListAsync(ct);
+        var loan = locked.SingleOrDefault();
+        if (loan is null || loan.ReturnedAt is not null)
+            return Results.Conflict(new { Message = "Udlånet er allerede afsluttet eller er ikke længere det aktuelle udlån. Opdatér siden." });
 
         loan.ReturnedAt = DateTimeOffset.UtcNow;
         loan.ReturnedBySubject = actor;
         loan.ReturnNote = string.IsNullOrWhiteSpace(note) ? null : note;
+        if (request.Condition.HasValue)
+        {
+            var equipment = await db.Equipment.SingleAsync(e => e.Id == id, ct);
+            equipment.Condition = request.Condition.Value;
+        }
         await db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
         return Results.NoContent();
     }
 
