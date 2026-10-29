@@ -91,10 +91,14 @@
                     </dl>
                 </section>
 
+                <section class="eq-panel" aria-label="Anmod om lån">
+                    <LoanRequests EquipmentId="Id" OnChanged="RefreshEquipmentAsync" @key="@($"requests-{Id}")" />
+                </section>
+
                 <section class="eq-panel" aria-label="Udlån">
                     <h2>Udlån</h2>
                     <p><a href="@($"/udstyr/{Id}/historik")">Se udlånshistorik</a></p>
-                    <EquipmentLoan EquipmentId="Id" OnReturned="OnParametersSetAsync" @key="Id" />
+                    <EquipmentLoan EquipmentId="Id" @ref="equipmentLoan" OnReturned="OnParametersSetAsync" @key="Id" />
                 </section>
 
                 <EquipmentIssues EquipmentId="Id" OnChanged="RefreshFaultCountAsync" @key="@($"issues-{Id}")" />
@@ -113,6 +117,7 @@
     public Guid Id { get; set; }
 
     private EquipmentResponse? equipment;
+    private EquipmentLoan? equipmentLoan;
     private bool loading, isAdmin, busy;
     private string? error, actionError;
 
@@ -149,6 +154,17 @@
         {
             loading = false;
         }
+    }
+
+    private async Task RefreshEquipmentAsync()
+    {
+        try
+        {
+            equipment = await Equipment.GetByIdAsync(Id);
+            if (equipmentLoan is not null) await equipmentLoan.RefreshAsync();
+        }
+        catch (Exception e) when (e is HttpRequestException or JSException or JsonException)
+        { actionError = "Anmodningen er gemt, men udlånsstatus kunne ikke opdateres. Genindlæs siden."; }
     }
 
     private async Task RefreshFaultCountAsync()

@@ -87,8 +87,6 @@
     @if (saveError is not null) { <p role="alert">@saveError</p> }
 </div>
 
-<LoanRequests EquipmentId="EquipmentId" OnChanged="LoadAsync" />
-
 @code {
     [Parameter] public Guid EquipmentId { get; set; }
     private LoanResponse? loan;
@@ -129,6 +127,8 @@
         await LoadAsync();
         if (loan is not null && isAdmin) await LoadBorrowersAsync();
     }
+
+    public Task RefreshAsync() => LoadAsync();
 
     private async Task LoadAsync()
     {
