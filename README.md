@@ -1,5 +1,10 @@
 # Udstyrsinventar
 
+## Aftalt scope og accept (29. oktober 2026)
+
+Se [opdaterede krav og sprintstatus](docs/requirements.md). Almindelige brugere rapporterer hardwarefejl via hardwaretest; manuelle fejlrapporter er kun til EquipmentManager/Admin. #12 er testet og accepteret af brugeren. #10 er på standby til et samlet dashboard ved afslutningen af V1. Tilstand er erstattet af beregnet fejlantal.
+
+
 ## Antal fejl erstatter tilstand (28. oktober 2026)
 
 Udstyr viser nu **0 fejl, 1 fejl, …** i oversigten og på detaljesiden. Antallet er summen af aktuelle hardwarefejl og åbne/igangværende manuelle fejl. Løste fejl og oversprungne tests tæller ikke med. Seneste test pr. tilknyttet board er afgørende. Udstyr uden test eller manuelle fejl viser 0 registrerede fejl. Tallet opdateres efter oprettelse, løsning og sletning af en manuel fejl på detaljesiden.
@@ -21,9 +26,9 @@ Teknisk validering den 28. oktober 2026: Release-build uden fejl/advarsler, alle
 
 ## Returnering af udstyr (V1-08)
 
-Åbn et aktivt udlån på udstyrets detaljeside, og vælg **Registrér returnering**. Vælg eventuelt en ny tilstand og skriv en returnote (højst 4000 tegn). **Bekræft returnering** gemmer serverens UTC-tid og den indloggede medarbejders `sub` som returgodkender. Tilstand kan også være **Behold nuværende tilstand**. **Annuller** rydder formularen uden at gemme. Efter gemning opdateres detaljesidens tilstand og status til **Ledigt**. Udlånet forsvinder fra `/udlaan`, når oversigten åbnes/opdateres igen.
+Åbn et aktivt udlån på udstyrets detaljeside, og vælg **Registrér returnering**. Skriv eventuelt en returnote (højst 4000 tegn). **Bekræft returnering** gemmer serverens UTC-tid og den indloggede medarbejders `sub` som returgodkender. **Annuller** rydder formularen uden at gemme. Efter gemning opdateres detaljesidens udlånsstatus til **Ledigt**. Udlånet forsvinder fra `/udlaan`, når oversigten åbnes/opdateres igen.
 
-`POST /api/equipment/{id}/loans/return` modtager `loanId` (påkrævet), `returnNote` og valgfri `condition` (0–4). Note og tilstand gemmes i samme transaktion. Oprindelig udlånsnote, låner, godkender og udlånstidspunkt bevares i historikken; returgodkender/tid kan ikke vælges af klienten. Samme udlån kan kun afsluttes én gang, også ved samtidige kald. En gammel formular kan ikke returnere et nyt udlån på samme udstyr. Ugyldige værdier giver 400, manglende login 401, manglende produktionsrettighed 403, ukendt udstyr 404 og afsluttet/forkert udlån 409. Returnering virker også, når Auths lånerregister er utilgængeligt.
+`POST /api/equipment/{id}/loans/return` modtager `loanId` (påkrævet), valgfri `returnNote`. Returneringen gemmes samlet uden et tilstandsfelt. Oprindelig udlånsnote, låner, godkender og udlånstidspunkt bevares i historikken; returgodkender/tid kan ikke vælges af klienten. Samme udlån kan kun afsluttes én gang, også ved samtidige kald. En gammel formular kan ikke returnere et nyt udlån på samme udstyr. Ugyldige værdier giver 400, manglende login 401, manglende produktionsrettighed 403, ukendt udstyr 404 og afsluttet/forkert udlån 409. Returnering virker også, når Auths lånerregister er utilgængeligt.
 
 Produktionsadgang følger `LoanManager` (samme roller/bruger-ID'er som `EquipmentManager`). Rollekravet gælder også lokalt i Development; se `docs/development.md`. Datamodellen har allerede returfeltterne, så ingen migration kræves. Visning af fuld historik hører til V1-14.
 
@@ -131,7 +136,7 @@ Se [datamodellen](docs/database.md) og [udviklings- og driftsvejledningen](docs/
 
 ## Tilføj udstyr (V1-02)
 
-Åbn `/udstyr` for at se oversigten, og vælg **Opret udstyr**. Formularen på `/udstyr/opret` kræver navn, serienummer, en eksisterende kategori og tilstand. Navn og serienummer må højst indeholde 200 tegn. Efter oprettelse åbnes detaljesiden på `/udstyr/{id}`, og udstyret kan findes i oversigten.
+Åbn `/udstyr` for at se oversigten, og vælg **Opret udstyr**. Formularen på `/udstyr/opret` kræver navn, serienummer, en eksisterende kategori. Navn og serienummer må højst indeholde 200 tegn. Efter oprettelse åbnes detaljesiden på `/udstyr/{id}`, og udstyret kan findes i oversigten.
 
 API'et tildeler automatisk et entydigt ID samt oprettelses- og ændringstidspunkt. Funktionen bruger den eksisterende udstyrstabel og kræver ingen ny migration.
 
@@ -141,7 +146,7 @@ API'et tildeler automatisk et entydigt ID samt oprettelses- og ændringstidspunk
 | GET | `/api/equipment/{id}` | Hent ét udstyr; ukendt ID giver 404 |
 | POST | `/api/equipment/` | Opret udstyr |
 
-POST modtager felterne `name`, `serialNumber`, `equipmentCategoryId` og `condition`. Tilstand sendes som et tal: 0 = ukendt, 1 = god, 2 = slidt, 3 = beskadiget og 4 = ude af drift. Ugyldige feltværdier giver 400 med valideringsbeskeder.
+POST modtager felterne `name`, `serialNumber` og `equipmentCategoryId`. Fejlantal beregnes ved læsning. Ugyldige feltværdier giver 400 med valideringsbeskeder.
 
 **Midlertidig adgangsbeslutning:** Alle endpoints kræver login, men oprettelse kræver foreløbigt ingen bestemt rolle, ligesom oprettelse af kategorier. Rollekravet `EquipmentManager` er fjernet efter aftale med brugeren. Rollebegrænsning skal genindføres, når den ønskede adgangsmodel aktiveres.
 
@@ -149,7 +154,7 @@ POST modtager felterne `name`, `serialNumber`, `equipmentCategoryId` og `conditi
 
 ## Søgning og filtrering af udstyr (V1-05)
 
-På `/udstyr` kan indloggede brugere søge på dele af navn eller serienummer uden hensyn til store og små bogstaver. Kategori og tilstand kan vælges som filtre og kombineres med søgningen. Vælg **Søg** for at anvende valgene; **Nulstil** rydder søgning og filtre og viser alt udstyr igen. Oversigten viser antal resultater, links til detaljesider og en tydelig besked, hvis ingen udstyr matcher.
+På `/udstyr` kan indloggede brugere søge på dele af navn eller serienummer uden hensyn til store og små bogstaver. Kategori, fejlantal, fejlkategori og udlånsstatus kan vælges som filtre og kombineres med søgningen. Vælg **Søg** for at anvende valgene; **Nulstil** rydder søgning og filtre og viser alt udstyr igen. Oversigten viser antal resultater, links til detaljesider og en tydelig besked, hvis ingen udstyr matcher.
 
 `GET /api/equipment/` accepterer følgende valgfrie query-parametre:
 
@@ -157,22 +162,23 @@ På `/udstyr` kan indloggede brugere søge på dele af navn eller serienummer ud
 | --- | --- |
 | `search` | Del af navn eller serienummer; indledende og afsluttende mellemrum fjernes |
 | `categoryId` | ID på den ønskede kategori |
-| `condition` | Tilstand: 0 = ukendt, 1 = god, 2 = slidt, 3 = beskadiget, 4 = ude af drift |
+| `faultCount` | Præcist antal aktuelle fejl, 0 eller større |
+| `fault` | Konkret hardware- eller manuel fejlkategori |
 | `isLoaned` | Udeladt = alle; `false` = ledigt; `true` = udlånt. Kun udlån uden `ReturnedAt` tæller som aktive |
 
-Eksempel: `/api/equipment/?search=arduino&condition=1`. Filtrene kombineres, så udstyret skal opfylde alle valgte betingelser. Særlige søgetegn som `%` og `_` behandles som almindelig tekst. En ugyldig tilstand afvises med 400. Datamodellen er uændret, og der kræves ingen ny migration.
+Eksempel: `/api/equipment/?search=arduino&faultCount=0`. Filtrene kombineres, så udstyret skal opfylde alle valgte betingelser. Særlige søgetegn som `%` og `_` behandles som almindelig tekst. Et negativt fejlantal afvises med 400. Datamodellen er uændret, og der kræves ingen ny migration.
 
 **Manuel afprøvning den 26. oktober 2026:** Brugeren har meldt søgning og kategori- og tilstandsfiltrering bestået efter afprøvning lokalt i Docker, herunder kombinerede filtre, tilstanden ukendt, ingen resultater og nulstilling.
 
-**Udlånsfilter (28. oktober 2026):** På `/udstyr` kan **Udlånsstatus** vælges som **Alle / Ledigt / Udlånt**. Filteret kombineres med søgning, kategori og tilstand; **Nulstil** rydder alle fire valg. Eksempel: `/api/equipment/?isLoaned=false&condition=1`. Udstyr med kun afsluttede udlån tæller som ledigt. Ved næste opdatering følger filterresultaterne nye udlån og returneringer. Ugyldig `isLoaned` giver 400; endpointet kræver fortsat login. Ingen migration eller ny miljøkonfiguration kræves. Brugeren har den 28. oktober 2026 meldt det nye udlånsfilter bestået efter lokal afprøvning. V1-05 er dermed funktionelt afprøvet og klar til lukning. Filtrering på konkrete fejl hører til statusoversigten i Sprint 3.
+**Udlånsfilter (28. oktober 2026):** På `/udstyr` kan **Udlånsstatus** vælges som **Alle / Ledigt / Udlånt**. Filteret kombineres med søgning, kategori, fejlantal og fejlkategori; **Nulstil** rydder alle valg. Eksempel: `/api/equipment/?isLoaned=false&faultCount=0`. Udstyr med kun afsluttede udlån tæller som ledigt. Ved næste opdatering følger filterresultaterne nye udlån og returneringer. Ugyldig `isLoaned` giver 400; endpointet kræver fortsat login. Ingen migration eller ny miljøkonfiguration kræves. Brugeren har den 28. oktober 2026 meldt det nye udlånsfilter bestået efter lokal afprøvning. V1-05 er dermed funktionelt afprøvet og klar til lukning. Filtrering på konkrete fejl hører til statusoversigten i Sprint 3.
 
 Teknisk validering af udlånsfilteret: Release-build uden fejl/advarsler, alle 60 .NET-tests bestået i Linux/Docker og EF-kontrol uden modelændringer. Lokal Compose er genbygget og startet med readiness `Healthy`. Integrationstesten dækker alle/ledigt/udlånt, kombination med søgning/kategori/tilstand, ingen resultater, ugyldig filterværdi, loginbeskyttelse samt returnering og genudlån.
 
 ## Redigering af udstyr (V1-03)
 
-Åbn et udstyr fra `/udstyr`, og vælg **Rediger udstyr**. Formularen på `/udstyr/{id}/rediger` viser de gemte værdier for navn, serienummer, kategori og tilstand. **Gem ændringer** validerer og gemmer oplysningerne og åbner detaljesiden igen. **Annuller** vender tilbage til detaljesiden uden at sende ændringer til API'et.
+Åbn et udstyr fra `/udstyr`, og vælg **Rediger udstyr**. Formularen på `/udstyr/{id}/rediger` viser de gemte værdier for navn, serienummer og kategori. **Gem ændringer** validerer og gemmer oplysningerne og åbner detaljesiden igen. **Annuller** vender tilbage til detaljesiden uden at sende ændringer til API'et.
 
-`PUT /api/equipment/{id}` modtager de samme fire felter som oprettelse og returnerer det opdaterede udstyr med status 200. Tomme eller for lange navne/serienumre, en manglende eller ukendt kategori og en ugyldig tilstand afvises med 400. Et ukendt udstyrs-ID giver 404. Feltvalidering og kategorikontrol deles med oprettelse.
+`PUT /api/equipment/{id}` modtager de samme tre felter som oprettelse og returnerer det opdaterede udstyr med status 200. Tomme eller for lange navne/serienumre, en manglende eller ukendt kategori afvises med 400. Et ukendt udstyrs-ID giver 404. Feltvalidering og kategorikontrol deles med oprettelse.
 
 ID, kort ID og oprettelsestidspunkt bevares; ændringstidspunktet opdateres ved hver gemning. Eksisterende udlån og deres noter, godkendere og tidsstempler ændres ikke. Funktionen kræver login, men har foreløbigt samme aftalte adgangsmodel som oprettelse: alle indloggede brugere kan redigere. Der kræves ingen migration eller ny miljøkonfiguration.
 
@@ -180,9 +186,9 @@ Automatiske integrationstests i `EquipmentEditingTests` dækker gemning, efterf�
 
 Manuel browserkontrol før endelig godkendelse:
 
-1. Åbn et udstyr og vælg **Rediger udstyr**; kontrollér, at alle fire gemte værdier vises.
-2. Ret alle fire felter, gem, og kontrollér værdierne på detaljesiden og i oversigten.
-3. Forsøg at gemme tomt navn/serienummer eller manglende kategori/tilstand; kontrollér fejlbeskederne.
+1. Åbn et udstyr og vælg **Rediger udstyr**; kontrollér, at alle tre gemte værdier vises.
+2. Ret de redigerbare felter, gem, og kontrollér værdierne på detaljesiden og i oversigten.
+3. Forsøg at gemme tomt navn/serienummer eller manglende kategori; kontrollér fejlbeskederne.
 4. Ret felterne og vælg **Annuller**; kontrollér, at de oprindelige værdier og ændringstidspunktet er bevaret.
 5. Åbn `/udstyr/{et-ukendt-guid}/rediger`; kontrollér beskeden om ukendt udstyr.
 
@@ -220,7 +226,7 @@ Issue #7 forbliver åbent til manuel kontrol. Produktionsmiljøet skal have den 
 
 ## Fejlkategorier fra hardwaretests (Sprint 3)
 
-På `/udstyr` kan **Fejlkategori (aktuelle fejl)** kombineres med søgning, kategori, tilstand og udlånsstatus. Kategorierne dannes automatisk fra komponentnavnene i hardwaretestene; samme navn samles uden hensyn til store/små bogstaver og omgivende mellemrum. Hardwarekategorier og egne manuelle kategorier grupperes i filteret. **Nulstil** rydder også fejlfilteret.
+På `/udstyr` kan **Fejlkategori (aktuelle fejl)** kombineres med søgning, kategori, fejlantal og udlånsstatus. Kategorierne dannes automatisk fra komponentnavnene i hardwaretestene; samme navn samles uden hensyn til store/små bogstaver og omgivende mellemrum. Hardwarekategorier og egne manuelle kategorier grupperes i filteret. **Nulstil** rydder også fejlfilteret.
 
 Kun seneste test pr. tilknyttet board tæller som aktuel hardwarestatus (testtidspunkt, derefter rapport-ID). Flere boards på samme udstyr vurderes hver for sig. Fejlede komponenter vises automatisk på udstyrets detaljeside med board, tidspunkt og testnote; oversprungne komponenter tæller ikke som fejl. En ny bestået test fjerner boardets tidligere hardwarefejl fra de aktuelle resultater. Historikken bevares, og tilknytning/flytning af et board slår igennem ved næste hentning. Manglende tests betyder ikke, at udstyret er godkendt. Gamle fejlede rapporter uden komponentdetaljer vises som **Ukendt hardwarefejl**.
 
@@ -240,6 +246,6 @@ Fejlformularen på udstyrets detaljeside viser kun globale fejlkategorier (**All
 
 Ingen migration eller nye miljøvariabler kræves. Integrationstests i `IssueCategoryTests` dækker globale/matchende/forkerte kategorier, omklassificering, ukendt udstyr, login, servervalidering, bevaret rapport ved afvist ændring, gamle rapporters behandling, tomt/langt navn, ukendt udstyrskategori og dubletter inden for samme afgrænsning.
 
-Manuel kontrol: Opret en global fejlkategori og én for hver af to udstyrstyper. Kontrollér på udstyr af begge typer, at kun globale og matchende kategorier kan vælges. Registrér en fejl og kontrollér fejlantal. Kontrollér tomt navn og dubletnavn. Browserkontrollen afventer, før V1-12 lukkes.
+Manuel kontrol: Opret en global fejlkategori og én for hver af to udstyrstyper. Kontrollér på udstyr af begge typer, at kun globale og matchende kategorier kan vælges. Registrér en fejl og kontrollér fejlantal. Kontrollér tomt navn og dubletnavn. Brugeren har den 29. oktober 2026 testet funktionen og bekræftet, at #12 virker. V1-12 er accepteret og afsluttet.
 
 Teknisk validering af V1-12 den 28. oktober 2026: Release-build uden fejl/advarsler, alle 64 .NET-tests bestået i Linux/Docker og EF-kontrol uden modelændringer.
