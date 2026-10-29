@@ -10,7 +10,7 @@ namespace Inv.Api.Authentication;
 
 internal static class MercantecAuthentication
 {
-    public static IServiceCollection AddMercantecAuthentication(this IServiceCollection services, IConfiguration configuration, bool isDevelopment = false)
+    public static IServiceCollection AddMercantecAuthentication(this IServiceCollection services, IConfiguration configuration)
     {
         var issuer = RequiredHttpsAddress(configuration, "AUTH_ISSUER");
         var jwksUri = RequiredHttpsAddress(configuration, "JWKS_URI");
@@ -74,7 +74,6 @@ internal static class MercantecAuthentication
 
         var managerRoles = SplitList(configuration["EQUIPMENT_MANAGER_ROLE"] ?? "EquipmentManager,Admin");
         var managerSubjects = SplitList(configuration["EQUIPMENT_MANAGER_SUBJECTS"]);
-        var allowLoanTesting = isDevelopment && configuration.GetValue<bool>("ALLOW_LOAN_TESTING_WITHOUT_ROLE");
 
         services.AddAuthorizationBuilder()
             .SetFallbackPolicy(new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build())
@@ -98,10 +97,9 @@ internal static class MercantecAuthentication
         services.AddAuthorizationBuilder().AddPolicy("LoanManager", policy =>
         {
             policy.RequireAuthenticatedUser();
-            if (!allowLoanTesting)
-                policy.Combine(new AuthorizationPolicyBuilder().RequireAssertion(context =>
-                    managerRoles.Any(role => context.User.IsInRole(role))
-                    || managerSubjects.Contains(context.User.FindFirst("sub")?.Value ?? "", StringComparer.OrdinalIgnoreCase)).Build());
+            policy.Combine(new AuthorizationPolicyBuilder().RequireAssertion(context =>
+                managerRoles.Any(role => context.User.IsInRole(role))
+                || managerSubjects.Contains(context.User.FindFirst("sub")?.Value ?? "", StringComparer.OrdinalIgnoreCase)).Build());
         });
 
         return services;

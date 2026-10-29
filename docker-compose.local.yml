@@ -1,7 +1,5 @@
 services:
   api:
-    environment:
-      ALLOW_LOAN_TESTING_WITHOUT_ROLE: "true"
     ports:
       - "127.0.0.1:${API_PORT:-8080}:8080"
   db:

@@ -18,22 +18,23 @@ namespace Inv.Database.Tests;
 public sealed class AuthenticationTests
 {
     [Theory]
-    [InlineData(true, true, true)]
+    [InlineData(true, true, false)]
     [InlineData(true, false, false)]
     [InlineData(false, true, false)]
     [InlineData(false, false, false)]
-    public async Task Loan_testing_bypass_only_applies_in_development(bool development, bool bypass, bool allowed)
+    public async Task Loan_management_always_requires_manager_even_with_legacy_test_setting(bool development, bool bypass, bool allowed)
     {
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
         {
             ["AUTH_ISSUER"] = "https://auth.mercantec.tech",
             ["AUTH_AUDIENCE"] = "mercantec-apps",
             ["JWKS_URI"] = "https://auth.mercantec.tech/.well-known/jwks.json",
-            ["ALLOW_LOAN_TESTING_WITHOUT_ROLE"] = bypass.ToString()
+            ["ALLOW_LOAN_TESTING_WITHOUT_ROLE"] = bypass.ToString(),
+            ["ASPNETCORE_ENVIRONMENT"] = development ? "Development" : "Production"
         }).Build();
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddMercantecAuthentication(configuration, development);
+        services.AddMercantecAuthentication(configuration);
         await using var provider = services.BuildServiceProvider();
         var authorization = provider.GetRequiredService<IAuthorizationService>();
         var ordinary = new ClaimsPrincipal(new ClaimsIdentity([new Claim("sub", Guid.NewGuid().ToString())], "test"));
