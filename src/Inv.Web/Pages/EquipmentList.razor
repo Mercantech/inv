@@ -76,6 +76,12 @@
             </select>
         </label>
 
+        <label for="equipment-fault-status">Fejlstatus
+            <select id="equipment-fault-status" @bind="faultStatus" @bind:after="OnFilterChangedAsync" disabled="@loading">
+                <option value="">Alle</option><option value="faulty">Med aktuelle fejl</option><option value="clear">Uden registrerede fejl</option>
+            </select>
+        </label>
+
         <label for="equipment-fault-filter">
             Fejlkategori (aktuelle fejl)
             <select id="equipment-fault-filter" @bind="fault" @bind:after="OnFilterChangedAsync" disabled="@loading">
@@ -172,6 +178,11 @@
     private string search = string.Empty;
     private Guid? categoryId;
     private int? faultCount;
+    [SupplyParameterFromQuery(Name = "categoryId")] public Guid? QueryCategoryId { get; set; }
+    [SupplyParameterFromQuery(Name = "isLoaned")] public bool? QueryIsLoaned { get; set; }
+    [SupplyParameterFromQuery(Name = "hasFaults")] public bool? QueryHasFaults { get; set; }
+    private (Guid?, bool?, bool?)? lastQuery;
+    private string faultStatus = string.Empty;
     private string loanStatus = string.Empty;
     private int loadRevision;
     private string? fault;
@@ -209,6 +220,18 @@
         try { faultCategories = await Issues.GetFaultDataAsync<FaultCategoryResponse>("fault-categories"); }
         catch (Exception e) when (e is HttpRequestException or JSException or JsonException)
         { categoryError = "Fejlkategorier kunne ikke hentes. Genindlæs siden for at prøve igen."; }
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var query = (QueryCategoryId, QueryIsLoaned, QueryHasFaults);
+        if (lastQuery == query) return;
+        lastQuery = query;
+        filterCts?.Cancel();
+        categoryId = QueryCategoryId;
+        loanStatus = QueryIsLoaned switch { true => "loaned", false => "available", _ => "" };
+        faultStatus = QueryHasFaults switch { true => "faulty", false => "clear", _ => "" };
+        search = ""; faultCount = null; fault = null;
         await LoadAsync();
     }
 
@@ -238,6 +261,7 @@
         var appliedFaultCount = faultCount;
         bool? appliedIsLoaned = loanStatus switch { "available" => false, "loaned" => true, _ => null };
         var appliedFault = fault;
+        bool? appliedHasFaults = faultStatus switch { "faulty" => true, "clear" => false, _ => null };
 
         try
         {
@@ -245,7 +269,7 @@
                 appliedSearch,
                 appliedCategoryId,
                 appliedFaultCount,
-                appliedIsLoaned, appliedFault);
+                appliedIsLoaned, appliedFault, appliedHasFaults);
 
             if (revision != loadRevision) return;
             equipment = result;
@@ -254,7 +278,7 @@
                 !string.IsNullOrWhiteSpace(appliedSearch) ||
                 appliedCategoryId.HasValue ||
                 appliedFaultCount.HasValue ||
-                appliedIsLoaned.HasValue || !string.IsNullOrWhiteSpace(appliedFault);
+                appliedIsLoaned.HasValue || appliedHasFaults.HasValue || !string.IsNullOrWhiteSpace(appliedFault);
         }
         catch (HttpRequestException exception)
         {
@@ -290,6 +314,7 @@
         categoryId = null;
         faultCount = null;
         loanStatus = string.Empty;
+        faultStatus = string.Empty;
         fault = null;
         await LoadAsync(showSkeleton: false);
     }

@@ -1,0 +1,84 @@
+@using System.Net
+@using System.Text.Json
+@using Inv.Web.Models
+@using Inv.Web.Services
+@inject DashboardClient Dashboard
+
+<HeadContent><link rel="stylesheet" href="css/dashboard.css?v=1" /></HeadContent>
+<div class="dash-page" aria-busy="@loading">
+    <header class="dash-hero">
+        <div><p class="eyebrow">Udstyrsadministration</p><h1>Overblik over udstyret</h1><p>Udlån, aktuelle fejl og det, der kræver handling.</p></div>
+        <div class="dash-actions"><a class="button" href="/udstyr">Se udstyr</a><button class="button button-secondary" disabled="@loading" @onclick="LoadAsync">@(loading ? "Opdaterer…" : "Opdatér overblik")</button></div>
+    </header>
+    @if (error is not null)
+    {
+        <p class="dash-error" role="alert">@error</p>
+        @if (data is not null) { <p role="status">Tallene nedenfor er fra sidste vellykkede opdatering.</p> }
+    }
+    @if (data is null && loading) { <p role="status">Henter overblik over udstyr…</p> }
+    else if (data is not null)
+    {
+        <div class="dash-updated"><span class="dash-live" aria-hidden="true"></span><time datetime="@data.GeneratedAt.ToString("O")">Opdateret @data.GeneratedAt.ToLocalTime().ToString("dd-MM-yyyy HH:mm:ss")</time><span> · Opdatér for at hente seneste registreringer</span></div>
+        <section class="dash-stats" aria-label="Nøgletal">
+            <a class="dash-stat" href="/udstyr"><span>Udstyr i alt</span><strong>@data.TotalEquipment</strong><small>Hele udstyrsregistret →</small></a>
+            <a class="dash-stat dash-stat-green" href="/udstyr?isLoaned=false"><span>Ledigt</span><strong>@data.AvailableEquipment</strong><small>Uden aktive udlån →</small></a>
+            <a class="dash-stat" href="/udstyr?isLoaned=true"><span>Udlånt</span><strong>@data.LoanedEquipment</strong><small>@LoanPercent % af alt udstyr →</small></a>
+            <a class="dash-stat dash-stat-warn" href="/udstyr?hasFaults=true"><span>Udstyr med fejl</span><strong>@data.FaultyEquipment</strong><small>Hvert udstyr tæller én gang →</small></a>
+            <a class="dash-stat" href="/udstyr?hasFaults=true"><span>Aktuelle fejl i alt</span><strong>@(data.HardwareFaultCount + data.ManualFaultCount)</strong><small>@data.HardwareFaultCount fra test · @data.ManualFaultCount manuelle →</small></a>
+            <a class="dash-stat" href="/udlaan/anmodninger"><span>Låneanmodninger</span><strong>@data.PendingRequests</strong><small>Afventer godkendelse →</small></a>
+        </section>
+        @if (data.TotalEquipment == 0)
+        {
+            <section class="dash-panel dash-empty"><h2>Start med det første udstyr</h2><p>Opret udstyr manuelt, eller kør en hardwaretest for at registrere en Arduino automatisk.</p><a class="button" href="/udstyr/opret">Opret udstyr</a><a class="button button-secondary" href="/hardware/run">Kør hardwaretest</a></section>
+        }
+        else
+        {
+            <div class="dash-columns">
+                <section class="dash-panel" aria-labelledby="category-title">
+                    <div class="dash-panel-heading"><div><p class="eyebrow">Fordeling</p><h2 id="category-title">Udstyrskategorier</h2></div><span>@data.Categories.Count kategorier</span></div>
+                    <p class="dash-caption">Grøn viser ledigt udstyr. Den mørke del er udlånt.</p>
+                    @foreach (var category in data.Categories)
+                    {
+                        <div class="dash-category" @key="category.Id">
+                            <div class="dash-category-heading"><a href="@($"/udstyr?categoryId={category.Id}")">@category.Name</a><strong>@category.Total <small>i alt</small></strong></div>
+                            <div class="dash-bar" role="img" aria-label="@($"{category.Available} ledige og {category.Loaned} udlånte af {category.Total}")"><span class="dash-bar-available" style="@($"width:{Percent(category.Available, category.Total)}%")"></span><span class="dash-bar-loaned" style="@($"width:{Percent(category.Loaned, category.Total)}%")"></span></div>
+                            <div class="dash-category-meta"><a href="@($"/udstyr?categoryId={category.Id}&isLoaned=false")">@category.Available ledige</a><a href="@($"/udstyr?categoryId={category.Id}&isLoaned=true")">@category.Loaned udlånt</a><a class="dash-fault-link" href="@($"/udstyr?categoryId={category.Id}&hasFaults=true")">@category.WithFaults med fejl</a></div>
+                        </div>
+                    }
+                </section>
+                <section class="dash-panel" aria-labelledby="attention-title">
+                    <div class="dash-panel-heading"><div><p class="eyebrow">Opfølgning</p><h2 id="attention-title">Udstyr med aktuelle fejl</h2></div><a href="/udstyr?hasFaults=true">Se alle →</a></div>
+                    @if (data.Attention.Count == 0) { <p class="dash-no-faults">Ingen registrerede aktuelle fejl.</p> }
+                    else
+                    {
+                        <p class="dash-caption">Op til 8 udstyr, sorteret efter flest fejl.</p>
+                        <ul class="dash-attention">
+                            @foreach (var item in data.Attention)
+                            {
+                                <li @key="item.Id"><a href="@($"/udstyr/{item.Id}")"><span class="dash-item-id">#@item.ShortId</span><span class="dash-item-body"><strong>@item.Name</strong><small>@item.CategoryName · @(item.IsLoaned ? "Udlånt" : "Ledigt")</small><small>@item.HardwareFaults fra test · @item.ManualFaults manuelle</small></span><span class="dash-fault-count">@(item.HardwareFaults + item.ManualFaults) fejl</span></a></li>
+                            }
+                        </ul>
+                    }
+                </section>
+            </div>
+        }
+        <p class="dash-footnote">Ledigt betyder uden aktivt udlån. Udstyr kan samtidig have fejl. Fejl omfatter seneste hardwaretest og åbne manuelle rapporter; løste og oversprungne resultater tæller ikke med. Ingen registrerede fejl er ikke en garanti for, at udstyret er testet.</p>
+    }
+</div>
+@code {
+    private DashboardResponse? data;
+    private bool loading;
+    private string? error;
+    private int LoanPercent => data is null ? 0 : Percent(data.LoanedEquipment, data.TotalEquipment);
+    private static int Percent(int value, int total) => total == 0 ? 0 : (int)Math.Round(100d * value / total);
+    protected override Task OnInitializedAsync() => LoadAsync();
+    private async Task LoadAsync()
+    {
+        if (loading) return;
+        loading = true; error = null;
+        try { data = await Dashboard.GetAsync(); }
+        catch (HttpRequestException e) { error = e.StatusCode switch { HttpStatusCode.Forbidden => "Dashboardet kræver equipmentmanager- eller administratoradgang.", HttpStatusCode.Unauthorized => "Dit login er udløbet. Log ind igen.", _ => "Overblikket kunne ikke opdateres. Prøv igen." }; }
+        catch (Exception e) when (e is JSException or JsonException) { error = "Overblikket kunne ikke hentes. Kontrollér forbindelse og login, og prøv igen."; }
+        finally { loading = false; }
+    }
+}

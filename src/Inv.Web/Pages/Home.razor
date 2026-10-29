@@ -1,36 +1,59 @@
 ﻿@page "/"
+@inject Inv.Web.Services.AdminAccess Admin
+@using Inv.Web.Components
 
 <PageTitle>Overblik · Udstyrsinventar</PageTitle>
 
-<header class="page-hero">
-    <div>
-        <p class="eyebrow">Overblik</p>
-        <h1>Hold styr på udstyret</h1>
-        <p>Udstyr, udlån og hardwaretests samlet ét sted.</p>
-    </div>
-    <div class="page-hero-actions">
-        <a class="button" href="/udstyr">Se udstyr</a>
-        <a class="button button-secondary" href="/hardware/run">Kør test</a>
-    </div>
-</header>
+@if (checkingAccess)
+{
+    <p role="status">Henter overblik…</p>
+}
+else if (isManager)
+{
+    <EquipmentDashboard />
+}
+else
+{
+    <header class="page-hero">
+        <div>
+            <p class="eyebrow">Overblik</p>
+            <h1>Hold styr på udstyret</h1>
+            <p>Udstyr, udlån og hardwaretests samlet ét sted.</p>
+        </div>
+        <div class="page-hero-actions">
+            <a class="button" href="/udstyr">Se udstyr</a>
+            <a class="button button-secondary" href="/hardware/run">Kør test</a>
+        </div>
+    </header>
+    
+    <section class="module-grid" aria-label="Genveje">
+        <a class="module-card" href="/udstyr">
+            <span class="module-label">Register</span>
+            <h2>Udstyr</h2>
+            <p>Søg, filtrér og administrér inventar.</p>
+            <span class="button">Åbn</span>
+        </a>
+        <a class="module-card" href="/hardware">
+            <span class="module-label">Oplà</span>
+            <h2>Hardwaretests</h2>
+            <p>Boards, testrapporter og tilknytning.</p>
+            <span class="button">Åbn</span>
+        </a>
+        <a class="module-card" href="/kategorier">
+            <span class="module-label">Struktur</span>
+            <h2>Kategorier</h2>
+            <p>Organisér udstyr efter type.</p>
+            <span class="button">Åbn</span>
+        </a>
+    </section>
 
-<section class="module-grid" aria-label="Genveje">
-    <a class="module-card" href="/udstyr">
-        <span class="module-label">Register</span>
-        <h2>Udstyr</h2>
-        <p>Søg, filtrér og administrér inventar.</p>
-        <span class="button">Åbn</span>
-    </a>
-    <a class="module-card" href="/hardware">
-        <span class="module-label">Oplà</span>
-        <h2>Hardwaretests</h2>
-        <p>Boards, testrapporter og tilknytning.</p>
-        <span class="button">Åbn</span>
-    </a>
-    <a class="module-card" href="/kategorier">
-        <span class="module-label">Struktur</span>
-        <h2>Kategorier</h2>
-        <p>Organisér udstyr efter type.</p>
-        <span class="button">Åbn</span>
-    </a>
-</section>
+}
+
+@code {
+    private bool checkingAccess = true, isManager;
+    protected override async Task OnInitializedAsync()
+    {
+        try { isManager = await Admin.IsAdminAsync(); }
+        finally { checkingAccess = false; }
+    }
+}

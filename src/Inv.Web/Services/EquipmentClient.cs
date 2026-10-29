@@ -14,7 +14,8 @@ public sealed class EquipmentClient(MercantecAuthClient auth)
         Guid? categoryId = null,
         int? faultCount = null,
         bool? isLoaned = null,
-        string? fault = null)
+        string? fault = null,
+        bool? hasFaults = null)
     {
         var parameters = new List<string>();
 
@@ -40,6 +41,7 @@ public sealed class EquipmentClient(MercantecAuthClient auth)
         }
 
         if (!string.IsNullOrWhiteSpace(fault)) parameters.Add($"fault={Uri.EscapeDataString(fault)}");
+        if (hasFaults.HasValue) parameters.Add($"hasFaults={hasFaults.Value.ToString().ToLowerInvariant()}");
         var url = "equipment/";
 
         if (parameters.Count > 0)

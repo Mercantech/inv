@@ -56,5 +56,6 @@ builder.Services.AddScoped<WebSerialClient>();
 builder.Services.AddScoped<LoanClient>();
 builder.Services.AddScoped<IssueCategoryClient>();
 builder.Services.AddScoped<IssueClient>();
+builder.Services.AddScoped<DashboardClient>();
 
 await builder.Build().RunAsync();

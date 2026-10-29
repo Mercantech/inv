@@ -1,5 +1,14 @@
 # Udstyrsinventar
 
+## Dashboard over udstyr (V1-10, 29. oktober 2026)
+
+Forsiden viser nu et dashboard for EquipmentManager/Admin med udstyr i alt, ledigt, udlånt, antal udstyr med fejl, antal aktuelle fejl og afventende låneanmodninger. Klik på nøgletal for at åbne den relevante udstyrsliste eller anmodningsoversigt. Kategorier viser en fordeling mellem ledigt og udlånt udstyr samt antal udstyr med fejl. Listen over udstyr med aktuelle fejl viser op til otte udstyr, sorteret efter flest fejl, med links til deres detaljesider. Almindelige brugere beholder forsiden med genveje.
+
+**Opdatér overblik** genindlæser alle tal; tidspunktet for seneste vellykkede opdatering vises. Ved fejl bevares tidligere tal med en tydelig besked. Udlånt betyder et udlån uden returneringstidspunkt. Fejlstatus og udlånsstatus overlapper: ledigt udstyr kan også have fejl. Et udstyr tælles kun én gang i tallet for udstyr med fejl, mens samlet fejlantal summerer aktuelle hardwarefejl og åbne/igangværende manuelle rapporter. Kun seneste hardwaretest pr. board tæller; løste rapporter, gamle testresultater og oversprungne komponenter udelades.
+
+API: `GET /api/dashboard` kræver EquipmentManager/Admin og læser alle nøgletal fra samme databasesnapshot. Udstyrslisten understøtter nu `hasFaults=true/false` sammen med kategori og udlånsstatus, og dashboardets links overfører filtrene via URL. Der kræves ingen migration eller nye miljøvariabler. Release-build og alle 73 .NET-tests består, inklusive dashboardoptælling, returnering/genudlån/gentest, rettigheder og renderet frontend med tomt register, fejl og genforsøg.
+
+
 ## Behandling af fejlrapporter (V1-15, 29. oktober 2026)
 
 EquipmentManager/Admin kan behandle manuelle fejl på udstyrets detaljeside. **Behandl** åbner formularen med status **Åben**, **Under behandling** eller **Løst** og en redigerbar løsningsnote. **Løs** og **Genåbn** åbner samme formular med den relevante status valgt; ændringen gemmes først med **Gem behandling**. **Annuller** gemmer intet.
@@ -10,7 +19,7 @@ Validering: Release-build bestået og alle 70 .NET-tests bestået mod PostgreSQL
 
 ## Aftalt scope og accept (29. oktober 2026)
 
-Se [opdaterede krav og sprintstatus](docs/requirements.md). Almindelige brugere rapporterer hardwarefejl via hardwaretest; manuelle fejlrapporter er kun til EquipmentManager/Admin. #12 er testet og accepteret af brugeren. #10 er på standby til et samlet dashboard ved afslutningen af V1. Tilstand er erstattet af beregnet fejlantal.
+Se [opdaterede krav og sprintstatus](docs/requirements.md). Almindelige brugere rapporterer hardwarefejl via hardwaretest; manuelle fejlrapporter er kun til EquipmentManager/Admin. #12 er testet og accepteret af brugeren. #10 er leveret som dashboard på forsiden. Tilstand er erstattet af beregnet fejlantal.
 
 
 ## Antal fejl erstatter tilstand (28. oktober 2026)

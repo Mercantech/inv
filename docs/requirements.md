@@ -24,13 +24,13 @@ Oprettelse og redigering bruger navn, serienummer og kategori. Et registreret Ar
 | [#12 – Fejlkategorier](https://github.com/Mercantech/inv/issues/12) | Testet og accepteret af brugeren den 29. oktober 2026; afsluttet. |
 | [#9 – Rapportere fejl](https://github.com/Mercantech/inv/issues/9) | Afsluttet ved gennemgangen den 29. oktober 2026 efter kontrol af kode og tests mod de opdaterede krav. |
 | [#15 – Behandle fejl](https://github.com/Mercantech/inv/issues/15) | Færdiggjort den 29. oktober 2026: formular med alle tre statusser, brugerdefineret løsningsnote, annullering og genåbning. Backend og renderet frontend er testet mod API/PostgreSQL. |
-| [#10 – Samlet status](https://github.com/Mercantech/inv/issues/10) | På standby til afslutningen af Version 1; ikke en forudsætning for accept af fejlrapporteringen i Sprint 3. |
+| [#10 – Samlet status](https://github.com/Mercantech/inv/issues/10) | Implementeret den 29. oktober 2026 som manager-/admindashboard på forsiden; nøgletal, kategorifordeling, fejloversigt og filtrerede genveje. |
 
 ## Afsluttende dashboard
 
-#10 samler de færdige funktioner i et dashboard i frontend ved afslutningen af Version 1. Dashboardet skal vise samlet antal udstyr, ledigt udstyr, udlånt udstyr og antal udstyr med aktuelle fejl. Et udstyr med flere fejl tæller kun én gang i tallet for udstyr med fejl.
+#10 samler nu de færdige funktioner i et dashboard på forsiden for EquipmentManager/Admin. Dashboardet viser samlet antal udstyr, ledigt udstyr, udlånt udstyr og antal udstyr med aktuelle fejl. Et udstyr med flere fejl tæller kun én gang i tallet for udstyr med fejl.
 
-Udlån og fejl vises separat og må overlappe. Der skal være adgang til relevante udstyrs-/fejlvisninger og filtre. Tallene skal afspejle aktuelle registreringer ved opdatering. Den konkrete frontendudformning afklares, når dashboardarbejdet starter.
+Udlån og fejl vises separat og må overlappe. Der skal være adgang til relevante udstyrs-/fejlvisninger og filtre. Tallene skal afspejle aktuelle registreringer ved opdatering. Frontend viser seks nøgletal, kategorifordeling, udstyr med aktuelle fejl og filtrerede genveje. Opdatering sker ved åbning og via Opdatér overblik.
 
 ## Samlet issuegennemgang
 
@@ -38,4 +38,8 @@ Se [gennemgangen af alle 19 issues](issue-audit-2026-10-29.md) for status, begru
 
 ## Afslutning af fejlbehandling
 
-#15 er færdiggjort efter issuegennemgangen: alle 70 .NET-tests består, inklusive renderet formulartest og statusforløb. Manuel browserkontrol er ikke udført på grund af computer-use-begrænsningen. Det aktive Sprint 3-omfang (#9, #12 og #15) er dermed leveret; dashboardet #10 er fortsat på standby, og QR/DYMO #13 er fortsat åbent.
+#15 er færdiggjort efter issuegennemgangen: alle 70 .NET-tests består, inklusive renderet formulartest og statusforløb. Manuel browserkontrol er ikke udført på grund af computer-use-begrænsningen. Det aktive Sprint 3-omfang (#9, #12 og #15) er dermed leveret; dashboardet #10 er efterfølgende implementeret, mens QR/DYMO #13 fortsat er åbent.
+
+## Dashboardvalidering
+
+Alle 73 .NET-tests består. Dashboardtests kontrollerer tomt register, adgangskontrol, samme udstyr med flere fejl, kombinerede filtre, seneste hardwaretest, manuelle rapporter, historiske udlån, returnering, genudlån, gentest og opdatering efter fejlretning. En renderet komponenttest kontrollerer visninger, genveje, hentefejl og genforsøg.

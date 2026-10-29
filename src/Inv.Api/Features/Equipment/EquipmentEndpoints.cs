@@ -23,6 +23,7 @@ public static class EquipmentEndpoints
             Guid? categoryId,
             int? faultCount,
             bool? isLoaned,
+            bool? hasFaults,
             string? fault,
             InventoryDbContext database,
             CancellationToken cancellationToken) =>
@@ -91,6 +92,7 @@ public static class EquipmentEndpoints
 
             var counted = await WithFaultCountsAsync(equipment, database, cancellationToken);
             if (faultCount.HasValue) counted = counted.Where(e => e.FaultCount == faultCount.Value).ToList();
+            if (hasFaults.HasValue) counted = counted.Where(e => (e.FaultCount > 0) == hasFaults.Value).ToList();
             return Results.Ok(counted);
         });
 

@@ -1,3 +1,4 @@
+using Inv.Api.Features.Dashboard;
 using Inv.Api.Authentication;
 using Inv.Api.Features.Equipment;
 using Inv.Api.Health;
@@ -117,6 +118,7 @@ app.MapEquipmentEndpoints();
 app.MapLoanEndpoints();
 app.MapHardwareEndpoints();
 app.MapIssueEndpoints();
+app.MapDashboardEndpoints();
 
 await app.RunAsync();
 
