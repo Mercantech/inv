@@ -154,6 +154,9 @@ public static class EquipmentEndpoints
         if (await database.EquipmentIssues.AnyAsync(issue => issue.EquipmentId == id, cancellationToken))
             return Results.Conflict(new { Message = "Udstyret kan ikke slettes, mens der findes fejlrapporter. Slet eller flyt fejlene først." });
 
+        if (await database.LoanRequests.AnyAsync(request => request.EquipmentId == id, cancellationToken))
+            return Results.Conflict(new { Message = "Udstyret kan ikke slettes, mens der findes låneanmodninger." });
+
         var linked = await database.HardwareDevices.Where(device => device.EquipmentId == id).ToListAsync(cancellationToken);
         foreach (var device in linked)
             device.EquipmentId = null;

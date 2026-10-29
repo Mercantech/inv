@@ -183,6 +183,11 @@ else
     </section>
 }
 
+@if (device?.EquipmentId is Guid equipmentId)
+{
+    <Inv.Web.Components.EquipmentLoan EquipmentId="equipmentId" />
+}
+
 @code {
     [Parameter] public string SamdId { get; set; } = "";
     private DeviceResult? device;

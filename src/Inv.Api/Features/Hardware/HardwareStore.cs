@@ -60,6 +60,27 @@ public sealed class HardwareStore(InventoryDbContext database)
             string.IsNullOrWhiteSpace(label) ? "Arduino Oplà" : label), cancellationToken);
     }
 
+    internal async Task EnsureEquipmentAsync(HardwareDevice device, CancellationToken ct)
+    {
+        if (device.EquipmentId.HasValue) return;
+        var equipment = await database.Equipment.SingleOrDefaultAsync(e => e.SerialNumber.ToUpper() == device.SamdId, ct);
+        if (equipment is null)
+        {
+            var category = await database.EquipmentCategories.FirstOrDefaultAsync(c => c.Name.ToLower() == "arduino oplà", ct);
+            if (category is null)
+            {
+                category = new EquipmentCategory { Name = "Arduino Oplà" };
+                database.EquipmentCategories.Add(category);
+            }
+            equipment = new Inv.Domain.Entities.Equipment { Name = string.IsNullOrWhiteSpace(device.Label) ? "Arduino Oplà" : device.Label,
+                SerialNumber = device.SamdId, Category = category, EquipmentCategoryId = category.Id };
+            database.Equipment.Add(equipment);
+        }
+        if (await database.HardwareDevices.AnyAsync(d => d.EquipmentId == equipment.Id && d.SamdId != device.SamdId, ct))
+            throw new ArgumentException("Udstyret er allerede knyttet til et andet board.");
+        device.EquipmentId = equipment.Id;
+    }
+
     public async Task<ImportResult> ImportAsync(List<LegacyDevice> devices, CancellationToken cancellationToken)
     {
         if (devices.Count > 10000) throw new ArgumentException("Importen indeholder for mange boards.");

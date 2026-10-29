@@ -19,12 +19,18 @@ public sealed record LoanHistoryEntry(Guid Id, Guid BorrowerSubject, string? Bor
     Guid? ReturnedBySubject, string? ReturnedByName, string? Note, string? ReturnNote);
 public sealed record LoanHistoryResponse(IReadOnlyList<LoanHistoryEntry> Loans, bool DirectoryUnavailable);
 
+public sealed record SubmitLoanRequest(string? Note);
+public sealed record ReviewLoanRequest(bool Approve);
+public sealed record LoanRequestResponse(Guid Id, Guid EquipmentId, string EquipmentName, Guid BorrowerSubject,
+    string Status, string? Note, DateTimeOffset CreatedAt);
+
 public static class LoanEndpoints
 {
     public static IEndpointRouteBuilder MapLoanEndpoints(this IEndpointRouteBuilder endpoints)
     {
         var group = endpoints.MapGroup("/api").RequireAuthorization().WithTags("Loans");
 
+        group.MapGet("/loan-request-access", () => Results.Ok()).RequireAuthorization("EquipmentManager");
         group.MapGet("/loans", GetActiveAsync);
         group.MapGet("/equipment/{id:guid}/loans", GetHistoryAsync);
         group.MapGet("/loan-access", () => Results.Ok(new { Allowed = true })).RequireAuthorization("LoanManager");
@@ -54,6 +60,55 @@ public static class LoanEndpoints
 
         group.MapPost("/equipment/{id:guid}/loans", CreateAsync).RequireAuthorization("LoanManager");
         group.MapPost("/equipment/{id:guid}/loans/return", ReturnAsync).RequireAuthorization("LoanManager");
+        group.MapGet("/loan-requests", async (ClaimsPrincipal user, InventoryDbContext db,
+            Microsoft.AspNetCore.Authorization.IAuthorizationService authorization, Guid? equipmentId, CancellationToken ct) =>
+        {
+            if (!Guid.TryParse(user.FindFirst("sub")?.Value, out var subject) || subject == Guid.Empty) return Results.Unauthorized();
+            var manager = (await authorization.AuthorizeAsync(user, null, "EquipmentManager")).Succeeded;
+            var query = db.LoanRequests.AsNoTracking();
+            if (!manager) query = query.Where(r => r.BorrowerSubject == subject);
+            if (equipmentId.HasValue) query = query.Where(r => r.EquipmentId == equipmentId);
+            return Results.Ok(await query.OrderByDescending(r => r.CreatedAt).Select(r => new LoanRequestResponse(
+                r.Id, r.EquipmentId, r.Equipment.Name, r.BorrowerSubject, r.Status, r.Note, r.CreatedAt)).ToListAsync(ct));
+        });
+        group.MapPost("/equipment/{id:guid}/loan-requests", async (Guid id, SubmitLoanRequest request,
+            ClaimsPrincipal user, InventoryDbContext db, CancellationToken ct) =>
+        {
+            if (!Guid.TryParse(user.FindFirst("sub")?.Value, out var subject) || subject == Guid.Empty) return Results.Unauthorized();
+            if (request.Note?.Trim().Length > 4000) return Results.BadRequest(new { Message = "Noten må højst være 4000 tegn." });
+            await using var transaction = await db.Database.BeginTransactionAsync(ct);
+            await db.Database.ExecuteSqlRawAsync("SELECT pg_advisory_xact_lock(72641027)", ct);
+            if (!await db.Equipment.AnyAsync(e => e.Id == id, ct)) return Results.NotFound();
+            if (await db.Loans.AnyAsync(l => l.EquipmentId == id && l.ReturnedAt == null, ct)) return AlreadyLoaned();
+            if (await db.LoanRequests.AnyAsync(r => r.EquipmentId == id && r.BorrowerSubject == subject && r.Status == "Pending", ct))
+                return Results.Conflict(new { Message = "Du har allerede en afventende anmodning." });
+            var row = new LoanRequest { EquipmentId = id, BorrowerSubject = subject, Note = request.Note?.Trim() };
+            db.LoanRequests.Add(row);
+            await db.SaveChangesAsync(ct);
+            await transaction.CommitAsync(ct);
+            return Results.Created($"/api/loan-requests", new { row.Id });
+        });
+        group.MapPost("/loan-requests/{requestId:guid}/review", async (Guid requestId, ReviewLoanRequest review,
+            ClaimsPrincipal user, InventoryDbContext db, IBorrowerDirectory directory, CancellationToken ct) =>
+        {
+            if (!Guid.TryParse(user.FindFirst("sub")?.Value, out var subject) || subject == Guid.Empty) return Results.Unauthorized();
+            await using var transaction = await db.Database.BeginTransactionAsync(ct);
+            await db.Database.ExecuteSqlRawAsync("SELECT pg_advisory_xact_lock(72641027)", ct);
+            var row = await db.LoanRequests.SingleOrDefaultAsync(r => r.Id == requestId, ct);
+            if (row is null) return Results.NotFound();
+            if (row.Status != "Pending") return Results.Conflict(new { Message = "Anmodningen er allerede behandlet." });
+            if (review.Approve)
+            {
+                var result = await CreateAsync(row.EquipmentId, new CreateLoanRequest(row.BorrowerSubject, row.Note), user, db, directory, ct);
+                if (result is not Microsoft.AspNetCore.Http.HttpResults.Created<LoanResponse>) return result;
+            }
+            row.Status = review.Approve ? "Approved" : "Rejected";
+            row.ReviewedBySubject = subject;
+            row.ReviewedAt = DateTimeOffset.UtcNow;
+            await db.SaveChangesAsync(ct);
+            await transaction.CommitAsync(ct);
+            return Results.NoContent();
+        }).RequireAuthorization("EquipmentManager");
         return endpoints;
     }
 

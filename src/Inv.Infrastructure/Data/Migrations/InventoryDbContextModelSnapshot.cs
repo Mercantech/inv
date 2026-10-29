@@ -374,6 +374,47 @@ namespace Inv.Infrastructure.Data.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Inv.Domain.Entities.LoanRequest", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BorrowerSubject")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("EquipmentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<DateTimeOffset?>("ReviewedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("ReviewedBySubject")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EquipmentId", "BorrowerSubject")
+                        .IsUnique()
+                        .HasFilter("\"Status\" = 'Pending'");
+
+                    b.ToTable("LoanRequests");
+                });
+
             modelBuilder.Entity("Inv.Domain.Entities.Equipment", b =>
                 {
                     b.HasOne("Inv.Domain.Entities.EquipmentCategory", "Category")
@@ -439,6 +480,17 @@ namespace Inv.Infrastructure.Data.Migrations
                 {
                     b.HasOne("Inv.Domain.Entities.Equipment", "Equipment")
                         .WithMany("Loans")
+                        .HasForeignKey("EquipmentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Equipment");
+                });
+
+            modelBuilder.Entity("Inv.Domain.Entities.LoanRequest", b =>
+                {
+                    b.HasOne("Inv.Domain.Entities.Equipment", "Equipment")
+                        .WithMany()
                         .HasForeignKey("EquipmentId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();

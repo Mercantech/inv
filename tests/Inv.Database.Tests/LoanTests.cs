@@ -349,6 +349,46 @@ public sealed class LoanTests(PostgresFixture postgres) : IClassFixture<Postgres
         Assert.Equal(2, await db.Loans.CountAsync(l => l.EquipmentId == equipment.Id));
     }
 
+    [Fact]
+    public async Task User_request_requires_manager_approval_and_cannot_be_processed_twice()
+    {
+        await using var app = await StartAsync(new TestDirectory());
+        using var manager = Login(app);
+        using var user = app.GetTestClient();
+        user.DefaultRequestHeaders.Add("X-Test-User", "borrower");
+        var equipment = await SeedAsync();
+        var path = $"/api/equipment/{equipment.Id}/loan-requests";
+        Assert.Equal(HttpStatusCode.Created, (await user.PostAsJsonAsync(path, new SubmitLoanRequest("Til undervisning"))).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await user.PostAsJsonAsync(path, new SubmitLoanRequest(null))).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await user.GetAsync($"/api/equipment/{equipment.Id}/loan")).StatusCode);
+        var rows = (await user.GetFromJsonAsync<List<LoanRequestResponse>>($"/api/loan-requests?equipmentId={equipment.Id}"))!;
+        var row = Assert.Single(rows);
+        Assert.Equal(Borrower, row.BorrowerSubject);
+        var reviewPath = $"/api/loan-requests/{row.Id}/review";
+        Assert.Equal(HttpStatusCode.Forbidden, (await user.PostAsJsonAsync(reviewPath, new ReviewLoanRequest(true))).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await manager.PostAsJsonAsync(reviewPath, new ReviewLoanRequest(true))).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await manager.PostAsJsonAsync(reviewPath, new ReviewLoanRequest(true))).StatusCode);
+        var loan = (await user.GetFromJsonAsync<LoanResponse>($"/api/equipment/{equipment.Id}/loan"))!;
+        Assert.Equal(Borrower, loan.BorrowerSubject);
+        Assert.Equal(Approver, loan.ApprovedBySubject);
+    }
+
+    [Fact]
+    public async Task Rejection_does_not_create_loan_and_allows_new_request()
+    {
+        await using var app = await StartAsync(new TestDirectory());
+        using var manager = Login(app);
+        using var user = app.GetTestClient();
+        user.DefaultRequestHeaders.Add("X-Test-User", "borrower");
+        var equipment = await SeedAsync();
+        var path = $"/api/equipment/{equipment.Id}/loan-requests";
+        Assert.Equal(HttpStatusCode.Created, (await user.PostAsJsonAsync(path, new SubmitLoanRequest(null))).StatusCode);
+        var row = Assert.Single((await user.GetFromJsonAsync<List<LoanRequestResponse>>($"/api/loan-requests?equipmentId={equipment.Id}"))!);
+        Assert.Equal(HttpStatusCode.NoContent, (await manager.PostAsJsonAsync($"/api/loan-requests/{row.Id}/review", new ReviewLoanRequest(false))).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await user.GetAsync($"/api/equipment/{equipment.Id}/loan")).StatusCode);
+        Assert.Equal(HttpStatusCode.Created, (await user.PostAsJsonAsync(path, new SubmitLoanRequest(null))).StatusCode);
+    }
+
     private async Task<Equipment> SeedAsync()
     {
         await using var db = postgres.CreateContext();
@@ -383,7 +423,7 @@ public sealed class LoanTests(PostgresFixture postgres) : IClassFixture<Postgres
             .AddScheme<AuthenticationSchemeOptions, TestUserHandler>("test", _ => { });
         builder.Services.AddAuthorization(options =>
         {
-            options.AddPolicy("EquipmentManager", policy => policy.RequireAuthenticatedUser());
+            options.AddPolicy("EquipmentManager", policy => policy.RequireClaim("manager", "yes"));
             options.AddPolicy("LoanManager", policy => policy.RequireAuthenticatedUser());
         });
         var app = builder.Build();
@@ -419,7 +459,9 @@ public sealed class LoanTests(PostgresFixture postgres) : IClassFixture<Postgres
         protected override Task<AuthenticateResult> HandleAuthenticateAsync() => Task.FromResult(
             Request.Headers.ContainsKey("X-Test-User")
                 ? AuthenticateResult.Success(new AuthenticationTicket(new ClaimsPrincipal(
-                    new ClaimsIdentity([new Claim("sub", Approver.ToString())], Scheme.Name)), Scheme.Name))
+                    new ClaimsIdentity(Request.Headers["X-Test-User"] == "borrower"
+                        ? [new Claim("sub", Borrower.ToString())]
+                        : [new Claim("sub", Approver.ToString()), new Claim("manager", "yes")], Scheme.Name)), Scheme.Name))
                 : AuthenticateResult.NoResult());
     }
 }

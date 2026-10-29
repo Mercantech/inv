@@ -98,6 +98,7 @@ public static class HardwareEndpoints
             HardwareContracts.EnsureReportSamdMatches(samd, request.Report);
             await using var transaction = await store.BeginWriteAsync(ct);
             var device = await store.EnsureRegisteredFromReportAsync(samd, request.Report, ct);
+            await store.EnsureEquipmentAsync(device, ct);
             var report = new HardwareTestReport
             {
                 Device = device, SamdId = samd, Passed = request.Passed!.Value,
@@ -129,6 +130,7 @@ public static class HardwareEndpoints
             HardwareContracts.EnsureReportSamdMatches(samd, request.Report);
             await using var transaction = await store.BeginWriteAsync(ct);
             var device = await store.EnsureRegisteredFromReportAsync(samd, request.Report, ct);
+            await store.EnsureEquipmentAsync(device, ct);
             var report = new HardwareTestReport
             {
                 Device = device, SamdId = samd, Passed = request.Passed!.Value,

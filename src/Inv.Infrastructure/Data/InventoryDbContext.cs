@@ -7,6 +7,7 @@ public sealed class InventoryDbContext(DbContextOptions<InventoryDbContext> opti
 {
     public DbSet<EquipmentCategory> EquipmentCategories => Set<EquipmentCategory>();
     public DbSet<Equipment> Equipment => Set<Equipment>();
+    public DbSet<LoanRequest> LoanRequests => Set<LoanRequest>();
     public DbSet<Loan> Loans => Set<Loan>();
     public DbSet<IssueCategory> IssueCategories => Set<IssueCategory>();
     public DbSet<EquipmentIssue> EquipmentIssues => Set<EquipmentIssue>();

@@ -157,9 +157,14 @@ public sealed class HardwareTests(PostgresFixture postgres) : IClassFixture<Post
         await using var db = postgres.CreateContext();
         var device = await db.HardwareDevices.SingleAsync(d => d.SamdId == samd);
         Assert.Equal("11:22:33:44:55:66", device.Mac);
+        Assert.NotNull(device.EquipmentId);
+        var equipment = await db.Equipment.SingleAsync(e => e.Id == device.EquipmentId);
+        Assert.Equal(samd, equipment.SerialNumber);
+        Assert.Equal(HttpStatusCode.Created, (await client.PostAsJsonAsync($"/api/hardware/devices/{samd}/tests", body)).StatusCode);
+        Assert.Equal(1, await db.Equipment.CountAsync(e => e.SerialNumber == samd));
         Assert.Equal("ECC123", device.EccSerial);
         Assert.Equal("Arduino Oplà", device.Label);
-        Assert.Equal(1, await db.HardwareTestReports.CountAsync(r => r.SamdId == samd));
+        Assert.Equal(2, await db.HardwareTestReports.CountAsync(r => r.SamdId == samd));
     }
 
     [Fact]

@@ -1,0 +1,66 @@
+@using Inv.Web.Models
+@using Inv.Web.Services
+@inject LoanClient Loans
+<section class="hardware-section">
+    <h2>Låneanmodninger</h2>
+    @if (error is not null) { <p role="alert">@error</p> }
+    @if (message is not null) { <p role="status">@message</p> }
+    @if (EquipmentId.HasValue)
+    {
+        <label>Note til equipmentmanager (valgfri)
+            <textarea @bind="note" maxlength="4000" disabled="@busy"></textarea>
+        </label>
+        <button class="button" disabled="@(busy || rows.Any(r => r.Status == "Pending"))" @onclick="RequestAsync">Anmod om at låne udstyret</button>
+    }
+    @foreach (var row in rows)
+    {
+        <div @key="row.Id" style="margin-top:1rem">
+            <a href="@($"/udstyr/{row.EquipmentId}")">@row.EquipmentName</a>
+            <p>@StatusText(row.Status) · @row.CreatedAt.ToLocalTime().ToString("dd-MM-yyyy HH:mm")</p>
+            @if (manager) { <p>Låner: <code>@row.BorrowerSubject</code></p> }
+            @if (!string.IsNullOrWhiteSpace(row.Note)) { <p>@row.Note</p> }
+            @if (manager && row.Status == "Pending")
+            {
+                <button class="button" disabled="@busy" @onclick="() => ReviewAsync(row.Id, true)">Godkend udlån</button>
+                <button class="button button-secondary" disabled="@busy" @onclick="() => ReviewAsync(row.Id, false)">Afvis</button>
+            }
+        </div>
+    }
+    <p><button class="button button-secondary" disabled="@busy" @onclick="LoadAsync">Opdatér anmodninger</button></p>
+</section>
+@code {
+    [Parameter] public Guid? EquipmentId { get; set; }
+    [Parameter] public EventCallback OnChanged { get; set; }
+    private List<LoanRequestResponse> rows = [];
+    private bool manager, busy;
+    private string note = "";
+    private string? error, message;
+    protected override async Task OnParametersSetAsync() => await LoadAsync();
+    private static string StatusText(string status) => status switch { "Pending" => "Afventer godkendelse", "Approved" => "Godkendt", "Rejected" => "Afvist", _ => status };
+    private async Task LoadAsync()
+    {
+        busy = true;
+        error = null;
+        try { manager = await Loans.CanReviewAsync(); rows = await Loans.GetRequestsAsync(EquipmentId); }
+        catch (Exception e) when (e is HttpRequestException or JSException or System.Text.Json.JsonException) { error = "Anmodninger kunne ikke hentes. Kontrollér login og prøv igen."; }
+        finally { busy = false; }
+    }
+    private Task RequestAsync() => SaveAsync(() => Loans.RequestAsync(EquipmentId!.Value, note));
+    private Task ReviewAsync(Guid id, bool approve) => SaveAsync(() => Loans.ReviewAsync(id, approve));
+    private async Task SaveAsync(Func<Task<AuthResponse>> action)
+    {
+        if (busy) return;
+        busy = true; error = message = null;
+        try
+        {
+            var result = await action();
+            if (result.Status is 201 or 204) { message = "Gemt."; note = ""; await OnChanged.InvokeAsync(); }
+            else error = result.Status == 409 ? "Udstyret er allerede udlånt, eller anmodningen er allerede oprettet eller behandlet." : "Kunne ikke gemme. Kontrollér login og rettigheder, og prøv igen.";
+        }
+        catch (Exception e) when (e is HttpRequestException or JSException) { error = "Svaret kunne ikke hentes. Opdatér anmodninger for at kontrollere status."; }
+        finally { busy = false; }
+        var saveError = error;
+        await LoadAsync();
+        error ??= saveError;
+    }
+}
