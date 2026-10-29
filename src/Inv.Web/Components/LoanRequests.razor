@@ -5,7 +5,11 @@
     <h2>Låneanmodninger</h2>
     @if (error is not null) { <p role="alert">@error</p> }
     @if (message is not null) { <p role="status">@message</p> }
-    @if (EquipmentId.HasValue)
+    @if (EquipmentId.HasValue && availabilityLoaded && isLoaned)
+    {
+        <p role="status">Udstyret er allerede udlånt. Du kan anmode om lån, når det er returneret.</p>
+    }
+    else if (EquipmentId.HasValue && availabilityLoaded)
     {
         <label>Note til equipmentmanager (valgfri)
             <textarea @bind="note" maxlength="4000" disabled="@busy"></textarea>
@@ -32,20 +36,31 @@
     [Parameter] public Guid? EquipmentId { get; set; }
     [Parameter] public EventCallback OnChanged { get; set; }
     private List<LoanRequestResponse> rows = [];
-    private bool manager, busy;
+    private bool manager, busy, isLoaned, availabilityLoaded;
     private string note = "";
     private string? error, message;
     protected override async Task OnParametersSetAsync() => await LoadAsync();
     private static string StatusText(string status) => status switch { "Pending" => "Afventer godkendelse", "Approved" => "Godkendt", "Rejected" => "Afvist", _ => status };
+    public Task RefreshAsync() => LoadAsync();
+
     private async Task LoadAsync()
     {
         busy = true;
         error = null;
-        try { manager = await Loans.CanReviewAsync(); rows = await Loans.GetRequestsAsync(EquipmentId); }
+        availabilityLoaded = false;
+        try
+        {
+            if (EquipmentId is Guid id) isLoaned = await Loans.GetCurrentAsync(id) is not null;
+            manager = await Loans.CanReviewAsync();
+            rows = await Loans.GetRequestsAsync(EquipmentId);
+            availabilityLoaded = true;
+        }
         catch (Exception e) when (e is HttpRequestException or JSException or System.Text.Json.JsonException) { error = "Anmodninger kunne ikke hentes. Kontrollér login og prøv igen."; }
         finally { busy = false; }
     }
-    private Task RequestAsync() => SaveAsync(() => Loans.RequestAsync(EquipmentId!.Value, note));
+    private Task RequestAsync() => !availabilityLoaded || isLoaned
+        ? Task.CompletedTask
+        : SaveAsync(() => Loans.RequestAsync(EquipmentId!.Value, note));
     private Task ReviewAsync(Guid id, bool approve) => SaveAsync(() => Loans.ReviewAsync(id, approve));
     private async Task SaveAsync(Func<Task<AuthResponse>> action)
     {

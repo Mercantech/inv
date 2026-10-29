@@ -376,6 +376,9 @@ public sealed class LoanTests(PostgresFixture postgres) : IClassFixture<Postgres
         var loan = (await user.GetFromJsonAsync<LoanResponse>($"/api/equipment/{equipment.Id}/loan"))!;
         Assert.Equal(Borrower, loan.BorrowerSubject);
         Assert.Equal(Approver, loan.ApprovedBySubject);
+        Assert.Equal(HttpStatusCode.Conflict, (await user.PostAsJsonAsync(path, new SubmitLoanRequest("Allerede udlånt"))).StatusCode);
+        await using var db = postgres.CreateContext();
+        Assert.False(await db.LoanRequests.AnyAsync(r => r.EquipmentId == equipment.Id && r.Status == "Pending"));
     }
 
     [Fact]

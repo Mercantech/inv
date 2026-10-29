@@ -185,12 +185,14 @@ else
 
 @if (device?.EquipmentId is Guid equipmentId)
 {
-    <Inv.Web.Components.EquipmentLoan EquipmentId="equipmentId" @ref="equipmentLoan" />
-    <Inv.Web.Components.LoanRequests EquipmentId="equipmentId" OnChanged="RefreshLoanAsync" />
+    <Inv.Web.Components.EquipmentLoan EquipmentId="equipmentId" @ref="equipmentLoan" OnReturned="RefreshRequestsAsync" />
+    <Inv.Web.Components.LoanRequests EquipmentId="equipmentId" @ref="loanRequests" OnChanged="RefreshLoanAsync" />
 }
 
 @code {
     private Inv.Web.Components.EquipmentLoan? equipmentLoan;
+    private Inv.Web.Components.LoanRequests? loanRequests;
+    private Task RefreshRequestsAsync() => loanRequests?.RefreshAsync() ?? Task.CompletedTask;
     private Task RefreshLoanAsync() => equipmentLoan?.RefreshAsync() ?? Task.CompletedTask;
     [Parameter] public string SamdId { get; set; } = "";
     private DeviceResult? device;
