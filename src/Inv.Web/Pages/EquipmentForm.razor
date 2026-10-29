@@ -7,6 +7,7 @@
 @using Inv.Web.Services
 @inject EquipmentCategoryClient Categories
 @inject EquipmentClient Equipment
+@inject HardwareClient Hardware
 @inject NavigationManager Navigation
 @inject AdminAccess Admin
 
@@ -58,9 +59,10 @@ else
 
             <label for="equipment-serial-number">
                 Serienummer
-                <InputText id="equipment-serial-number" @bind-Value="model.SerialNumber" maxlength="200" />
+                <InputText id="equipment-serial-number" @bind-Value="model.SerialNumber" maxlength="200" readonly="@serialLocked" />
             </label>
             <ValidationMessage For="@(() => model.SerialNumber)" />
+            @if (serialLocked) { <p>Arduinoens serienummer er låst til dens chip-ID, så testhistorikken bliver på det rigtige udstyr.</p> }
 
             <label for="equipment-category">
                 Kategori
@@ -115,6 +117,7 @@ else
     private bool loading = true;
     private bool loaded;
     private bool saving;
+    private bool serialLocked;
     private string? error;
 
     protected override async Task OnParametersSetAsync()
@@ -137,6 +140,7 @@ else
         error = null;
         validationErrors.Clear();
         model = new();
+        serialLocked = false;
         try
         {
             categories = await Categories.GetAllAsync();
@@ -149,6 +153,7 @@ else
                     return;
                 }
 
+                serialLocked = (await Hardware.GetDevicesAsync(id)).Count > 0;
                 model = new EquipmentFormModel
                 {
                     Name = existing.Name,

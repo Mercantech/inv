@@ -10,9 +10,11 @@ Inventarsystemet overtager modtagelse og visning af Oplà-testrapporter i .NET/P
 
 På `/hardware/{samdId}` vises seneste test og hele historikken i sider af 20 rapporter. Hver rapport har tidspunkt i UTC, antal beståede/fejlede tests, komponentresultater og noter. Sprungne tests vises som **Ikke testet** og tælles ikke som beståede eller fejlede. Gamle rapporter uden komponentdetaljer bevares med deres opsummering.
 
-Under **Knyt boardet til udstyr** kan brugeren vælge eksisterende udstyr eller vælge **Opret som udstyr**. Det opretter kategorien Arduino Oplà ved behov, bruger chip-ID som serienummer og sætter tilstanden til ukendt. Der gættes ikke på sammenhængen mellem eksisterende serienumre og boards. Et udstyr kan have højst ét board, og et board højst ét udstyr. Tilknytningen kan ændres eller fjernes uden at slette rapporter.
+Når en test gemmes, findes udstyret automatisk på boardets SAMD-chip-ID som serienummer (uden forskel på store/små bogstaver og omgivende mellemrum). Findes udstyret ikke, oprettes det i kategorien Arduino Oplà. Eksisterende navn, kategori og udstyrs-ID bevares. Hver test tilføjer en ny rapport; tidligere rapporter overskrives ikke. Import følger samme kobling.
 
-Udstyrets detaljeside viser seneste hardwaretest og et link til hele historikken. En bestået test ændrer ikke den manuelt vurderede tilstand og lukker ingen manuelle fejlrapporter. Hardwaretests er observationer, adskilt fra fejlmodulets arbejdsgang og historik.
+Et board kan ikke flyttes eller frakobles sit registrerede udstyr, og serienummeret på udstyr med et tilknyttet board kan ikke ændres. Manuel registrering kan ikke overtage et allerede tilknyttet Arduino-ID. Flere eksisterende udstyr med samme serienummer eller en gammel tilknytning med forkert serienummer afvises med en fejl; der flyttes eller slettes ingen historik automatisk.
+
+Udstyrets detaljeside viser testhistorikken i sider af 20 rapporter med dato, resultat og komponentdetaljer. Nye tests tilføjes til samme udstyr. Kun den seneste test tæller som aktuel hardwarestatus; beståede tests lukker ingen manuelle fejlrapporter.
 
 Boards og udstyr får automatisk hver sit faste, unikke korte ID fra en fælles databasesekvens, der starter ved 100. Eksisterende registreringer får ID ved migrering. Nye tests og gentagen import bevarer boardets ID. Numrene kan have huller og fortsætter over 999 ved behov; de genbruges ikke. Udstyrsoversigten understøtter også søgning på udstyrets korte ID.
 
@@ -26,11 +28,11 @@ Boards og udstyr får automatisk hver sit faste, unikke korte ID fra en fælles 
 | POST | `/api/devices/{samdId}/tests` | Åben; legacy/board-WiFi testrapport |
 | GET | `/api/hardware/devices?equipmentId={uuid}` | Mercantec-login; boards med seneste test; valgfrit udstyrsfilter |
 | GET | `/api/hardware/devices/{samdId}/tests?skip=0&take=20` | Mercantec-login; historik, højst 100 rapporter pr. request |
-| POST | `/api/hardware/devices/{samdId}/equipment` | Mercantec-login; `{ "equipmentId": "uuid" }` eller `null` for at fjerne tilknytningen |
-| POST | `/api/hardware/devices/{samdId}/create-equipment` | Mercantec-login; opret og tilknyt udstyr, eller returnér eksisterende tilknytning |
-| POST | `/api/hardware/import` | Mercantec-login; importér JSON-array fra det gamle `/api/devices`, maks. 10 MB |
+| POST | `/api/hardware/devices/{samdId}/equipment` | EquipmentManager/Admin; kun udstyr med matchende serienummer, eksisterende tilknytning er låst |
+| POST | `/api/hardware/devices/{samdId}/create-equipment` | EquipmentManager/Admin; find eller opret udstyr på serienummer |
+| POST | `/api/hardware/import` | EquipmentManager/Admin; importér JSON-array fra det gamle `/api/devices`, maks. 10 MB |
 
-Samme midlertidige adgangsmodel som udstyr/kategorier: alle indloggede brugere kan køre test, importere og ændre tilknytning. De åbne `/api/devices`-endpoints er legacy (rate limit 120/min, 64 KiB). Web-flowet bruger de autentificerede `/api/hardware/...`-endpoints.
+Alle indloggede brugere kan køre tests. Import og manuel administration kræver EquipmentManager/Admin. De åbne `/api/devices`-endpoints er legacy (rate limit 120/min, 64 KiB). Web-flowet bruger de autentificerede `/api/hardware/...`-endpoints.
 
 En registrering bruger det eksisterende format: `samd_id`, `mac`, `ecc_serial`, `label`. En test bruger `passed`, `passed_count`, `failed_count` og `report.tests` med `name`, `ok`, `skipped`, `note`. Ny indsendelse kræver gyldige, entydige komponentresultater, der stemmer med opsummeringen. Testtidspunktet for nye rapporter sættes af serveren. Hvert accepteret POST er en ny test; firmwaren genforsøger ikke automatisk en rapport. Der er ingen antagelse om, at identiske målinger betyder samme test.
 

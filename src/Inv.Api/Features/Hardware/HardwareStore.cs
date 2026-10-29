@@ -62,8 +62,16 @@ public sealed class HardwareStore(InventoryDbContext database)
 
     internal async Task EnsureEquipmentAsync(HardwareDevice device, CancellationToken ct)
     {
-        if (device.EquipmentId.HasValue) return;
-        var equipment = await database.Equipment.SingleOrDefaultAsync(e => e.SerialNumber.ToUpper() == device.SamdId, ct);
+        if (device.EquipmentId is Guid linkedId)
+        {
+            var linked = await database.Equipment.SingleAsync(e => e.Id == linkedId, ct);
+            if (!string.Equals(linked.SerialNumber.Trim(), device.SamdId, StringComparison.OrdinalIgnoreCase))
+                throw new ArgumentException("Boardets tilknytning matcher ikke serienummeret. Historikken er ikke flyttet eller overskrevet.");
+            return;
+        }
+        var matches = await database.Equipment.Where(e => e.SerialNumber.Trim().ToUpper() == device.SamdId).Take(2).ToListAsync(ct);
+        if (matches.Count > 1) throw new ArgumentException("Flere udstyr har dette serienummer. Ret dubletterne før testen gemmes.");
+        var equipment = matches.SingleOrDefault();
         if (equipment is null)
         {
             var category = await database.EquipmentCategories.FirstOrDefaultAsync(c => c.Name.ToLower() == "arduino oplà", ct);

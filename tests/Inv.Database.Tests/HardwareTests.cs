@@ -110,8 +110,8 @@ public sealed class HardwareTests(PostgresFixture postgres) : IClassFixture<Post
         var other = NewSamd();
         await client.PostAsJsonAsync("/api/devices", new { samd_id = other });
         Assert.Equal(HttpStatusCode.Conflict, (await client.PostAsJsonAsync($"/api/hardware/devices/{other}/equipment", new { device.EquipmentId })).StatusCode);
-        Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsJsonAsync($"/api/hardware/devices/{samd}/equipment", new { equipmentId = (Guid?)null })).StatusCode);
-        Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsJsonAsync($"/api/hardware/devices/{other}/equipment", new { device.EquipmentId })).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await client.PostAsJsonAsync($"/api/hardware/devices/{samd}/equipment", new { equipmentId = (Guid?)null })).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await client.PostAsJsonAsync($"/api/hardware/devices/{other}/equipment", new { device.EquipmentId })).StatusCode);
     }
 
     [Fact]
@@ -197,6 +197,44 @@ public sealed class HardwareTests(PostgresFixture postgres) : IClassFixture<Post
         var result = Assert.Single(boards!, item => item.SamdId == samd);
         Assert.Equal(shortId, result.ShortId);
         Assert.Equal(equipment.ShortId, result.EquipmentShortId);
+    }
+
+    [Fact]
+    public async Task Reports_reuse_serial_number_append_history_and_cannot_take_over_another_board()
+    {
+        await using var app = await StartAsync();
+        using var client = app.GetTestClient();
+        client.DefaultRequestHeaders.Add("X-Test-User", "yes");
+        var samd = NewSamd();
+        var other = NewSamd();
+        await using var db = postgres.CreateContext();
+        var equipment = new Equipment { Name = "Bevar navn", SerialNumber = samd.ToLowerInvariant(),
+            Category = new EquipmentCategory { Name = NewSamd() } };
+        db.Equipment.Add(equipment);
+        await db.SaveChangesAsync();
+        var submission = new { passed = true, passed_count = 2, failed_count = 0, report = Report(true) };
+        var results = await Task.WhenAll(Enumerable.Range(0, 3).Select(_ => client.PostAsJsonAsync($"/api/hardware/devices/{samd}/tests", submission)));
+        Assert.All(results, result => Assert.Equal(HttpStatusCode.Created, result.StatusCode));
+        Assert.Equal(HttpStatusCode.Created, (await client.PostAsJsonAsync($"/api/devices/{other}/tests", submission)).StatusCode);
+        var boards = (await client.GetFromJsonAsync<List<DeviceResult>>("/api/hardware/devices"))!;
+        var board = Assert.Single(boards, d => d.SamdId == samd);
+        var otherBoard = Assert.Single(boards, d => d.SamdId == other);
+        Assert.Equal(equipment.Id, board.EquipmentId);
+        Assert.NotEqual(board.EquipmentId, otherBoard.EquipmentId);
+        Assert.Equal(3, (await client.GetFromJsonAsync<List<TestResult>>($"/api/hardware/devices/{samd}/tests"))!.Count);
+        Assert.Equal(1, await db.Equipment.CountAsync(e => e.SerialNumber.ToUpper() == samd));
+        await db.Entry(equipment).ReloadAsync();
+        Assert.Equal("Bevar navn", equipment.Name);
+        Assert.Equal(HttpStatusCode.Conflict, (await client.PostAsJsonAsync($"/api/hardware/devices/{samd}/equipment", new { equipmentId = otherBoard.EquipmentId })).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.PutAsJsonAsync($"/api/equipment/{equipment.Id}",
+            new Inv.Api.Features.Equipment.SaveEquipmentRequest("Bevar navn", other, equipment.EquipmentCategoryId))).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await client.PostAsJsonAsync("/api/equipment/",
+            new Inv.Api.Features.Equipment.SaveEquipmentRequest("Dublet", other, equipment.EquipmentCategoryId))).StatusCode);
+        var wrongReport = new { samd_id = other, tests = Report(true).GetProperty("tests") };
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.PostAsJsonAsync($"/api/hardware/devices/{samd}/tests",
+            new { passed = true, passed_count = 2, failed_count = 0, report = wrongReport })).StatusCode);
+        Assert.Equal(3, await db.HardwareTestReports.CountAsync(r => r.SamdId == samd));
+        Assert.Equal(1, await db.HardwareTestReports.CountAsync(r => r.SamdId == other));
     }
 
     private async Task<WebApplication> StartAsync()

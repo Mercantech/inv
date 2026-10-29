@@ -38,14 +38,15 @@ public static class HardwareEndpoints
             await using var transaction = await store.BeginWriteAsync(ct);
             var device = await db.HardwareDevices.FindAsync([samd], ct);
             if (device is null) return Results.NotFound();
-            if (request.EquipmentId.HasValue)
-            {
-                if (!await db.Equipment.AnyAsync(item => item.Id == request.EquipmentId, ct))
-                    return Results.NotFound(new { Message = "Udstyret findes ikke." });
-                if (await db.HardwareDevices.AnyAsync(other => other.EquipmentId == request.EquipmentId && other.SamdId != samd, ct))
-                    return Results.Conflict(new { Message = "Udstyret er allerede knyttet til et andet board." });
-            }
-            device.EquipmentId = request.EquipmentId;
+            if (device.EquipmentId.HasValue && request.EquipmentId != device.EquipmentId)
+                return Results.Conflict(new { Message = "Et Arduino-board kan ikke flyttes eller frakobles sit udstyr. SAMD-ID og serienummer skal bevares." });
+            if (!request.EquipmentId.HasValue)
+                return Results.BadRequest(new { Message = "Vælg udstyret med boardets SAMD-ID som serienummer." });
+            var equipment = await db.Equipment.SingleOrDefaultAsync(item => item.Id == request.EquipmentId, ct);
+            if (equipment is null) return Results.NotFound(new { Message = "Udstyret findes ikke." });
+            if (!string.Equals(equipment.SerialNumber.Trim(), samd, StringComparison.OrdinalIgnoreCase))
+                return Results.Conflict(new { Message = "Udstyrets serienummer skal svare til boardets SAMD-ID. Et andet Arduino-ID må ikke overtages." });
+            await store.EnsureEquipmentAsync(device, ct);
             await db.SaveChangesAsync(ct);
             await transaction.CommitAsync(ct);
             return Results.NoContent();
@@ -57,22 +58,7 @@ public static class HardwareEndpoints
             await using var transaction = await store.BeginWriteAsync(ct);
             var device = await db.HardwareDevices.FindAsync([samd], ct);
             if (device is null) return Results.NotFound();
-            if (device.EquipmentId.HasValue) return Results.Ok(new { device.EquipmentId });
-            if (await db.Equipment.AnyAsync(item => item.SerialNumber.ToUpper() == samd, ct))
-                return Results.Conflict(new { Message = "Der findes allerede udstyr med dette serienummer. Vælg det eksisterende udstyr." });
-            var category = await db.EquipmentCategories.FirstOrDefaultAsync(item => item.Name.ToLower() == "arduino oplà", ct);
-            if (category is null)
-            {
-                category = new EquipmentCategory { Name = "Arduino Oplà" };
-                db.EquipmentCategories.Add(category);
-            }
-            var equipment = new Inv.Domain.Entities.Equipment
-            {
-                Name = string.IsNullOrWhiteSpace(device.Label) ? "Arduino Oplà" : device.Label,
-                SerialNumber = samd, Category = category, EquipmentCategoryId = category.Id
-            };
-            db.Equipment.Add(equipment);
-            device.EquipmentId = equipment.Id;
+            await store.EnsureEquipmentAsync(device, ct);
             await db.SaveChangesAsync(ct);
             await transaction.CommitAsync(ct);
             return Results.Ok(new { device.EquipmentId });

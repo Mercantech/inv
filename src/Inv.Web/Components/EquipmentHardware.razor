@@ -2,37 +2,52 @@
 @using Inv.Web.Services
 @inject HardwareClient Hardware
 
-<div class="hardware-section" aria-label="Hardwaretest-indhold">
-    @if (loading) { <p role="status">Henter tests…</p> }
-    else if (error is not null) { <p role="alert">@error</p> }
-    else if (device is null)
+<div class="hardware-section" aria-label="Hardwaretesthistorik">
+    @if (loading) { <p role="status">Henter testhistorik…</p> }
+    else if (device is null && error is null) { <p>Ingen hardwaretests registreret for dette udstyr endnu.</p> }
+    else if (device is not null)
     {
-        <p>Intet Oplà-board tilknyttet. <a href="/hardware">Knyt et board</a>.</p>
+        <p>Serienummer: <code>@device.SamdId</code> · @device.TestCount tests</p>
+        <p><a href="@($"/hardware/{device.SamdId}")">Se board og testhistorik</a></p>
+        @foreach (var report in reports)
+        {
+            <details @key="report.Id" open="@(report.Id == reports.FirstOrDefault()?.Id)">
+                <summary>@report.TestedAt.ToLocalTime().ToString("dd-MM-yyyy HH:mm:ss") · @(report.Passed ? "Bestået" : "Fejl")</summary>
+                <TestReportView Report="report" />
+            </details>
+        }
+        @if (reports.Count < device.TestCount)
+        {
+            <button class="button button-secondary" disabled="@busy" @onclick="LoadMoreAsync">Vis flere tests</button>
+        }
     }
-    else
-    {
-        <p style="margin:0 0 1rem;font-size:.9rem;color:#52645e">
-            Board #@device.ShortId · <a href="@($"/hardware/{device.SamdId}")">@device.TestCount tests</a>
-            <code class="hardware-id">@device.SamdId</code>
-        </p>
-        @if (device.LatestTest is { } report) { <TestReportView Report="report" /> }
-        else { <p>Ingen testrapporter endnu.</p> }
-    }
+    @if (error is not null) { <p role="alert">@error</p> }
 </div>
-
 @code {
     [Parameter] public Guid EquipmentId { get; set; }
     private DeviceResult? device;
-    private bool loading;
+    private List<TestResult> reports = [];
+    private bool loading, busy;
     private string? error;
     protected override async Task OnParametersSetAsync()
     {
-        loading = true;
-        error = null;
-        device = null;
-        try { device = (await Hardware.GetDevicesAsync(EquipmentId)).SingleOrDefault(); }
-        catch (Exception exception) when (exception is HttpRequestException or System.Text.Json.JsonException or JSException)
+        loading = true; error = null; device = null; reports = [];
+        try
+        {
+            device = (await Hardware.GetDevicesAsync(EquipmentId)).SingleOrDefault();
+            if (device is not null) reports = await Hardware.GetTestsAsync(device.SamdId);
+        }
+        catch (Exception e) when (e is HttpRequestException or System.Text.Json.JsonException or JSException)
         { error = "Hardwaretests kunne ikke hentes. Kontrollér forbindelsen og dit login."; }
         finally { loading = false; }
+    }
+    private async Task LoadMoreAsync()
+    {
+        if (busy || device is null) return;
+        busy = true; error = null;
+        try { reports.AddRange(await Hardware.GetTestsAsync(device.SamdId, reports.Count)); }
+        catch (Exception e) when (e is HttpRequestException or System.Text.Json.JsonException or JSException)
+        { error = "Flere tests kunne ikke hentes. Prøv igen."; }
+        finally { busy = false; }
     }
 }

@@ -4,7 +4,6 @@
 @using Inv.Web.Models
 @using Inv.Web.Services
 @inject HardwareClient Hardware
-@inject EquipmentClient Equipment
 @inject AdminAccess Admin
 @inject NavigationManager Navigation
 
@@ -101,27 +100,12 @@ else
             }
         </section>
 
-        @if (isAdmin)
+        @if (isAdmin && !device.EquipmentId.HasValue)
         {
             <section class="page-panel">
-                <h2>Knyt til udstyr</h2>
-                <p>Vælg eksisterende udstyr, eller opret boardet som nyt udstyr med chip-ID som serienummer.</p>
-                <div class="hardware-filters">
-                    <label>Eksisterende udstyr
-                        <select @bind="selectedEquipment" disabled="@busy">
-                            <option value="">Ingen tilknytning</option>
-                            @foreach (var item in equipment)
-                            {
-                                <option value="@item.Id">#@item.ShortId · @item.Name · @item.SerialNumber</option>
-                            }
-                        </select>
-                    </label>
-                    <button class="button" @onclick="SaveLinkAsync" disabled="@busy">Gem tilknytning</button>
-                    @if (!device.EquipmentId.HasValue)
-                    {
-                        <button class="button button-secondary" @onclick="CreateEquipmentAsync" disabled="@busy">Opret som udstyr</button>
-                    }
-                </div>
+                <h2>Registrér udstyr</h2>
+                <p>Testhistorikken knyttes automatisk til udstyret med SAMD-ID som serienummer. ID og tilknytning kan ikke flyttes til en anden Arduino.</p>
+                <button class="button" @onclick="CreateEquipmentAsync" disabled="@busy">Find eller opret udstyr fra serienummer</button>
             </section>
         }
         else
@@ -197,8 +181,6 @@ else
     [Parameter] public string SamdId { get; set; } = "";
     private DeviceResult? device;
     private List<TestResult> reports = [];
-    private List<EquipmentResponse> equipment = [];
-    private string selectedEquipment = "";
     private bool loading = true, busy, isAdmin, editing;
     private string? error, message;
     private string editLabel = "", editMac = "", editEcc = "";
@@ -216,11 +198,6 @@ else
             device = (await Hardware.GetDevicesAsync()).SingleOrDefault(item => item.SamdId.Equals(SamdId, StringComparison.OrdinalIgnoreCase));
             if (device is null) return;
             reports = await Hardware.GetTestsAsync(device.SamdId);
-            if (isAdmin)
-            {
-                equipment = await Equipment.GetAllAsync();
-                selectedEquipment = device.EquipmentId?.ToString() ?? "";
-            }
         });
         loading = false;
     }
@@ -237,7 +214,6 @@ else
     private async Task RefreshDeviceAsync()
     {
         device = (await Hardware.GetDevicesAsync()).Single(item => item.SamdId.Equals(SamdId, StringComparison.OrdinalIgnoreCase));
-        selectedEquipment = device.EquipmentId?.ToString() ?? "";
     }
 
     private Task SaveDeviceAsync() => RunAsync(async () =>
@@ -262,17 +238,9 @@ else
         message = "Rapporten er slettet.";
     });
 
-    private Task SaveLinkAsync() => RunAsync(async () =>
-    {
-        await Hardware.LinkAsync(SamdId, Guid.TryParse(selectedEquipment, out var id) ? id : null);
-        await RefreshDeviceAsync();
-        message = "Tilknytningen er gemt.";
-    });
-
     private Task CreateEquipmentAsync() => RunAsync(async () =>
     {
         await Hardware.CreateEquipmentAsync(SamdId);
-        equipment = await Equipment.GetAllAsync();
         await RefreshDeviceAsync();
         message = "Boardet er oprettet som udstyr. Antal fejl beregnes fra hardwaretests og manuelle fejl.";
     });

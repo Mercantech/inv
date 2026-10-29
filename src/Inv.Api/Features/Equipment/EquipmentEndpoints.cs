@@ -185,6 +185,8 @@ public static class EquipmentEndpoints
         InventoryDbContext database,
         CancellationToken cancellationToken)
     {
+        await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
+        await database.Database.ExecuteSqlRawAsync("SELECT pg_advisory_xact_lock(72641026)", cancellationToken);
         var equipment = id.HasValue
             ? await database.Equipment.SingleOrDefaultAsync(item => item.Id == id.Value, cancellationToken)
             : null;
@@ -226,6 +228,14 @@ public static class EquipmentEndpoints
         {
             return Results.ValidationProblem(errors);
         }
+
+        var linkedSamd = id.HasValue ? await database.HardwareDevices.Where(d => d.EquipmentId == id)
+            .Select(d => d.SamdId).SingleOrDefaultAsync(cancellationToken) : null;
+        if (linkedSamd is not null && !string.Equals(serialNumber, equipment!.SerialNumber, StringComparison.Ordinal))
+            return Results.ValidationProblem(new Dictionary<string, string[]>
+            { ["SerialNumber"] = ["Serienummeret på et registreret Arduino-board er låst til dets chip-ID."] });
+        if (await database.HardwareDevices.AnyAsync(d => d.SamdId == serialNumber!.ToUpper() && d.EquipmentId != id, cancellationToken))
+            return Results.Conflict(new { Message = "Dette Arduino-ID tilhører allerede et registreret board. Brug det eksisterende udstyr." });
 
         var category = await database.EquipmentCategories
             .SingleOrDefaultAsync(
@@ -273,6 +283,8 @@ public static class EquipmentEndpoints
                     ["Kategorien findes ikke længere. Vælg en anden kategori."]
             });
         }
+
+        await transaction.CommitAsync(cancellationToken);
 
         var response = new EquipmentResponse(
                 equipment.Id,
