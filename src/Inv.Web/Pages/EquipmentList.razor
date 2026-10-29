@@ -68,12 +68,12 @@
 
         <label for="equipment-loan-filter">
             Udlånsstatus
-            <InputSelect id="equipment-loan-filter" TValue="bool?" @bind-Value="isLoaned"
-                         @bind-Value:after="OnFilterChangedAsync" disabled="@loading">
+            <select id="equipment-loan-filter" @bind="loanStatus"
+                    @bind:after="OnFilterChangedAsync" disabled="@loading">
                 <option value="">Alle</option>
-                <option value="false">Ledigt</option>
-                <option value="true">Udlånt</option>
-            </InputSelect>
+                <option value="available">Ledigt</option>
+                <option value="loaned">Udlånt</option>
+            </select>
         </label>
 
         <label for="equipment-fault-filter">
@@ -172,7 +172,8 @@
     private string search = string.Empty;
     private Guid? categoryId;
     private int? faultCount;
-    private bool? isLoaned;
+    private string loanStatus = string.Empty;
+    private int loadRevision;
     private string? fault;
     private List<FaultCategoryResponse> faultCategories = [];
     private bool loading = true;
@@ -228,22 +229,26 @@
 
     private async Task LoadAsync(bool showSkeleton)
     {
+        var revision = ++loadRevision;
         if (showSkeleton) loading = true;
         error = null;
 
         var appliedSearch = search.Trim();
         var appliedCategoryId = categoryId;
         var appliedFaultCount = faultCount;
-        var appliedIsLoaned = isLoaned;
+        bool? appliedIsLoaned = loanStatus switch { "available" => false, "loaned" => true, _ => null };
         var appliedFault = fault;
 
         try
         {
-            equipment = await Equipment.GetAllAsync(
+            var result = await Equipment.GetAllAsync(
                 appliedSearch,
                 appliedCategoryId,
                 appliedFaultCount,
                 appliedIsLoaned, appliedFault);
+
+            if (revision != loadRevision) return;
+            equipment = result;
 
             hasAppliedFilters =
                 !string.IsNullOrWhiteSpace(appliedSearch) ||
@@ -253,6 +258,7 @@
         }
         catch (HttpRequestException exception)
         {
+            if (revision != loadRevision) return;
             error = exception.StatusCode switch
             {
                 HttpStatusCode.BadRequest => "Ugyldige filtre.",
@@ -263,24 +269,27 @@
         }
         catch (JSException)
         {
+            if (revision != loadRevision) return;
             error = "Forespørgslen fejlede. Tjek forbindelse og login.";
         }
         catch (JsonException)
         {
+            if (revision != loadRevision) return;
             error = "Ugyldigt svar fra API.";
         }
         finally
         {
-            loading = false;
+            if (revision == loadRevision) loading = false;
         }
     }
 
     private async Task ResetAsync()
     {
+        filterCts?.Cancel();
         search = string.Empty;
         categoryId = null;
         faultCount = null;
-        isLoaned = null;
+        loanStatus = string.Empty;
         fault = null;
         await LoadAsync(showSkeleton: false);
     }
