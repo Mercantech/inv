@@ -2,7 +2,7 @@
 
 ## DYMO LetraTag LT-200B-labels (V1-13)
 
-EquipmentManager/Admin kan vælge **Print label** på udstyrets detaljeside. Labelen viser kort ID (fx 109), navn og QR-kode til /e/109. Printerdelen er portet fra Dymo2026 og kører direkte via Web Bluetooth i Chrome/Edge. Forhåndsvisning, printervalg, én label ad gangen og forståelige fejlbeskeder er implementeret. QR-scanning bevarer udstyrsadressen gennem login. Se [opsætning, printerkrav og fysisk accept](docs/labels.md). #13 afventer stadig en rigtig prøveudskrift og QR-scanning på den konkrete printer/tape; digital QR-dekodning og transporttests er bestået.
+EquipmentManager/Admin kan vælge **Print label** på udstyrets detaljeside. Labelen viser kun kort ID (fx 109) og QR-kode til /e/109. Printerdelen er portet fra Dymo2026 og kører direkte via Web Bluetooth i Chrome/Edge. Forhåndsvisning, printervalg, én label ad gangen og forståelige fejlbeskeder er implementeret. QR-scanning bevarer udstyrsadressen gennem login. Se [opsætning, printerkrav og fysisk accept](docs/labels.md). #13 afventer stadig en rigtig prøveudskrift og QR-scanning på den konkrete printer/tape; digital QR-dekodning og transporttests er bestået.
 
 
 ## Dashboard over udstyr (V1-10, 29. oktober 2026)

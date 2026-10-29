@@ -9,10 +9,12 @@ const jsQR = require('jsqr');
 const base = 'https://inv.mercantec.tech/';
 const canvas = () => createCanvas(1, 1);
 
-test('printed label preview decodes to the stable short equipment URL, including long names', async () => {
+test('label prints only ID and QR, independent of equipment name, and decodes to the stable URL', async () => {
     for (const id of [109, 99999]) {
         const expectedQr = qrForEquipment(base, id).qr;
         const label = composeEquipmentLabel(id, 'Arduino Oplà med en meget lang beskrivelse '.repeat(8), base, canvas);
+        const withoutName = composeEquipmentLabel(id, '', base, canvas);
+        assert.deepEqual(label.image, withoutName.image);
         assert.equal(label.image.width, 32);
         assert.equal(label.image.data.length, label.image.width * label.image.height * 4);
         assert.ok(label.qrSize <= 25);

@@ -17,16 +17,14 @@ export function qrForEquipment(baseUrl, shortId) {
     if (qr.modules.size > 25) throw new Error('Appens adresse er for lang til en læsbar QR-kode på LT-200B. Brug en kortere offentlig adresse.');
     return { url, qr };
 }
-export function composeEquipmentLabel(shortId, name, baseUrl, createCanvas = () => document.createElement('canvas')) {
+export function composeEquipmentLabel(shortId, _name, baseUrl, createCanvas = () => document.createElement('canvas')) {
     const { url, qr } = qrForEquipment(baseUrl, shortId);
     const canvas = createCanvas();
     const measure = canvas.getContext('2d');
     if (!measure) throw new Error('Browseren kan ikke lave labelens forhåndsvisning.');
-    const title = String(name || '').trim();
-    measure.font = '700 21px sans-serif';
+    measure.font = '700 24px sans-serif';
     const idWidth = Math.ceil(measure.measureText(String(shortId)).width * ASPECT);
-    measure.font = '8px sans-serif';
-    const textWidth = Math.max(idWidth, Math.min(200, Math.ceil(measure.measureText(title).width * ASPECT)));
+    const textWidth = idWidth;
     const padding = 20, gap = 15, moduleFeed = 3, quiet = 4;
     const qrWidth = (qr.modules.size + quiet * 2) * moduleFeed;
     canvas.width = Math.max(197, padding * 2 + textWidth + gap + qrWidth);
@@ -34,13 +32,9 @@ export function composeEquipmentLabel(shortId, name, baseUrl, createCanvas = () 
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
     ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.fillStyle = '#000'; ctx.imageSmoothingEnabled = false;
-    ctx.save(); ctx.translate(padding, 0); ctx.scale(ASPECT, 1); ctx.textBaseline = 'top';
-    ctx.font = '700 21px sans-serif'; ctx.fillText(String(shortId), 0, 0);
-    ctx.font = '8px sans-serif';
-    let text = title;
-    while (text.length && ctx.measureText(text).width * ASPECT > textWidth) text = text.slice(0, -1);
-    if (text !== title && text.length > 1) text = text.slice(0, -1) + '…';
-    ctx.fillText(text, 0, 23); ctx.restore();
+    ctx.save(); ctx.translate(padding, 0); ctx.scale(ASPECT, 1); ctx.textBaseline = 'middle';
+    ctx.font = '700 24px sans-serif'; ctx.fillText(String(shortId), 0, HEAD_ROWS / 2);
+    ctx.restore();
     const qrX = padding + textWidth + gap + quiet * moduleFeed;
     const qrY = Math.floor((HEAD_ROWS - qr.modules.size) / 2);
     for (let row = 0; row < qr.modules.size; row++)

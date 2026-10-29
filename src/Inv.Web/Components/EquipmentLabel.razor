@@ -10,7 +10,7 @@
     @if (preview is not null)
     {
         <div style="padding:1.25rem;background:#f3f5f0;border:1px solid #dce2d9;border-radius:.75rem;margin-bottom:1rem;overflow:auto">
-            <img src="@preview.PreviewUrl" alt="@($"Label med ID {ShortId}, udstyrsnavn og QR-kode")" style="display:block;max-width:100%;height:auto;image-rendering:pixelated;background:white;border-radius:3px" />
+            <img src="@preview.PreviewUrl" alt="@($"Label med ID {ShortId} og QR-kode")" style="display:block;max-width:100%;height:auto;image-rendering:pixelated;background:white;border-radius:3px" />
         </div>
         <p>QR-koden åbner <a href="@preview.Url">@preview.Url</a>. Efter login vises dette udstyr.</p>
     }

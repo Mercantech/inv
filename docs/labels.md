@@ -5,7 +5,7 @@ Printerdelen er portet fra [Mercantech/Dymo2026](https://github.com/Mercantech/D
 ## Brug
 
 1. Åbn det konkrete udstyr som EquipmentManager/Admin og vælg **Print label**.
-2. Kontrollér forhåndsvisningen: kort udstyrs-ID (fx 109), udstyrsnavn og QR-kode. Lange navne forkortes med ellipse; ID og QR beskæres ikke.
+2. Kontrollér forhåndsvisningen: kun kort udstyrs-ID (fx 109) og QR-kode. Udstyrsnavnet udskrives ikke.
 3. Kontrollér **Appens offentlige adresse**. Den skal være den origin, hvor denne appversion er deployet, fx https://inv.mercantec.tech. Vælg **Opdatér forhåndsvisning**, hvis adressen ændres.
 4. Tænd LT-200B med 12 mm LT-tape, og brug Chrome eller Edge på HTTPS eller localhost med Bluetooth aktiveret. Firefox og Safari understøtter ikke Web Bluetooth-print. Scanning og visning af udstyr kræver ikke Web Bluetooth.
 5. Vælg **Vælg og forbind printer**, og vælg din LetraTag i browserens Bluetooth-dialog. Denne dialog åbnes kun fra brugerens klik.
@@ -44,6 +44,6 @@ Biblioteker er låst via package-lock.json: @thermal-label/letratag-web og @ther
 
 - 76 .NET-tests bestået, herunder stabilt kort-ID-opslag, loginbeskyttelse og renderet printpanel med eksplicit forbind/print og annullering.
 - 16 JavaScript-tests bestået, herunder dekodning af den reelle rasterforhåndsvisning, alle QR-moduler bevaret i printbilledet, Bluetooth-pakkegrænser, dubletbeskyttelse, ingen automatisk retry og retur til scannet udstyr efter PKCE-login.
-- **Afventer fysisk accept:** Udskriv på den konkrete LT-200B/12 mm-kassette, kontrollér ID/navn og scan både med og uden eksisterende login. #13 forbliver åbent indtil dette er bekræftet.
+- **Afventer fysisk accept:** Udskriv på den konkrete LT-200B/12 mm-kassette, kontrollér ID og QR-kode og scan både med og uden eksisterende login. #13 forbliver åbent indtil dette er bekræftet.
 
 Driverdokumentation: https://thermal-label.github.io/letratag/web og https://thermal-label.github.io/letratag/core.
