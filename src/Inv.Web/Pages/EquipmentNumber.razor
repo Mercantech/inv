@@ -1,0 +1,22 @@
+@page "/e/{ShortId:int}"
+@inject Inv.Web.Services.EquipmentClient Equipment
+@inject NavigationManager Navigation
+<PageTitle>Åbner udstyr · Udstyrsinventar</PageTitle>
+@if (error is null) { <p role="status">Åbner udstyr #@ShortId…</p> }
+else { <div class="page-state" role="alert"><h1>Udstyret kunne ikke åbnes</h1><p>@error</p><a class="button" href="/udstyr">Se udstyrsoversigten</a></div> }
+@code {
+    [Parameter] public int ShortId { get; set; }
+    private string? error;
+    protected override async Task OnParametersSetAsync()
+    {
+        error = null;
+        try
+        {
+            var id = await Equipment.FindByNumberAsync(ShortId);
+            if (id is Guid equipmentId) Navigation.NavigateTo($"udstyr/{equipmentId}", replace: true);
+            else error = $"Der findes ikke udstyr med ID {ShortId}.";
+        }
+        catch (Exception e) when (e is HttpRequestException or JSException or System.Text.Json.JsonException)
+        { error = "Kontrollér din forbindelse og dit login, og prøv igen."; }
+    }
+}

@@ -27,13 +27,14 @@
     </div>
 </section>
 @code {
+    [SupplyParameterFromQuery(Name = "returnUrl")] public string? ReturnUrl { get; set; }
     private bool busy;
     private string? error;
     private async Task LoginAsync()
     {
         busy = true;
         error = null;
-        try { await Auth.LoginAsync(); }
+        try { await Auth.LoginAsync(ReturnUrl); }
         catch (JSException) { error = "Login kunne ikke startes. Prøv igen."; busy = false; }
     }
 }

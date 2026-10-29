@@ -6,12 +6,25 @@ const encode = bytes => btoa(String.fromCharCode(...bytes)).replaceAll('+', '-')
 const random = () => encode(crypto.getRandomValues(new Uint8Array(32)));
 const read = key => JSON.parse(sessionStorage.getItem(key) || 'null');
 
-export async function login(config) {
+export function safeReturnUrl(value) {
+    if (typeof value !== 'string' || !value || value.includes('\\')) return '';
+    try {
+        const app = new URL(document.baseURI);
+        const target = new URL(value, app);
+        if (target.origin !== app.origin || !target.pathname.startsWith(app.pathname)) return '';
+        const relative = target.pathname.slice(app.pathname.length);
+        const decoded = decodeURIComponent(relative);
+        if (/^(login|auth\/callback)(\/|$)/i.test(decoded) || decoded.startsWith('/') || decoded.includes('\\')) return '';
+        return relative + target.search + target.hash;
+    } catch { return ''; }
+}
+
+export async function login(config, returnUrl = '') {
     const verifier = random();
     const state = random();
     const redirectUri = config.redirectUri || new URL('auth/callback', document.baseURI).href;
     const challenge = encode(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier))));
-    sessionStorage.setItem(pendingKey, JSON.stringify({ verifier, state, redirectUri, created: Date.now() }));
+    sessionStorage.setItem(pendingKey, JSON.stringify({ verifier, state, redirectUri, returnUrl: safeReturnUrl(returnUrl), created: Date.now() }));
     const url = new URL('/oauth/authorize', config.authority);
     url.search = new URLSearchParams({ response_type: 'code', client_id: config.clientId, redirect_uri: redirectUri,
         state, code_challenge: challenge, code_challenge_method: 'S256' });
@@ -44,6 +57,7 @@ export async function callback(config) {
     if (query.has('error') || !query.get('code')) throw new Error('Login blev afvist eller afbrudt.');
     await exchange(config, { grant_type: 'authorization_code', code: query.get('code'),
         redirect_uri: pending.redirectUri, code_verifier: pending.verifier });
+    return safeReturnUrl(pending.returnUrl);
 }
 
 async function refresh(config, rejectedToken) {

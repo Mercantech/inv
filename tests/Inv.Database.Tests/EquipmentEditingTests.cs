@@ -235,6 +235,25 @@ public sealed class EquipmentEditingTests(PostgresFixture postgres) : IClassFixt
         Assert.Equal(HttpStatusCode.Unauthorized, (await anonymous.GetAsync($"/api/equipment/{equipment.Id}/hardware-faults")).StatusCode);
     }
 
+    [Fact]
+    public async Task Label_number_lookup_is_stable_requires_login_and_handles_unknown_numbers()
+    {
+        await using var app = await StartAsync();
+        using var client = app.GetTestClient(); client.DefaultRequestHeaders.Add("X-Test-User", "yes");
+        await using var db = postgres.CreateContext();
+        var equipment = new Equipment { Name = "Labeltest", SerialNumber = Guid.NewGuid().ToString(), Category = new EquipmentCategory { Name = Guid.NewGuid().ToString() } };
+        db.Add(equipment); await db.SaveChangesAsync();
+        var path = $"/api/equipment/by-number/{equipment.ShortId}";
+        var first = (await client.GetFromJsonAsync<NumberLookup>(path))!;
+        Assert.Equal(equipment.Id, first.Id); Assert.Equal(equipment.ShortId, first.ShortId);
+        equipment.Name = "Nyt navn"; await db.SaveChangesAsync();
+        Assert.Equal(equipment.Id, (await client.GetFromJsonAsync<NumberLookup>(path))!.Id);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync("/api/equipment/by-number/2147483647")).StatusCode);
+        using var anonymous = app.GetTestClient();
+        Assert.Equal(HttpStatusCode.Unauthorized, (await anonymous.GetAsync(path)).StatusCode);
+    }
+    private sealed record NumberLookup(Guid Id, int ShortId);
+
     private static void AssertPersisted(EquipmentResponse expected, EquipmentResponse actual)
     {
         // PostgreSQL gemmer mikrosekunder, mens .NET også har 100 ns-ticks.

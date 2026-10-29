@@ -1,5 +1,10 @@
 # Udstyrsinventar
 
+## DYMO LetraTag LT-200B-labels (V1-13)
+
+EquipmentManager/Admin kan vælge **Print label** på udstyrets detaljeside. Labelen viser kort ID (fx 109), navn og QR-kode til /e/109. Printerdelen er portet fra Dymo2026 og kører direkte via Web Bluetooth i Chrome/Edge. Forhåndsvisning, printervalg, én label ad gangen og forståelige fejlbeskeder er implementeret. QR-scanning bevarer udstyrsadressen gennem login. Se [opsætning, printerkrav og fysisk accept](docs/labels.md). #13 afventer stadig en rigtig prøveudskrift og QR-scanning på den konkrete printer/tape; digital QR-dekodning og transporttests er bestået.
+
+
 ## Dashboard over udstyr (V1-10, 29. oktober 2026)
 
 Forsiden viser nu et dashboard for EquipmentManager/Admin med udstyr i alt, ledigt, udlånt, antal udstyr med fejl, antal aktuelle fejl og afventende låneanmodninger. Klik på nøgletal for at åbne den relevante udstyrsliste eller anmodningsoversigt. Kategorier viser en fordeling mellem ledigt og udlånt udstyr samt antal udstyr med fejl. Listen over udstyr med aktuelle fejl viser op til otte udstyr, sorteret efter flest fejl, med links til deres detaljesider. Almindelige brugere beholder forsiden med genveje.

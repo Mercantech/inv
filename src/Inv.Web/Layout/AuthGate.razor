@@ -13,7 +13,7 @@ else
         @if (failed)
         {
             <button class="button" @onclick="VerifyAsync">Prøv igen</button>
-            <a href="login">Gå til login</a>
+            <a href="@LoginUrl">Gå til login</a>
         }
     </div>
 }
@@ -26,6 +26,8 @@ else
 
     protected override Task OnParametersSetAsync() => VerifyAsync();
 
+    private string LoginUrl => "login?returnUrl=" + Uri.EscapeDataString(Navigation.ToBaseRelativePath(Navigation.Uri));
+
     private async Task VerifyAsync()
     {
         var current = ++revision;
@@ -36,7 +38,7 @@ else
         {
             if (!await Auth.IsSignedInAsync())
             {
-                Navigation.NavigateTo("login", replace: true);
+                Navigation.NavigateTo(LoginUrl, replace: true);
                 return;
             }
             var response = await Auth.GetAsync("me");

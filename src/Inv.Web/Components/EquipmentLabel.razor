@@ -1,0 +1,88 @@
+@using Inv.Web.Services
+@inject LabelPrinterClient Printer
+@inject LabelOptions Options
+@inject NavigationManager Navigation
+
+<section class="eq-panel" aria-label="Print udstyrslabel">
+    <h2>Print udstyrslabel</h2>
+    <p>DYMO LetraTag 200B · 12 mm LT-tape · én label med ID og QR-kode.</p>
+    @if (loading) { <p role="status">Klargør forhåndsvisning…</p> }
+    @if (preview is not null)
+    {
+        <div style="padding:1.25rem;background:#f3f5f0;border:1px solid #dce2d9;border-radius:.75rem;margin-bottom:1rem;overflow:auto">
+            <img src="@preview.PreviewUrl" alt="@($"Label med ID {ShortId}, udstyrsnavn og QR-kode")" style="display:block;max-width:100%;height:auto;image-rendering:pixelated;background:white;border-radius:3px" />
+        </div>
+        <p>QR-koden åbner <a href="@preview.Url">@preview.Url</a>. Efter login vises dette udstyr.</p>
+    }
+    <label>Appens offentlige adresse
+        <input type="url" @bind="publicBaseUrl" @bind:event="oninput" @bind:after="InvalidatePreview" disabled="@busy" placeholder="https://inv.mercantec.tech" />
+    </label>
+    <p><button class="button button-secondary" @onclick="PrepareAsync" disabled="@(busy || loading)">Opdatér forhåndsvisning</button></p>
+    @if (!supported && !loading) { <p role="status">Bluetooth-print kræver Chrome eller Edge på HTTPS eller localhost. Forhåndsvisningen kan stadig ses her.</p> }
+    @if (IsLocalAddress) { <p role="status">Adressen er lokal. En telefon kan ikke åbne din computers localhost. Brug appens offentlige adresse til labels, der skal scannes fra andre enheder.</p> }
+    <p role="status">@(connectedName is null ? "Ingen printer forbundet." : $"Forbundet: {connectedName}")</p>
+    <div class="page-form-actions">
+        <button class="button button-secondary" @onclick="ConnectAsync" disabled="@(busy || loading || !supported)">@(connectedName is null ? "Vælg og forbind printer" : "Vælg anden printer")</button>
+        @if (connectedName is not null) { <button class="button button-secondary" @onclick="DisconnectAsync" disabled="@busy">Afbryd printer</button> }
+        <button class="button" @onclick="PrintAsync" disabled="@(busy || loading || preview is null || connectedName is null || !supported)">@(busy ? "Arbejder…" : $"Print label {ShortId}")</button>
+    </div>
+    @if (error is not null) { <p role="alert" style="margin-top:1rem">@error</p> }
+    @if (message is not null) { <p role="status" style="margin-top:1rem">@message</p> }
+</section>
+@code {
+    [Parameter] public int ShortId { get; set; }
+    [Parameter] public string Name { get; set; } = "";
+    private LabelPreview? preview;
+    private (int, string)? lastItem;
+    private string publicBaseUrl = "";
+    private string? connectedName, error, message;
+    private bool loading = true, busy, supported;
+    private bool IsLocalAddress => Uri.TryCreate(publicBaseUrl, UriKind.Absolute, out var uri) && uri.IsLoopback;
+    protected override async Task OnParametersSetAsync()
+    {
+        if (lastItem == (ShortId, Name)) return;
+        lastItem = (ShortId, Name);
+        if (publicBaseUrl.Length == 0) publicBaseUrl = string.IsNullOrWhiteSpace(Options.PublicBaseUrl) ? Navigation.BaseUri : Options.PublicBaseUrl;
+        await PrepareAsync();
+    }
+    private void InvalidatePreview() { preview = null; message = error = null; }
+    private async Task PrepareAsync()
+    {
+        loading = true; preview = null; error = message = null;
+        try
+        {
+            // Preload JS here; Bluetooth chooser must run immediately from the subsequent click.
+            supported = await Printer.IsSupportedAsync();
+            connectedName = await Printer.ConnectionAsync();
+            preview = await Printer.PrepareAsync(ShortId, Name, publicBaseUrl);
+        }
+        catch (JSException e) { error = e.Message; }
+        finally { loading = false; }
+    }
+    private async Task ConnectAsync()
+    {
+        busy = true; error = message = null;
+        try { connectedName = await Printer.ConnectAsync(); }
+        catch (JSException e)
+        {
+            error = e.Message.Contains("cancel", StringComparison.OrdinalIgnoreCase) || e.Message.Contains("NotFoundError") ? "Printervalget blev annulleret. Vælg printeren, når du er klar." : $"Printeren kunne ikke forbindes: {e.Message}";
+            try { connectedName = await Printer.ConnectionAsync(); } catch (JSException) { connectedName = null; }
+        }
+        finally { busy = false; }
+    }
+    private async Task DisconnectAsync()
+    {
+        busy = true; error = message = null;
+        try { await Printer.DisconnectAsync(); connectedName = null; }
+        catch (JSException e) { error = e.Message; }
+        finally { busy = false; }
+    }
+    private async Task PrintAsync()
+    {
+        if (busy || preview is null) return;
+        busy = true; error = message = null;
+        try { message = await Printer.PrintAsync(ShortId, preview.Url); }
+        catch (JSException e) { error = $"Print kunne ikke bekræftes: {e.Message} Kontrollér printeren før et nyt forsøg."; try { connectedName = await Printer.ConnectionAsync(); } catch (JSException) { connectedName = null; } }
+        finally { busy = false; }
+    }
+}

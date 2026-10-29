@@ -9,3 +9,5 @@ TestResults
 artifacts
 **/Secrets.h
 **/.pio
+
+**/node_modules

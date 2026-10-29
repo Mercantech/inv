@@ -12,10 +12,10 @@ public sealed class MercantecAuthClient(IJSRuntime js, AuthConfiguration configu
     private Task<IJSObjectReference>? module;
 
     private Task<IJSObjectReference> Module =>
-        module ??= js.InvokeAsync<IJSObjectReference>("import", "./auth.js?v=2").AsTask();
+        module ??= js.InvokeAsync<IJSObjectReference>("import", "./auth.js?v=3").AsTask();
 
-    public async Task LoginAsync() => await (await Module).InvokeVoidAsync("login", configuration);
-    public async Task CompleteLoginAsync() => await (await Module).InvokeVoidAsync("callback", configuration);
+    public async Task LoginAsync(string? returnUrl = null) => await (await Module).InvokeVoidAsync("login", configuration, returnUrl);
+    public async Task<string> CompleteLoginAsync() => await (await Module).InvokeAsync<string>("callback", configuration);
     public async Task LogoutAsync()
     {
         await (await Module).InvokeVoidAsync("clearSession");

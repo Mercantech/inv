@@ -116,3 +116,19 @@ test('refresh completing after logout cannot restore the session', async () => {
     await assert.rejects(request, /afbrudt/);
     assert.equal(auth.isSignedIn(), false);
 });
+
+
+test('QR scan returns to the same equipment after a validated PKCE login', async () => {
+    await auth.login(config, '/E/109');
+    location.href += '?code=valid&state=' + JSON.parse(stored.get('inv.auth.pending')).state;
+    globalThis.fetch = async () => reply();
+    assert.equal(await auth.callback(config), 'E/109');
+});
+
+test('login return URLs cannot redirect off-site or loop back into login', async () => {
+    for (const value of ['https://evil.example/', '//evil.example/', 'javascript:alert(1)', '/login', '/auth/callback', '\\evil.example/']) {
+        await auth.login(config, value);
+        assert.equal(JSON.parse(stored.get('inv.auth.pending')).returnUrl, '');
+    }
+    assert.equal(auth.safeReturnUrl('/udstyr/abc?tab=fejl'), 'udstyr/abc?tab=fejl');
+});

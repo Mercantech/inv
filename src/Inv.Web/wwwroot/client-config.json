@@ -2,5 +2,6 @@
   "ApiBaseUrl": "/api/",
   "AuthAuthority": "https://auth.mercantec.tech",
   "AuthClientId": "inv",
-  "AuthRedirectUri": ""
+  "AuthRedirectUri": "",
+  "LabelPublicBaseUrl": ""
 }

@@ -17,7 +17,8 @@ using (var configurationClient = new HttpClient { BaseAddress = new Uri(builder.
         ["ApiBaseUrl"] = document.RootElement.GetProperty("ApiBaseUrl").GetString(),
         ["AuthAuthority"] = document.RootElement.GetProperty("AuthAuthority").GetString(),
         ["AuthClientId"] = document.RootElement.GetProperty("AuthClientId").GetString(),
-        ["AuthRedirectUri"] = document.RootElement.GetProperty("AuthRedirectUri").GetString()
+        ["AuthRedirectUri"] = document.RootElement.GetProperty("AuthRedirectUri").GetString(),
+        ["LabelPublicBaseUrl"] = document.RootElement.TryGetProperty("LabelPublicBaseUrl", out var labelUrl) ? labelUrl.GetString() : ""
     });
 }
 
@@ -57,5 +58,7 @@ builder.Services.AddScoped<LoanClient>();
 builder.Services.AddScoped<IssueCategoryClient>();
 builder.Services.AddScoped<IssueClient>();
 builder.Services.AddScoped<DashboardClient>();
+builder.Services.AddScoped<LabelPrinterClient>();
+builder.Services.AddSingleton(new LabelOptions(builder.Configuration["LabelPublicBaseUrl"] ?? ""));
 
 await builder.Build().RunAsync();

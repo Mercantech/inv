@@ -65,6 +65,15 @@ public sealed class EquipmentClient(MercantecAuthClient auth)
             "API'et returnerede en ugyldig udstyrsliste.");
     }
 
+    public async Task<Guid?> FindByNumberAsync(int shortId)
+    {
+        var response = await auth.GetAsync($"equipment/by-number/{shortId}");
+        if (response.Status == 404) return null;
+        if (response.Status != 200) throw new HttpRequestException("Udstyret kunne ikke findes.", null, (HttpStatusCode)response.Status);
+        return JsonSerializer.Deserialize<EquipmentNumberResponse>(response.Body, JsonOptions)?.Id ?? throw new JsonException();
+    }
+    private sealed record EquipmentNumberResponse(Guid Id, int ShortId);
+
     public async Task<EquipmentResponse?> GetByIdAsync(Guid id)
     {
         var response = await auth.GetAsync($"equipment/{id}");

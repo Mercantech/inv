@@ -2,5 +2,6 @@
   "ApiBaseUrl": "${API_BASE_URL}",
   "AuthAuthority": "${AUTH_AUTHORITY}",
   "AuthClientId": "${AUTH_CLIENT_ID}",
-  "AuthRedirectUri": "${AUTH_REDIRECT_URI}"
+  "AuthRedirectUri": "${AUTH_REDIRECT_URI}",
+  "LabelPublicBaseUrl": "${LABEL_PUBLIC_BASE_URL}"
 }

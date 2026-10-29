@@ -61,6 +61,7 @@
             {
                 <div class="eq-detail-actions">
                     <a class="button" href="@($"/udstyr/{Id}/rediger")">Rediger</a>
+                    <button type="button" class="button button-secondary" @onclick="() => showLabel = !showLabel">Print label</button>
                     <button type="button" class="button button-danger" @onclick="DeleteAsync" disabled="@busy">Slet</button>
                 </div>
             }
@@ -69,6 +70,11 @@
         @if (!string.IsNullOrWhiteSpace(actionError))
         {
             <p class="eq-alert" role="alert">@actionError</p>
+        }
+
+        @if (isAdmin && showLabel)
+        {
+            <EquipmentLabel ShortId="equipment.ShortId" Name="equipment.Name" @key="Id" />
         }
 
         <div class="eq-detail-grid">
@@ -118,7 +124,7 @@
 
     private EquipmentResponse? equipment;
     private EquipmentLoan? equipmentLoan;
-    private bool loading, isAdmin, busy;
+    private bool loading, isAdmin, busy, showLabel;
     private string? error, actionError;
 
     protected override async Task OnParametersSetAsync()

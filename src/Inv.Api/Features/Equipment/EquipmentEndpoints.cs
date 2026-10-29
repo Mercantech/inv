@@ -96,6 +96,13 @@ public static class EquipmentEndpoints
             return Results.Ok(counted);
         });
 
+        group.MapGet("/by-number/{shortId:int}", async (int shortId, InventoryDbContext database, CancellationToken ct) =>
+        {
+            var equipment = await database.Equipment.AsNoTracking().Where(e => e.ShortId == shortId)
+                .Select(e => new { e.Id, e.ShortId }).SingleOrDefaultAsync(ct);
+            return equipment is null ? Results.NotFound(new { Message = "Udstyret blev ikke fundet." }) : Results.Ok(equipment);
+        });
+
         group.MapGet("/{id:guid}", async (
             Guid id,
             InventoryDbContext database,
