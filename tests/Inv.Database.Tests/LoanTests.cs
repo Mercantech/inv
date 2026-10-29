@@ -357,8 +357,13 @@ public sealed class LoanTests(PostgresFixture postgres) : IClassFixture<Postgres
         using var user = app.GetTestClient();
         user.DefaultRequestHeaders.Add("X-Test-User", "borrower");
         var equipment = await SeedAsync();
+        Assert.Equal(HttpStatusCode.Forbidden, (await user.GetAsync("/api/management/loan-requests")).StatusCode);
+        using var anonymous = app.GetTestClient();
+        Assert.Equal(HttpStatusCode.Unauthorized, (await anonymous.GetAsync("/api/management/loan-requests")).StatusCode);
         var path = $"/api/equipment/{equipment.Id}/loan-requests";
         Assert.Equal(HttpStatusCode.Created, (await user.PostAsJsonAsync(path, new SubmitLoanRequest("Til undervisning"))).StatusCode);
+        var allRequests = (await manager.GetFromJsonAsync<List<LoanRequestResponse>>("/api/management/loan-requests"))!;
+        Assert.Contains(allRequests, r => r.EquipmentId == equipment.Id && r.BorrowerSubject == Borrower && r.Status == "Pending");
         Assert.Equal(HttpStatusCode.Conflict, (await user.PostAsJsonAsync(path, new SubmitLoanRequest(null))).StatusCode);
         Assert.Equal(HttpStatusCode.NoContent, (await user.GetAsync($"/api/equipment/{equipment.Id}/loan")).StatusCode);
         var rows = (await user.GetFromJsonAsync<List<LoanRequestResponse>>($"/api/loan-requests?equipmentId={equipment.Id}"))!;

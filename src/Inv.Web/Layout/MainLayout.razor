@@ -1,5 +1,6 @@
 @inherits LayoutComponentBase
 @inject NavigationManager Navigation
+@inject Inv.Web.Services.AdminAccess Admin
 @using System.Net.Http.Json
 @using System.Text.Json.Serialization
 
@@ -14,7 +15,11 @@
             <NavLink href="forbindelse">Forbindelse</NavLink>
             <NavLink href="kategorier">Kategorier</NavLink>
             <NavLink href="udstyr">Udstyr</NavLink>
-            <NavLink href="udlaan">Aktive udlån</NavLink>
+            <NavLink href="udlaan" Match="NavLinkMatch.All">Aktive udlån</NavLink>
+            @if (isManager)
+            {
+                <NavLink href="udlaan/anmodninger">Låneanmodninger</NavLink>
+            }
             <NavLink href="hardware">Hardwaretests</NavLink>
             <NavLink href="hardware/run">Kør test</NavLink>
             <NavLink href="konto">Min konto</NavLink>
@@ -36,6 +41,14 @@
 </AuthGate>
 
 @code {
+    private bool isManager;
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        isManager = await Admin.IsAdminAsync();
+        StateHasChanged();
+    }
+
     private string version = "…";
     private string? builtAt;
 

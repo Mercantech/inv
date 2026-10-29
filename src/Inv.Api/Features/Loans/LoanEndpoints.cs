@@ -60,6 +60,11 @@ public static class LoanEndpoints
 
         group.MapPost("/equipment/{id:guid}/loans", CreateAsync).RequireAuthorization("LoanManager");
         group.MapPost("/equipment/{id:guid}/loans/return", ReturnAsync).RequireAuthorization("LoanManager");
+        group.MapGet("/management/loan-requests", async (InventoryDbContext db, CancellationToken ct) =>
+            Results.Ok(await db.LoanRequests.AsNoTracking().OrderByDescending(r => r.CreatedAt)
+                .Select(r => new LoanRequestResponse(r.Id, r.EquipmentId, r.Equipment.Name,
+                    r.BorrowerSubject, r.Status, r.Note, r.CreatedAt)).ToListAsync(ct)))
+            .RequireAuthorization("EquipmentManager");
         group.MapGet("/loan-requests", async (ClaimsPrincipal user, InventoryDbContext db,
             Microsoft.AspNetCore.Authorization.IAuthorizationService authorization, Guid? equipmentId, CancellationToken ct) =>
         {

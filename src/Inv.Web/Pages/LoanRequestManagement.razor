@@ -1,0 +1,114 @@
+@page "/udlaan/anmodninger"
+@using System.Net
+@using System.Text.Json
+@using Inv.Web.Models
+@using Inv.Web.Services
+@inject LoanClient Loans
+
+<PageTitle>Låneanmodninger · Udstyrsinventar</PageTitle>
+<HeadContent><link rel="stylesheet" href="css/equipment.css?v=2" /></HeadContent>
+<div class="eq-page">
+    <header class="eq-hero">
+        <div><p class="eyebrow">Udstyrsadministration</p><h1>Låneanmodninger</h1>
+        <p>Se alle anmodninger, og godkend eller afvis udlån.</p></div>
+    </header>
+    @if (loading) { <p role="status">Henter låneanmodninger…</p> }
+    else if (!allowed)
+    {
+        <p role="alert">@(error ?? "Denne side kræver equipmentmanager- eller administratoradgang.")</p>
+        <button class="button button-secondary" @onclick="LoadAsync">Prøv igen</button>
+    }
+    else
+    {
+        <div class="eq-toolbar">
+            <label>Søg efter udstyr eller låner
+                <input type="search" @bind="search" @bind:event="oninput" placeholder="Udstyr, navn, e-mail eller bruger-ID" />
+            </label>
+            <label>Status
+                <select @bind="status">
+                    <option value="">Alle</option><option value="Pending">Afventer godkendelse</option>
+                    <option value="Approved">Godkendt</option><option value="Rejected">Afvist</option>
+                </select>
+            </label>
+            <button class="button button-secondary" disabled="@saving" @onclick="LoadAsync">Opdatér</button>
+        </div>
+        @if (error is not null) { <p role="alert">@error</p> }
+        @if (message is not null) { <p role="status">@message</p> }
+        @if (directoryUnavailable) { <p role="status">Lånerregistret kunne ikke hentes. Lånere vises med bruger-ID.</p> }
+        <p class="eq-summary">@rows.Count(r => r.Status == "Pending") afventer godkendelse · @Visible.Count() vises af @rows.Count anmodninger</p>
+        @if (!Visible.Any()) { <p role="status">Ingen låneanmodninger matcher.</p> }
+        @foreach (var row in Visible)
+        {
+            <section class="eq-panel" style="margin-bottom:1rem" @key="row.Id">
+                <h2><a href="@($"/udstyr/{row.EquipmentId}")">@row.EquipmentName</a></h2>
+                <dl class="eq-facts">
+                    <dt>Status</dt><dd>@StatusText(row.Status)</dd>
+                    <dt>Låner</dt><dd>@BorrowerLabel(row.BorrowerSubject)</dd>
+                    <dt>Anmodet</dt><dd>@row.CreatedAt.ToLocalTime().ToString("dd-MM-yyyy HH:mm")</dd>
+                    @if (!string.IsNullOrWhiteSpace(row.Note)) { <dt>Note</dt><dd class="loan-note">@row.Note</dd> }
+                </dl>
+                @if (row.Status == "Pending")
+                {
+                    <div class="page-form-actions" style="margin-top:1rem">
+                        <button class="button" disabled="@saving" @onclick="() => ReviewAsync(row.Id, true)">Godkend udlån</button>
+                        <button class="button button-secondary" disabled="@saving" @onclick="() => ReviewAsync(row.Id, false)">Afvis</button>
+                    </div>
+                }
+            </section>
+        }
+    }
+</div>
+@code {
+    private List<LoanRequestResponse> rows = [];
+    private List<BorrowerResponse> borrowers = [];
+    private string search = "", status = "";
+    private bool loading = true, allowed, saving, directoryUnavailable;
+    private string? error, message;
+    private IEnumerable<LoanRequestResponse> Visible => rows.Where(r =>
+        (status.Length == 0 || r.Status == status) && (string.IsNullOrWhiteSpace(search)
+            || r.EquipmentName.Contains(search.Trim(), StringComparison.OrdinalIgnoreCase)
+            || BorrowerLabel(r.BorrowerSubject).Contains(search.Trim(), StringComparison.OrdinalIgnoreCase)
+            || r.BorrowerSubject.ToString().Contains(search.Trim(), StringComparison.OrdinalIgnoreCase)));
+    private string BorrowerLabel(Guid subject)
+    {
+        var borrower = borrowers.FirstOrDefault(b => b.Subject == subject);
+        return borrower is null ? subject.ToString() : $"{borrower.Name} · {borrower.Email ?? subject.ToString()}";
+    }
+    private static string StatusText(string status) => status switch { "Pending" => "Afventer godkendelse", "Approved" => "Godkendt", "Rejected" => "Afvist", _ => status };
+    protected override Task OnInitializedAsync() => LoadAsync();
+    private async Task LoadAsync()
+    {
+        loading = true; error = null; allowed = false;
+        try
+        {
+            rows = await Loans.GetManagementRequestsAsync();
+            allowed = true;
+            directoryUnavailable = false;
+            try { borrowers = await Loans.GetBorrowersAsync(); }
+            catch (Exception e) when (e is HttpRequestException or JSException or JsonException) { borrowers = []; directoryUnavailable = true; }
+        }
+        catch (HttpRequestException e) { error = e.StatusCode == HttpStatusCode.Forbidden ? "Denne side kræver equipmentmanager- eller administratoradgang." : "Anmodningerne kunne ikke hentes. Kontrollér login og prøv igen."; }
+        catch (Exception e) when (e is JSException or JsonException) { error = "Anmodningerne kunne ikke hentes. Prøv igen."; }
+        finally { loading = false; }
+    }
+    private async Task ReviewAsync(Guid id, bool approve)
+    {
+        if (saving) return;
+        saving = true; error = message = null;
+        string? reviewError = null;
+        try
+        {
+            var result = await Loans.ReviewAsync(id, approve);
+            if (result.Status == 204) message = approve ? "Anmodningen er godkendt, og udlånet er registreret." : "Anmodningen er afvist.";
+            else reviewError = result.Status switch {
+                409 => "Anmodningen er allerede behandlet, eller udstyret er allerede udlånt.",
+                503 => "Låneren kunne ikke bekræftes hos Mercantec Auth. Prøv igen senere.",
+                400 => "Låneren findes ikke eller er deaktiveret hos Mercantec Auth.",
+                _ => "Anmodningen kunne ikke behandles. Kontrollér login og rettigheder." };
+        }
+        catch (Exception e) when (e is HttpRequestException or JSException) { reviewError = "Svaret kunne ikke hentes. Kontrollér den opdaterede status, før du prøver igen."; }
+        finally { saving = false; }
+        await LoadAsync();
+        error ??= reviewError;
+    }
+}

@@ -48,6 +48,12 @@ public sealed class LoanClient(MercantecAuthClient auth)
         auth.PostAsync($"equipment/{equipmentId}/loans/return", new { LoanId = loanId, ReturnNote = returnNote });
 
     public async Task<bool> CanReviewAsync() => (await auth.GetAsync("loan-request-access")).Status == 200;
+    public async Task<List<LoanRequestResponse>> GetManagementRequestsAsync()
+    {
+        var response = await auth.GetAsync("management/loan-requests");
+        EnsureSuccess(response);
+        return JsonSerializer.Deserialize<List<LoanRequestResponse>>(response.Body, JsonOptions) ?? throw new JsonException();
+    }
     public async Task<List<LoanRequestResponse>> GetRequestsAsync(Guid? equipmentId)
     {
         var response = await auth.GetAsync("loan-requests" + (equipmentId.HasValue ? $"?equipmentId={equipmentId}" : ""));
