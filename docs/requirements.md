@@ -23,7 +23,7 @@ Oprettelse og redigering bruger navn, serienummer og kategori. Et registreret Ar
 | --- | --- |
 | [#12 – Fejlkategorier](https://github.com/Mercantech/inv/issues/12) | Testet og accepteret af brugeren den 29. oktober 2026; afsluttet. |
 | [#9 – Rapportere fejl](https://github.com/Mercantech/inv/issues/9) | Afsluttet ved gennemgangen den 29. oktober 2026 efter kontrol af kode og tests mod de opdaterede krav. |
-| [#15 – Behandle fejl](https://github.com/Mercantech/inv/issues/15) | Åbent: frontend mangler en brugerdefineret løsningsnote og tilbage til Åben/genåbning. Backend gemmer ansvarlig/tid og bevarer historik. |
+| [#15 – Behandle fejl](https://github.com/Mercantech/inv/issues/15) | Færdiggjort den 29. oktober 2026: formular med alle tre statusser, brugerdefineret løsningsnote, annullering og genåbning. Backend og renderet frontend er testet mod API/PostgreSQL. |
 | [#10 – Samlet status](https://github.com/Mercantech/inv/issues/10) | På standby til afslutningen af Version 1; ikke en forudsætning for accept af fejlrapporteringen i Sprint 3. |
 
 ## Afsluttende dashboard
@@ -35,3 +35,7 @@ Udlån og fejl vises separat og må overlappe. Der skal være adgang til relevan
 ## Samlet issuegennemgang
 
 Se [gennemgangen af alle 19 issues](issue-audit-2026-10-29.md) for status, begrundelser og validering.
+
+## Afslutning af fejlbehandling
+
+#15 er færdiggjort efter issuegennemgangen: alle 70 .NET-tests består, inklusive renderet formulartest og statusforløb. Manuel browserkontrol er ikke udført på grund af computer-use-begrænsningen. Det aktive Sprint 3-omfang (#9, #12 og #15) er dermed leveret; dashboardet #10 er fortsat på standby, og QR/DYMO #13 er fortsat åbent.

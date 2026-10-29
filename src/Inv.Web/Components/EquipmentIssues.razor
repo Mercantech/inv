@@ -82,18 +82,50 @@
                         <p style="margin:0;color:inherit">@issue.Description</p>
                         @if (!string.IsNullOrWhiteSpace(issue.ResolutionNote))
                         {
-                            <p class="page-summary" style="margin:0">Løsning: @issue.ResolutionNote</p>
+                            <p class="page-summary" style="margin:0">@(issue.Status == "Resolved" ? "Løsning" : "Seneste løsningsnote"): @issue.ResolutionNote</p>
+                        }
+                        @if (issue.ResolvedAt is DateTimeOffset resolvedAt)
+                        {
+                            <p class="page-summary" style="margin:0">Løst @resolvedAt.ToLocalTime().ToString("dd-MM-yyyy HH:mm") · Ansvarlig: @issue.ResolvedBySubject</p>
                         }
                         @if (isAdmin)
                         {
-                            <div class="page-form-actions">
-                                @if (issue.Status != "Resolved")
-                                {
-                                    <button type="button" class="button" @onclick="() => ResolveAsync(issue)" disabled="@busy">Løs</button>
-                                    <button type="button" class="button button-secondary" @onclick="() => MarkInProgressAsync(issue)" disabled="@busy">I gang</button>
-                                }
-                                <button type="button" class="button button-danger" @onclick="() => DeleteAsync(issue)" disabled="@busy">Slet</button>
-                            </div>
+                            @if (editingIssueId == issue.Id)
+                            {
+                                <form class="loan-form" style="width:100%" @onsubmit="() => SaveResolutionAsync(issue)" @onsubmit:preventDefault>
+                                    <fieldset disabled="@busy">
+                                        <legend>Behandl fejlrapport</legend>
+                                        <label for="@($"issue-status-{issue.Id}")">Status</label>
+                                        <select id="@($"issue-status-{issue.Id}")" @bind="editStatus">
+                                            <option value="Open">Åben</option>
+                                            <option value="InProgress">Under behandling</option>
+                                            <option value="Resolved">Løst</option>
+                                        </select>
+                                        <label for="@($"resolution-note-{issue.Id}")">Løsningsnote @(editStatus == "Resolved" ? "(påkrævet)" : "(valgfri)")</label>
+                                        <textarea id="@($"resolution-note-{issue.Id}")" @bind="resolutionNote" @bind:event="oninput" maxlength="4000" rows="3" required="@(editStatus == "Resolved")"></textarea>
+                                        @if (editError is not null) { <p role="alert">@editError</p> }
+                                        <div class="page-form-actions">
+                                            <button class="button" type="submit">@(busy ? "Gemmer…" : "Gem behandling")</button>
+                                            <button class="button button-secondary" type="button" @onclick="CancelEdit">Annuller</button>
+                                        </div>
+                                    </fieldset>
+                                </form>
+                            }
+                            else
+                            {
+                                <div class="page-form-actions">
+                                    <button type="button" class="button" @onclick="() => StartEdit(issue)" disabled="@busy">Behandl</button>
+                                    @if (issue.Status != "Resolved")
+                                    {
+                                        <button type="button" class="button button-secondary" @onclick='() => StartEdit(issue, "Resolved")' disabled="@busy">Løs</button>
+                                    }
+                                    @if (issue.Status != "Open")
+                                    {
+                                        <button type="button" class="button button-secondary" @onclick='() => StartEdit(issue, "Open")' disabled="@busy">@(issue.Status == "Resolved" ? "Genåbn" : "Sæt til åben")</button>
+                                    }
+                                    <button type="button" class="button button-danger" @onclick="() => DeleteAsync(issue)" disabled="@busy">Slet</button>
+                                </div>
+                            }
                         }
                     </li>
                 }
@@ -112,10 +144,14 @@
     private List<IssueCategoryResponse> categories = [];
     private CreateIssueFormModel createModel = new();
     private bool loading = true, busy, isAdmin;
-    private string? loadError, saveError;
+    private string? loadError, saveError, editError;
+    private Guid? editingIssueId;
+    private Guid? loadedEquipmentId;
+    private string editStatus = "Open", resolutionNote = "";
 
     protected override async Task OnParametersSetAsync()
     {
+        if (loadedEquipmentId != EquipmentId) { CancelEdit(); loadedEquipmentId = EquipmentId; }
         isAdmin = await Admin.IsAdminAsync();
         await LoadAsync();
     }
@@ -167,47 +203,58 @@
         finally { busy = false; }
     }
 
-    private async Task ResolveAsync(EquipmentIssueResponse issue)
+    private void StartEdit(EquipmentIssueResponse issue, string? status = null)
     {
-        if (busy) return;
-        busy = true;
-        saveError = null;
-        try
-        {
-            var response = await Issues.UpdateAsync(EquipmentId, issue.Id, new UpdateIssueFormModel
-            {
-                IssueCategoryId = issue.IssueCategoryId,
-                Description = issue.Description,
-                Status = "Resolved",
-                ResolutionNote = "Løst"
-            });
-            if (response.Status == 200) { await LoadAsync(); await OnChanged.InvokeAsync(); }
-            else saveError = response.Status == 403 ? "Du mangler rettighed." : "Kunne ikke lukke fejlrapporten.";
-        }
-        catch (JSException) { saveError = "Tjek forbindelse og login."; }
-        finally { busy = false; }
+        editingIssueId = issue.Id;
+        editStatus = status ?? issue.Status;
+        resolutionNote = issue.ResolutionNote ?? "";
+        editError = saveError = null;
     }
 
-    private Task MarkInProgressAsync(EquipmentIssueResponse issue) => SetStatusAsync(issue, "InProgress");
-
-    private async Task SetStatusAsync(EquipmentIssueResponse issue, string status)
+    private void CancelEdit()
     {
-        if (busy) return;
+        editingIssueId = null;
+        resolutionNote = "";
+        editStatus = "Open";
+        editError = null;
+    }
+
+    private async Task SaveResolutionAsync(EquipmentIssueResponse issue)
+    {
+        if (busy || editingIssueId != issue.Id) return;
+        editError = saveError = null;
+        var note = resolutionNote.Trim();
+        if (note.Length > 4000 || (editStatus == "Resolved" && string.IsNullOrWhiteSpace(note)))
+        {
+            editError = "Angiv en løsningsnote på højst 4000 tegn, når fejlrapporten løses.";
+            return;
+        }
         busy = true;
-        saveError = null;
         try
         {
             var response = await Issues.UpdateAsync(EquipmentId, issue.Id, new UpdateIssueFormModel
             {
-                IssueCategoryId = issue.IssueCategoryId,
-                Description = issue.Description,
-                Status = status,
-                ResolutionNote = issue.ResolutionNote
+                Status = editStatus,
+                ResolutionNote = note,
+                Description = issue.Description
             });
-            if (response.Status == 200) { await LoadAsync(); await OnChanged.InvokeAsync(); }
-            else saveError = "Status kunne ikke opdateres.";
+            if (response.Status == 200)
+            {
+                CancelEdit();
+                await LoadAsync();
+                await OnChanged.InvokeAsync();
+            }
+            else editError = response.Status switch
+            {
+                400 => "Kontrollér status og løsningsnote. Noten må højst være 4000 tegn og skal udfyldes ved løsning.",
+                401 => "Dit login er udløbet. Log ind igen.",
+                403 => "Kun equipmentmanager og admin må behandle fejlrapporter.",
+                404 => "Fejlrapporten findes ikke længere. Genindlæs siden.",
+                _ => "Behandlingen kunne ikke gemmes. Prøv igen."
+            };
         }
-        catch (JSException) { saveError = "Tjek forbindelse og login."; }
+        catch (Exception e) when (e is HttpRequestException or JSException or JsonException)
+        { editError = "Svaret kunne ikke hentes. Kontrollér rapportens status, før du prøver igen."; }
         finally { busy = false; }
     }
 
@@ -229,7 +276,7 @@
     private static string StatusLabel(string status) => status switch
     {
         "Open" => "Åben",
-        "InProgress" => "I gang",
+        "InProgress" => "Under behandling",
         "Resolved" => "Løst",
         _ => status
     };

@@ -289,9 +289,12 @@ public static class IssueEndpoints
 
         if (nextStatus is EquipmentIssueStatus.Resolved)
         {
+            if (issue.Status != EquipmentIssueStatus.Resolved)
+            {
+                issue.ResolvedAt = DateTimeOffset.UtcNow;
+                issue.ResolvedBySubject = actor;
+            }
             issue.Status = EquipmentIssueStatus.Resolved;
-            issue.ResolvedAt = DateTimeOffset.UtcNow;
-            issue.ResolvedBySubject = actor;
             issue.ResolutionNote = string.IsNullOrWhiteSpace(resolution) ? issue.ResolutionNote : resolution;
             if (string.IsNullOrWhiteSpace(issue.ResolutionNote))
             {

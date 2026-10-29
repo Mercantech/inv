@@ -41,3 +41,7 @@ Der er nu 12 afsluttede og 3 åbne funktionsissues. Med sprintissues medregnet e
 ## Næste arbejde
 
 Færdiggør #15 med brugerdefineret løsningsnote og det fulde statusforløb i frontend; afprøv derefter og afslut Sprint 3. Afklar og implementér QR/DYMO i #13. Dashboardet #10 forbliver på standby til afslutningen af V1 som aftalt.
+
+## Efterfølgende færdiggørelse af #15
+
+Efter ovenstående gennemgang er #15 implementeret med brugerdefineret løsningsnote, alle tre statusser, annullering og genåbning. Alle 70 .NET-tests består, inklusive en renderet formulartest mod det rigtige API. De oprindelige fund ovenfor er historiske og er nu løst. Manuel browserkontrol kunne ikke udføres på grund af computer-use-værktøjets Windows-browserbegrænsning. Det aktive Sprint 3-omfang er leveret; #10 og #13 afventer fortsat.

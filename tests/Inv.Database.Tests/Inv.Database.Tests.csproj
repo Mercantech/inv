@@ -6,6 +6,7 @@
   <ItemGroup>
     <ProjectReference Include="../../src/Inv.Infrastructure/Inv.Infrastructure.csproj" />
     <ProjectReference Include="../../src/Inv.Api/Inv.Api.csproj" />
+    <ProjectReference Include="../../src/Inv.Web/Inv.Web.csproj" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="Microsoft.AspNetCore.TestHost" />
     <PackageReference Include="Testcontainers.PostgreSql" />

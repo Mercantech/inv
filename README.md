@@ -1,5 +1,13 @@
 # Udstyrsinventar
 
+## Behandling af fejlrapporter (V1-15, 29. oktober 2026)
+
+EquipmentManager/Admin kan behandle manuelle fejl på udstyrets detaljeside. **Behandl** åbner formularen med status **Åben**, **Under behandling** eller **Løst** og en redigerbar løsningsnote. **Løs** og **Genåbn** åbner samme formular med den relevante status valgt; ændringen gemmes først med **Gem behandling**. **Annuller** gemmer intet.
+
+Ved løsning kræves en note på højst 4000 tegn. Ved genåbning bevares noten som **Seneste løsningsnote**, og rapporten tæller igen som en aktuel fejl. Løste rapporter bevares i listen med løsningstidspunkt og ansvarlig bruger. Andre fejlrapporter påvirkes ikke. API'et sætter ansvarlig og tidspunkt ved løsning; en rettelse af noten på en allerede løst rapport ændrer ikke disse oplysninger. En genåbnet rapport får nye løsningsoplysninger, når den løses igen. Hardwarefejl håndteres fortsat gennem nye hardwaretests.
+
+Validering: Release-build bestået og alle 70 .NET-tests bestået mod PostgreSQL. En renderet komponenttest afprøver den faktiske Razor-formular og dens handlers mod API'et: validering, annullering, brugerdefineret note og genåbning. Integrationstests dækker alle statusser, fejlantal, uafhængige rapporter, rettigheder, ugyldige værdier og serverstyrede løsningsoplysninger. Manuel browserkontrol kunne ikke udføres, fordi computer-use-værktøjet stoppede med manglende URL-policy-understøttelse i Windows-browseren. Der kræves ingen migration.
+
 ## Aftalt scope og accept (29. oktober 2026)
 
 Se [opdaterede krav og sprintstatus](docs/requirements.md). Almindelige brugere rapporterer hardwarefejl via hardwaretest; manuelle fejlrapporter er kun til EquipmentManager/Admin. #12 er testet og accepteret af brugeren. #10 er på standby til et samlet dashboard ved afslutningen af V1. Tilstand er erstattet af beregnet fejlantal.
