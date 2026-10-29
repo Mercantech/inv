@@ -22,8 +22,8 @@ Oprettelse og redigering bruger navn, serienummer og kategori. Et registreret Ar
 | Issue | Aftalt status |
 | --- | --- |
 | [#12 – Fejlkategorier](https://github.com/Mercantech/inv/issues/12) | Testet og accepteret af brugeren den 29. oktober 2026; afsluttet. |
-| [#9 – Rapportere fejl](https://github.com/Mercantech/inv/issues/9) | Krav opdateret med hardwaretest for almindelige brugere og manuelle rapporter kun for EquipmentManager/Admin. Afventer accept. |
-| [#15 – Behandle fejl](https://github.com/Mercantech/inv/issues/15) | Afventer accept af statusforløb, løsningsnote, ansvarlig/tid og bevaret historik. |
+| [#9 – Rapportere fejl](https://github.com/Mercantech/inv/issues/9) | Afsluttet ved gennemgangen den 29. oktober 2026 efter kontrol af kode og tests mod de opdaterede krav. |
+| [#15 – Behandle fejl](https://github.com/Mercantech/inv/issues/15) | Åbent: frontend mangler en brugerdefineret løsningsnote og tilbage til Åben/genåbning. Backend gemmer ansvarlig/tid og bevarer historik. |
 | [#10 – Samlet status](https://github.com/Mercantech/inv/issues/10) | På standby til afslutningen af Version 1; ikke en forudsætning for accept af fejlrapporteringen i Sprint 3. |
 
 ## Afsluttende dashboard
@@ -31,3 +31,7 @@ Oprettelse og redigering bruger navn, serienummer og kategori. Et registreret Ar
 #10 samler de færdige funktioner i et dashboard i frontend ved afslutningen af Version 1. Dashboardet skal vise samlet antal udstyr, ledigt udstyr, udlånt udstyr og antal udstyr med aktuelle fejl. Et udstyr med flere fejl tæller kun én gang i tallet for udstyr med fejl.
 
 Udlån og fejl vises separat og må overlappe. Der skal være adgang til relevante udstyrs-/fejlvisninger og filtre. Tallene skal afspejle aktuelle registreringer ved opdatering. Den konkrete frontendudformning afklares, når dashboardarbejdet starter.
+
+## Samlet issuegennemgang
+
+Se [gennemgangen af alle 19 issues](issue-audit-2026-10-29.md) for status, begrundelser og validering.
